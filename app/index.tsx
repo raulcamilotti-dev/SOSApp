@@ -88,7 +88,6 @@ export default function Login() {
           <Pressable onPress={() => router.push('/register')}>
             <Text style={styles.createAccount}>Criar conta</Text>
           </Pressable>
-
           <Pressable onPress={handleSkip}>
             <Text style={styles.secondaryText}>
               Continuar sem login
