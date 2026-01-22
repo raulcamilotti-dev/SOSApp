@@ -1,178 +1,84 @@
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { api } from '../services/api';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Colors } from '@/constants/theme';
+
+const colors = Colors.light;
+
 export default function Home() {
   const router = useRouter();
-
-  const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  async function loadProperties() {
-    try {
-      setLoading(true);
-      setError(null);
+  function simulateApi() {
+    setLoading(true);
 
-      const token = await SecureStore.getItemAsync('token');
-
-      if (!token) {
-        setError('Código não encontrado. Use o acesso direto.');
-        return;
-      }
-
-      const res = await api.get('/me/properties', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      setProperties(res.data);
-    } catch (err) {
-      console.log(err);
-      setError('Erro ao buscar dados da API');
-    } finally {
+    setTimeout(() => {
       setLoading(false);
-    }
+      setToast('Dados atualizados com sucesso!');
+      setTimeout(() => setToast(null), 3000);
+    }, 1000);
   }
-
-  function handleDirectAccess() {
-    // botão provisório — no futuro é só apagar
-    router.push('/numero');
-  }
-
-  useEffect(() => {
-    loadProperties();
-  }, []);
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Meus Imóveis</Text>
-        <Text style={styles.subtitle}>
-          Consulte seus imóveis ou acesse diretamente pelo número
-        </Text>
-      </View>
+      <Text style={styles.title}>Meus Imóveis</Text>
+      <Text style={styles.subtitle}>
+        Área inicial do portal
+      </Text>
 
-      {/* Botão principal */}
+      <Pressable style={styles.card} onPress={simulateApi}>
+        <Text style={styles.cardTitle}>Atualizar dados</Text>
+        <Text style={styles.cardText}>
+          Simula chamada de API com loading + toast
+        </Text>
+      </Pressable>
+
       <Pressable
-        style={({ pressed }) => [
-          styles.primaryButton,
-          pressed && { opacity: 0.85 },
-        ]}
-        onPress={loadProperties}
+        style={[styles.card, { borderColor: colors.border }]}
+        onPress={() => router.replace('/')}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.primaryButtonText}>RECEBER CÓDIGO</Text>
-        )}
+        <Text style={styles.cardTitle}>Sair</Text>
+        <Text style={styles.cardText}>Voltar para login</Text>
       </Pressable>
-
-      {/* Botão extra (atalho) */}
-      <Pressable onPress={handleDirectAccess} style={styles.secondaryButton}>
-        <Text style={styles.secondaryButtonText}>
-          Acessar diretamente com número
-        </Text>
-      </Pressable>
-
-      {/* Erro */}
-      {error && <Text style={styles.error}>{error}</Text>}
-
-      {/* Lista */}
-      <FlatList
-        data={properties}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ paddingTop: 16 }}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{item.address}</Text>
-            <Text style={styles.cardSubtitle}>
-              {item.city} - {item.state}
-            </Text>
-          </View>
-        )}
-        ListEmptyComponent={
-          !loading ? (
-            <Text style={styles.empty}>
-              Nenhum imóvel carregado ainda
-            </Text>
-          ) : null
-        }
-      />
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 24,
-    paddingTop: 48,
-  },
-  header: {
-    marginBottom: 24,
+    backgroundColor: '#fff',
+    padding: 24,
   },
   title: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#ffffff',
+    color: colors.text,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 15,
-    color: '#cbd5e1',
-  },
-  primaryButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  secondaryButtonText: {
-    color: '#94a3b8',
-    fontSize: 14,
-  },
-  error: {
-    color: '#f87171',
-    fontSize: 14,
-    marginTop: 8,
-    marginBottom: 8,
+    color: colors.muted,
+    marginBottom: 24,
   },
   card: {
-    backgroundColor: '#020617',
-    borderRadius: 10,
+    backgroundColor: colors.card,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#1e293b',
+    borderColor: colors.border,
   },
   cardTitle: {
-    color: '#ffffff',
-    fontSize: 15,
+    color: colors.text,
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
-  cardSubtitle: {
-    color: '#94a3b8',
+  cardText: {
+    color: colors.muted,
     fontSize: 13,
-  },
-  empty: {
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 24,
   },
 });
