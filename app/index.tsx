@@ -1,14 +1,13 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,26 +16,7 @@ export default function Login() {
   const [number, setNumber] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // animação
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  async function handleLogin() {
+  function handleLogin() {
     if (!number) {
       alert('Digite seu número');
       return;
@@ -44,81 +24,18 @@ export default function Login() {
 
     setLoading(true);
 
-    // simula chamada de API
+    // FUTURO: validar na API
     setTimeout(() => {
       setLoading(false);
-      router.replace('/home');
-    }, 1200);
+ router.push('/home');
+
+    }, 800);
   }
 
   function handleSkip() {
-    router.replace('/home');
-  }
+ router.push('/home');
 
-  const styles = StyleSheet.create({
-    safe: {
-      flex: 1,
-      backgroundColor: '#fff',
-    },
-    container: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-    },
-    card: {
-      width: '100%',
-      maxWidth: 380,
-    },
-    logo: {
-      fontSize: 40,
-      fontWeight: '800',
-      color: '#0f172a',
-      textAlign: 'center',
-      marginBottom: 24,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: '700',
-      color: '#0f172a',
-      textAlign: 'center',
-      marginBottom: 8,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: '#64748b',
-      textAlign: 'center',
-      marginBottom: 32,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: '#e2e8f0',
-      borderRadius: 8,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      fontSize: 16,
-      marginBottom: 16,
-      color: '#0f172a',
-    },
-    primaryButton: {
-      backgroundColor: '#0f172a',
-      borderRadius: 8,
-      paddingVertical: 14,
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    primaryButtonText: {
-      color: '#fff',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    secondaryText: {
-      color: '#0f172a',
-      fontSize: 14,
-      textAlign: 'center',
-      textDecorationLine: 'underline',
-    },
-  });
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -126,15 +43,7 @@ export default function Login() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
       >
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
+        <View style={styles.card}>
           <Text style={styles.logo}>SOS</Text>
 
           <Text style={styles.title}>Bem-vindo</Text>
@@ -152,18 +61,15 @@ export default function Login() {
           />
 
           <Pressable
-            style={[
+            style={({ pressed }) => [
               styles.primaryButton,
-              loading && { opacity: 0.7 },
+              pressed && { opacity: 0.9 },
             ]}
             onPress={handleLogin}
-            disabled={loading}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryButtonText}>ENTRAR</Text>
-            )}
+            <Text style={styles.primaryButtonText}>
+              {loading ? 'ENTRANDO...' : 'ENTRAR'}
+            </Text>
           </Pressable>
 
           <Pressable onPress={handleSkip}>
@@ -171,11 +77,12 @@ export default function Login() {
               Continuar sem login
             </Text>
           </Pressable>
-        </Animated.View>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -194,7 +101,7 @@ const styles = StyleSheet.create({
     borderColor: '#1e293b',
   },
   logo: {
-    fontSize: 40,
+    fontSize: 42,
     fontWeight: '900',
     color: '#2563eb',
     textAlign: 'center',
