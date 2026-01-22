@@ -2,11 +2,20 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+# Copia só lockfiles primeiro (melhor cache + menos RAM)
+COPY package.json package-lock.json ./
 
+# npm ci é mais leve e previsível
+RUN npm ci --no-audit --no-fund
+
+# Agora copia o resto
 COPY . .
-RUN npx expo export
+
+# Build web (desliga coisas que não precisa)
+ENV EXPO_NO_DOTENV=1
+ENV CI=1
+
+RUN npx expo export --platform web
 
 # Serve stage
 FROM nginx:alpine
