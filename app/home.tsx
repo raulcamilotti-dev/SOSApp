@@ -2,9 +2,10 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { colors as themeColors } from '@/app/theme';
 
-const colors = Colors.light;
+// Use the themeColors object directly
+const colors = themeColors;
 
 export default function Home() {
   const router = useRouter();
@@ -36,7 +37,7 @@ export default function Home() {
       </Pressable>
 
       <Pressable
-        style={[styles.card, { borderColor: colors.border }]}
+        style={[styles.card, { borderColor: colors.borderDark }]}
         onPress={() => router.replace('/')}
       >
         <Text style={styles.cardTitle}>Sair</Text>
@@ -55,30 +56,30 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '700',
-    color: colors.text,
+    color: colors.primary,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 15,
-    color: colors.muted,
+    color: colors.textMuted,
     marginBottom: 24,
   },
   card: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.cardDark,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderDark,
   },
   cardTitle: {
-    color: colors.text,
+    color: colors.primary,
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
   cardText: {
-    color: colors.muted,
+    color: colors.textMuted,
     fontSize: 13,
   },
 });

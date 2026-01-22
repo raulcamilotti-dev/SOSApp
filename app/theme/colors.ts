@@ -6,4 +6,6 @@ export const colors = {
   muted: '#94a3b8',
   primary: '#2563eb',
   secondary: '#38bdf8',
+  danger: '#dc2626',
+  success: '#16a34a',
 };

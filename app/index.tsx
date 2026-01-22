@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useColorScheme } from 'react-native';
+import { Colors } from '@/constants/theme'
 
 export default function Login() {
   const router = useRouter();
@@ -50,25 +50,25 @@ export default function Login() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}
       >
-        <Animated.View entering={FadeInUp.duration(450)} style={styles.card}>
-          <Text style={styles.logo}>SOS</Text>
+        <Animated.View entering={FadeInUp.duration(450)} style={[styles.card, { backgroundColor: colors.background, borderColor: colors.icon }]}>
+          <Text style={[styles.logo, { color: colors.tint }]}>SOS</Text>
 
-          <Text style={styles.title}>Bem-vindo</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: colors.text }]}>Bem-vindo</Text>
+          <Text style={[styles.subtitle, { color: colors.text }]}>
             Acesse sua conta para continuar
           </Text>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.icon }]}
             placeholder="Digite seu número"
-            placeholderTextColor={colors.muted}
+            placeholderTextColor={colors.text}
             value={number}
             onChangeText={setNumber}
             keyboardType="numeric"
@@ -76,7 +76,7 @@ export default function Login() {
           />
 
           <Pressable 
-            style={[styles.primaryButton, loading && styles.primaryButtonDisabled]} 
+            style={[styles.primaryButton, { backgroundColor: colors.tint }, loading && styles.primaryButtonDisabled]} 
             onPress={handleLogin}
             disabled={loading}
           >
@@ -86,10 +86,10 @@ export default function Login() {
           </Pressable>
 
           <Pressable onPress={() => router.push('/register')}>
-            <Text style={styles.createAccount}>Criar conta</Text>
+            <Text style={[styles.createAccount, { color: colors.tint }]}>Criar conta</Text>
           </Pressable>
           <Pressable onPress={handleSkip}>
-            <Text style={styles.secondaryText}>
+            <Text style={[styles.secondaryText, { color: colors.text }]}>
               Continuar sem login
             </Text>
           </Pressable>
@@ -100,41 +100,33 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1 },
   container: { flex: 1, justifyContent: 'center', padding: 24 },
   card: {
-    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
-    borderColor: colors.border,
   },
   logo: {
     fontSize: 42,
     fontWeight: '900',
-    color: colors.primary,
     textAlign: 'center',
     marginBottom: 12,
   },
-  title: { fontSize: 22, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  title: { fontSize: 22, fontWeight: '700', textAlign: 'center' },
   subtitle: {
     fontSize: 14,
-    color: colors.muted,
     textAlign: 'center',
     marginBottom: 24,
   },
   input: {
-    backgroundColor: colors.bg,
     borderRadius: 12,
     padding: 14,
-    color: colors.text,
     borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: 16,
     fontSize: 15,
   },
   primaryButton: {
-    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -144,11 +136,10 @@ const styles = StyleSheet.create({
   primaryButtonDisabled: { opacity: 0.6 },
   errorText: { color: '#ef4444', fontSize: 13, marginBottom: 12, textAlign: 'center' },
   createAccount: {
-    color: Colors.light.secondary,
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 12,
     fontWeight: '600',
   },
-  secondaryText: { color: Colors.light.muted, fontSize: 14, textAlign: 'center' },
+  secondaryText: { fontSize: 14, textAlign: 'center' },
 });

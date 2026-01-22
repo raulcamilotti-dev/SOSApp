@@ -15,7 +15,6 @@ export function Toast({ message, type }: { message: string; type: 'success' | 'e
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
