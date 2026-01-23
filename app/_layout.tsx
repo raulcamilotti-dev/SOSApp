@@ -14,7 +14,6 @@ export default function RootLayout() {
         <View style={styles.content}>
           <Stack screenOptions={{ headerShown: false }} />
         </View>
-
         <AppFooter />
       </View>
     </ThemeProvider>
