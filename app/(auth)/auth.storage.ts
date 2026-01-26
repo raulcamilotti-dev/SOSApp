@@ -1,18 +1,15 @@
-// /core/auth/auth.storage.ts
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthUser } from './auth.types';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+  
+const TOKEN_KEY = "@auth_token";
 
-const STORAGE_KEY = '@sos_escritura_user';
-
-export async function saveUser(user: AuthUser) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+export async function saveToken(token: string) {
+  await AsyncStorage.setItem(TOKEN_KEY, token);
 }
 
-export async function getUser(): Promise<AuthUser | null> {
-  const data = await AsyncStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : null;
+export async function getToken() {
+  return AsyncStorage.getItem(TOKEN_KEY);
 }
 
-export async function clearUser() {
-  await AsyncStorage.removeItem(STORAGE_KEY);
-}
+export async function removeToken() {
+  await AsyncStorage.removeItem(TOKEN_KEY);
+} 

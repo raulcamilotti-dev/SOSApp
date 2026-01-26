@@ -1,58 +1,69 @@
-// /core/auth/AuthContext.tsx
-import { createContext, useContext, useEffect, useState } from 'react';
-import { AuthUser } from './auth.types';
-import { saveUser, getUser, clearUser } from './auth.storage';
+import { createContext, useEffect, useState, ReactNode } from "react";
+import { AuthContextData, RegisterPayload, User } from "./auth.types";
+import { getToken, saveToken, removeToken } from "./auth.storage";
 
-type AuthContextData = {
-  user: AuthUser | null;
-  loading: boolean;
-  login: (user: AuthUser) => Promise<void>;
-  logout: () => Promise<void>;
-};
+const API_URL = "https://sos-escrituras-api-portal.meujsu.easypanel.host";
 
-const AuthContext = createContext<AuthContextData>({} as AuthContextData);
+export const AuthContext = createContext<AuthContextData>(
+  {} as AuthContextData
+);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔁 Recupera sessão ao abrir o app
   useEffect(() => {
-    async function loadUser() {
-      const storedUser = await getUser();
-      if (storedUser) {
-        setUser(storedUser);
+    async function loadSession() {
+      const token = await getToken();
+      if (token) {
+        // backend ainda não tem /me → depois evoluímos
+        setUser({} as User);
       }
       setLoading(false);
     }
-
-    loadUser();
+    loadSession();
   }, []);
 
-  async function login(userData: AuthUser) {
-    setUser(userData);
-    await saveUser(userData);
+  async function login(cpf: string, password: string) {
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cpf, password }),
+    });
+
+    if (!res.ok) throw new Error("CPF ou senha inválidos");
+
+    const data = await res.json();
+    await saveToken(data.token);
+    setUser(data.user);
+  }
+
+  async function register(data: RegisterPayload) {
+    const res = await fetch(`${API_URL}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || "Erro ao cadastrar");
+    }
+
+    // login automático
+    await login(data.cpf, data.password);
   }
 
   async function logout() {
+    await removeToken();
     setUser(null);
-    await clearUser();
   }
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        logout,
-      }}
+      value={{ user, loading, login, register, logout }}
     >
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

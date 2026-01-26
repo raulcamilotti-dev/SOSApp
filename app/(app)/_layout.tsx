@@ -1,5 +1,8 @@
 import { Stack, Redirect } from 'expo-router';
-import { useAuth } from 'app/(auth)/AuthContext';
+// eslint-disable-next-line import/no-unresolved
+import { useAuth } from '@/app/(auth)/useAuth';
+import React from 'react';
+
 
 
 export default function AppLayout() {

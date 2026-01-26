@@ -1,21 +1,14 @@
-import { useAuth } from "@/app/(auth)/AuthContext";
-import { ActivityIndicator, View } from "react-native";
-
+import { ReactNode } from "react";
 import { Redirect } from "expo-router";
+import { useAuth } from "./useAuth";
 
-export function AuthGate({ children }: { children: React.ReactNode }) {
+export function AuthGate({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  if (loading) return null;
 
   if (!user) {
-    return <Redirect href="/" />;
+    return <Redirect href="/(auth)/login" />;
   }
 
   return <>{children}</>;
