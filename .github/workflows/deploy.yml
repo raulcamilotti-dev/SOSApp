@@ -32,5 +32,5 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
           source: "dist/*"
-          target: "/app"
+          target: "/usr/share/nginx/html"
           strip_components: 1
