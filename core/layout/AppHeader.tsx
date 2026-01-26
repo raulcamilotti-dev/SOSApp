@@ -1,5 +1,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useAuth } from '../auth/useAuth';
+import { useAuth } from '../../app/(auth)/useAuth';
+
+
 import { useRouter, usePathname } from 'expo-router';
 import React from 'react';
 
@@ -18,7 +20,7 @@ export function AppHeader() {
       <Text style={styles.logo}>SOS Escritura</Text>
 
       <Pressable onPress={handleLogout}>
-        <Text style={styles.logout}>Sair</Text>
+        <Text style={styles.logout}>Sair</Text>w
       </Pressable>
     </View>
   );
