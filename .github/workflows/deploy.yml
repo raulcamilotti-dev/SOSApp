@@ -30,6 +30,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "dist/*"
           port: 22
-          target: "/var/www/sos-app"
+          source: "dist/*"
+          target: "/app"
+          strip_components: 1

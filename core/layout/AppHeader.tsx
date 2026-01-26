@@ -1,6 +1,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useAuth } from '@/app/(auth)/AuthContext';
+import { useAuth } from '../auth/useAuth';
 import { useRouter, usePathname } from 'expo-router';
+import React from 'react';
 
 export function AppHeader() {
   const { logout } = useAuth();
