@@ -7,4 +7,4 @@ export default function AppLayout() {
       <Slot />
     </AuthProvider>
   );
-}
+} 
