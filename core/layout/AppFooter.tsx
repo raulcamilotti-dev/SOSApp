@@ -1,69 +1,89 @@
-import { usePathname, useRouter } from "expo-router";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from "react-native";
+import { usePathname, useRouter, type Href } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 export function AppFooter() {
   const router = useRouter();
   const pathname = usePathname();
-  const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
+
+  const navItems = [
+    { label: "Início", path: "/" },
+    { label: "Atendimento", path: "/atendimento" },
+    { label: "Configurações", path: "/settings" },
+    { label: "Perfil", path: "/profile" },
+  ];
+
   function isActive(path: string) {
     return pathname === path;
   }
 
   return (
-    <View style={styles.container}>
-      <Pressable onPress={() => router.push("/home")}>
-        <Text style={[styles.item, isActive("/home") && styles.active]}>
-          Início
-        </Text>
-      </Pressable>
-      <Pressable onPress={() => router.push("/settings")}>
-        <Text style={styles.item}>
-          Configurações
-        </Text>
-      </Pressable>
-
-      <Pressable onPress={() => router.push("/modal")}>
-        <Text style={[styles.item, isActive("/modal") && styles.active]}>
-          Atendimento
-        </Text>
-      </Pressable>
-
-      <Pressable onPress={() => router.push("/profile")}>
-        <Text style={[styles.item, isActive("/profile") && styles.active]}>
-          Perfil
-        </Text>
-      </Pressable>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+        },
+      ]}
+    >
+      {navItems.map((item) => (
+        <Pressable
+          key={item.path}
+          onPress={() => router.push(item.path as Href)}
+          style={({ pressed }) => [
+            styles.navButton,
+            isActive(item.path) && styles.navButtonActive,
+            pressed && styles.navButtonPressed,
+          ]}
+        >
+          <Text
+            style={[
+              styles.navLabel,
+              isActive(item.path) && styles.navLabelActive,
+            ]}
+          >
+            {item.label}
+          </Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    right: 16,
-    height: 64,
+    height: 72,
     backgroundColor: "#020617",
-    borderRadius: 16,
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#1e293b",
-    elevation: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#1e293b",
+    gap: 8,
   },
-  item: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    opacity: 0.6,
+  navButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  active: {
-    opacity: 1,
+  navButtonActive: {
+    backgroundColor: "rgba(10, 126, 164, 0.15)",
+  },
+  navButtonPressed: {
+    opacity: 0.7,
+  },
+  navLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#94a3b8",
+    textAlign: "center",
+  },
+  navLabelActive: {
+    color: "#0a7ea4",
+    fontWeight: "600",
   },
 });

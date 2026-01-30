@@ -1,18 +1,32 @@
-import { Stack, Redirect } from 'expo-router';
-// eslint-disable-next-line import/no-unresolved
-import { useAuth } from '@/app/(auth)/useAuth';
-import React from 'react';
-
-
+import { Redirect, Slot } from "expo-router";
+import { View } from "react-native";
+import { useAuth } from "@/core/auth/AuthContext";
+import { AppHeader } from "@/core/layout/AppHeader";
+import { AppFooter } from "@/core/layout/AppFooter";
+import { Breadcrumbs } from "@/core/layout/Breadcrumbs";
 
 export default function AppLayout() {
   const { user, loading } = useAuth();
 
-  if (loading) return null;
+  // enquanto carrega auth (importante!)
+  if (loading) {
+    return null; // ou splash
+  }
 
+  // 🔐 GATE REAL
   if (!user) {
     return <Redirect href="/(auth)/login" />;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <View style={{ flex: 1 }}>
+      <AppHeader />
+<Breadcrumbs />
+      <View style={{ flex: 1 }}>
+        <Slot />
+      </View>
+
+      <AppFooter />
+    </View>
+  );
 }

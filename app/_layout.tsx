@@ -1,11 +1,13 @@
-// app/_layout.tsx
-import { AuthProvider } from "@/app/(auth)/AuthContext";
-import { Stack } from "expo-router";
+import { Slot } from "expo-router";
+import { AuthProvider } from "@/core/auth/AuthContext";
+import { AuthGate } from "@/core/auth/AuthGate";
 
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <Stack screenOptions={{ headerShown: false }} />
+      <AuthGate>
+        <Slot />
+      </AuthGate>
     </AuthProvider>
   );
 }

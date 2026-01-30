@@ -1,50 +1,87 @@
+import { useAuth } from "@/core/auth/AuthContext";
+import { useRouter } from "expo-router";
 import { useState } from "react";
-import { View, TextInput, Pressable, Text, Alert } from "react-native";
-import { useAuth } from "./useAuth";
-import { authStyles } from "./auth.styles";
-import { Link } from "expo-router";
+import {
+  Alert,
+  Pressable,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { styles } from "../theme/styles";
 
 export default function Login() {
+  const router = useRouter();
   const { login } = useAuth();
+
   const [cpf, setCpf] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleLogin() {
     try {
-      await login(cpf, password);
-    } catch (err: any) {
-      Alert.alert("Erro", err.message);
+      setSubmitting(true);
+      const result = await login(cpf, password);
+      router.replace("/profile");
+      console.log("RETORNO DO LOGIN", result);
+    } catch (error) {
+      console.error("ERRO NO HANDLE LOGIN", error);
     }
   }
 
   return (
-    <View style={authStyles.container}>
-      <View style={authStyles.card}>
-        <Text style={authStyles.title}>Entrar</Text>
-  <Text style={authStyles.label}>CPF</Text>
+    <View style={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.label}>Entrar</Text>
+        <Text style={styles.label}>CPF</Text>
         <TextInput
           placeholder="CPF"
-          style={authStyles.input}
+          style={styles.input}
           value={cpf}
           onChangeText={setCpf}
         />
-<Text style={authStyles.label}>Senha</Text>
+        <Text style={styles.label}>Senha</Text>
         <TextInput
           placeholder="Senha"
           secureTextEntry
-          style={authStyles.input}
+          style={styles.input}
           value={password}
           onChangeText={setPassword}
         />
-
-        <Pressable style={authStyles.button} onPress={handleLogin}>
-          <Text style={authStyles.buttonText}>Entrar</Text>
+        <Pressable
+          onPress={handleLogin}
+          style={({ pressed }) => ({
+            marginTop: 20,
+            paddingVertical: 14,
+            paddingHorizontal: 16,
+            backgroundColor: pressed ? "#ccc" : "#eee",
+            borderRadius: 6,
+            alignItems: "center",
+          })}
+        >
+          <Text style={{ fontWeight: "600" }}>
+            {submitting ? "Entrando..." : "Entrar"}
+          </Text>
         </Pressable>
 
-        {/* 👇 LINK PARA CRIAR CONTA */}
-        <Link href="/(auth)/register" asChild>
-          <Text style={authStyles.link}>Criar conta</Text>
-        </Link>
+        <TouchableOpacity
+          onPress={() => {
+            Alert.alert(
+              "Esqueci minha senha",
+              "Funcionalidade não implementada.",
+            );
+          }}
+        >
+          <Text style={styles.link}>Esqueci minha senha</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            router.push("/register");
+          }}
+        >
+          <Text style={styles.link}>Criar conta</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
