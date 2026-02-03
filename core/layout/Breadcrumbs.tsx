@@ -11,9 +11,7 @@ export function Breadcrumbs() {
     (s) => typeof s === "string" && !s.startsWith("(")
   );
 
-  // home → não mostra
-  if (cleanSegments.length === 0) return null;
-
+  
   const crumbs = cleanSegments.map((segment, index) => {
     const href = ("/" + cleanSegments.slice(0, index + 1).join("/")) as Href;
 
@@ -92,7 +90,7 @@ const styles = StyleSheet.create({
 
   text: {
     fontSize: 13,
-    color: "#94a3b8",
+    color: "#ffffff",
   },
 
   active: {
@@ -107,7 +105,7 @@ const styles = StyleSheet.create({
 
   back: {
     fontSize: 13,
-    color: "#60a5fa",
+    color: "#ffffff",
     fontWeight: "500",
   },
 });

@@ -10,7 +10,7 @@ export function AppFooter() {
   const navItems = [
     { label: "Início", path: "/" },
     { label: "Atendimento", path: "/atendimento" },
-    { label: "Configurações", path: "/settings" },
+    { label: "Serviços", path: "/servicos" },
     { label: "Perfil", path: "/profile" },
   ];
 

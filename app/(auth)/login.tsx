@@ -18,15 +18,19 @@ export default function Login() {
   const [cpf, setCpf] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleLogin() {
     try {
       setSubmitting(true);
+      setError("");
       const result = await login(cpf, password);
       router.replace("/profile");
       console.log("RETORNO DO LOGIN", result);
     } catch (error) {
       console.error("ERRO NO HANDLE LOGIN", error);
+      setError("CPF ou senha incorretos");
+      setSubmitting(false);
     }
   }
 
@@ -34,6 +38,7 @@ export default function Login() {
     <View style={styles.container}>
       <View style={styles.card}>
         <Text style={styles.label}>Entrar</Text>
+        {error && <Text style={{ color: "#d32f2f", marginBottom: 12 }}>{error}</Text>}
         <Text style={styles.label}>CPF</Text>
         <TextInput
           placeholder="CPF"

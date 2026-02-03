@@ -1,15 +1,7 @@
 import { colors, spacing, typography } from "@/app/theme";
 import { useAuth } from "@/core/auth/AuthContext";
-import { Ionicons } from "@expo/vector-icons";
-import { usePathname } from "expo-router";
-import { useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { usePathname, useRouter } from "expo-router";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 /* ==============================
  * STYLES DO HEADER
@@ -17,56 +9,40 @@ import {
 
 const headerStyles = StyleSheet.create({
   container: {
-    height: 64,
+    height: 56,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
-    backgroundColor: colors.background.card,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    backgroundColor: "#05333B",
   },
 
   logoContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.md,
   },
 
   logo: {
-    ...typography.subtitle,
+    width: 120,
+    height: 32,
+    resizeMode: "contain",
+  },
+
+  appName: {
+    ...typography.body,
     color: colors.text.primary,
-    fontWeight: "700",
-    fontSize: 18,
-    letterSpacing: -0.5,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 
-  logoutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 8,
-    minHeight: 40,
-    justifyContent: "center",
-    backgroundColor: colors.background.input,
-  },
-
-  logoutButtonPressed: {
-    backgroundColor: colors.brand.accent + "20",
-  },
-
-  logoutText: {
+  logout: {
     ...typography.body,
     color: colors.brand.accent,
-    fontWeight: "600",
-    fontSize: 14,
+    fontWeight: "500",
+    color: "#ffffff",
   },
 });
 
@@ -76,58 +52,34 @@ const headerStyles = StyleSheet.create({
 
 export function AppHeader() {
   const pathname = usePathname();
+  const router = useRouter();
   const { logout } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
 
+  // não renderiza header nas telas de auth
   if (pathname.startsWith("/(auth)")) {
     return null;
   }
 
-  const handleLogout = async () => {
-    setIsLoading(true);
-    try {
-      await logout();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  async function handleLogout() {
+    await logout();
+    router.replace("/(auth)/login");
+  }
 
   return (
     <View style={headerStyles.container}>
       <View style={headerStyles.logoContainer}>
-        <Ionicons
-          name="shield-checkmark"
-          size={24}
-          color={colors.brand.accent}
+        <Image
+          source={require("@/assets/images/logo.png")}
+          style={headerStyles.logo}
         />
-        <Text style={headerStyles.logo}>SOS Escritura</Text>
+        <Text style={headerStyles.appName}>SOS Escritura</Text>
       </View>
-
       <Pressable
         onPress={handleLogout}
-        disabled={isLoading}
         accessibilityRole="button"
         accessibilityLabel="Sair da conta"
-        accessibilityState={{ disabled: isLoading }}
-        style={({ pressed }) => [
-          headerStyles.logoutButton,
-          pressed && !isLoading && headerStyles.logoutButtonPressed,
-        ]}
       >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={colors.brand.accent} />
-        ) : (
-          <>
-            <Ionicons
-              name="log-out-outline"
-              size={18}
-              color={colors.brand.accent}
-            />
-            <Text style={headerStyles.logoutText}>Sair</Text>
-          </>
-        )}
+        <Text style={headerStyles.logout}>Sair</Text>
       </Pressable>
     </View>
   );
