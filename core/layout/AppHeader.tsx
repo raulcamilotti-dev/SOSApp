@@ -33,14 +33,12 @@ const headerStyles = StyleSheet.create({
 
   appName: {
     ...typography.body,
-    color: colors.text.primary,
     fontWeight: "600",
     color: "#FFFFFF",
   },
 
   logout: {
     ...typography.body,
-    color: colors.brand.accent,
     fontWeight: "500",
     color: "#ffffff",
   },

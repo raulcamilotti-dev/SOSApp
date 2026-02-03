@@ -4,10 +4,14 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm config set registry https://registry.npmjs.org/ \
+ && npm ci
+
+
 
 COPY . .
-RUN npm run build
+RUN npm install --legacy-peer-deps
+
 
 
 # ===== STAGE 2: PROD =====
