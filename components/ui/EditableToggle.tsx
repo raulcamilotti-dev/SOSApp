@@ -71,7 +71,7 @@ export function EditableToggle({
                 style={{
                   fontSize: 13,
                   fontWeight: "500",
-                  color: active ? "#0066FF" : "#555555",
+                  color: active ? "#0066FF" : "#000000",
                 }}
               >
                 {option.label}
@@ -82,7 +82,7 @@ export function EditableToggle({
       </View>
 
       {saving && (
-        <Text style={{ fontSize: 11, color: "#888888", marginTop: 4 }}>
+        <Text style={{ fontSize: 11, color: "#000000", marginTop: 4 }}>
           Salvando...
         </Text>
       )}

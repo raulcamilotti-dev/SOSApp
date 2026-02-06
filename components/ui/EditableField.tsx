@@ -86,7 +86,7 @@ export function EditableField({
       />
 
       {saving && (
-        <Text style={{ fontSize: 11, color: "#888", marginTop: 4 }}>
+        <Text style={{ fontSize: 11, color: "#ffffff", marginTop: 4 }}>
           Salvando…
         </Text>
       )}
