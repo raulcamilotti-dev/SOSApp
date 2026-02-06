@@ -54,7 +54,7 @@ export default function ProcessoAdvogadoScreen() {
 
   const tintColor = useThemeColor({ light: "#0a7ea4", dark: "#fff" }, "tint");
   const mutedTextColor = useThemeColor(
-    { light: "#475569", dark: "#475569" },
+    { light: "#374151", dark: "#374151" },
     "text",
   );
   const primaryTextColor = useThemeColor(

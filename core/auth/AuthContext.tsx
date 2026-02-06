@@ -1,19 +1,20 @@
 import {
-	createContext,
-	ReactNode,
-	useContext,
-	useEffect,
-	useState,
+    createContext,
+    ReactNode,
+    useContext,
+    useEffect,
+    useState,
 } from "react";
 
 import { setAuthToken } from "@/services/api";
+import Constants from "expo-constants";
 import { getToken, getUser, saveToken, saveUser } from "./auth.storage";
 import {
-	AuthContextData,
-	LoginResponse,
-	RegisterPayload,
-	RegisterResponse,
-	User,
+    AuthContextData,
+    LoginResponse,
+    RegisterPayload,
+    RegisterResponse,
+    User,
 } from "./auth.types";
 
 type AuthProviderProps = {
@@ -69,6 +70,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     if (!res.ok) {
       throw new Error("Erro ao fazer login");
+    }
+
+    const data: LoginResponse | User[] | any = await res.json();
+
+    const payload = Array.isArray(data) ? data[0] : data;
+    const loggedUser: User | undefined = payload?.user ?? payload;
+    const token: string | undefined = payload?.token;
+
+    if (!loggedUser || !token) {
+      throw new Error("Usuário ou token inválido");
+    }
+
+    setUser(loggedUser);
+    await saveUser(loggedUser);
+    await saveToken(token);
+    setAuthToken(token);
+
+    return loggedUser;
+  }
+
+  /* ======================================================
+   * GOOGLE LOGIN
+   * ====================================================== */
+  async function googleLogin(idToken: string): Promise<User> {
+    const googleAuthWebhook =
+      Constants.expoConfig?.extra?.googleAuthWebhook ??
+      "https://n8n.sosescritura.com.br/webhook/google_login";
+
+    const res = await fetch(googleAuthWebhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+
+    if (!res.ok) {
+      throw new Error("Erro ao fazer login com Google");
     }
 
     const data: LoginResponse | User[] | any = await res.json();
@@ -148,6 +185,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         user,
         loading,
         login,
+        googleLogin,
         register,
         logout,
       }}

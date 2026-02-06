@@ -11,7 +11,7 @@ export default function Profile() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const backgroundColor = useThemeColor(
-    { light: "#f5f5f5", dark: "#1a1a1a" },
+    { light: "#f5f5f5", dark: "#f5f5f5" },
     "background",
   );
   const tintColor = useThemeColor(
@@ -37,7 +37,7 @@ export default function Profile() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor }}>
-      <ThemedView style={styles.container}>
+      <ThemedView style={[styles.container, { backgroundColor }]}>
         {/* Header com Avatar */}
         <View
           style={{
@@ -145,7 +145,7 @@ function ProfileCard({
   value?: string;
 }) {
   const cardBg = useThemeColor(
-    { light: "#f9f9f9", dark: "#333" },
+    { light: "#f9f9f9", dark: "#f9f9f9" },
     "background",
   );
   const tintColor = useThemeColor(
@@ -199,7 +199,7 @@ function ActionButton({
   color: string;
 }) {
   const cardBg = useThemeColor(
-    { light: "#f9f9f9", dark: "#333" },
+    { light: "#f9f9f9", dark: "#f9f9f9" },
     "background",
   );
 

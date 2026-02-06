@@ -1,4 +1,4 @@
-import { StyleSheet, Platform } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 
 /* ======================================================
  * DESIGN TOKENS
@@ -22,7 +22,7 @@ export const colors = {
   text: {
     primary: "#111111",
     secondary: "#555555",
-    muted: "#888888",
+    muted: "#4b5563",
     inverse: "#FFFFFF",
   },
 
@@ -122,9 +122,9 @@ export const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   listContainer: {
-  padding: 24,
-  paddingBottom: 140,
-},
+    padding: 24,
+    paddingBottom: 140,
+  },
 
   card: {
     width: "100%",
@@ -248,26 +248,25 @@ export const styles = StyleSheet.create({
     color: colors.brand.accent,
   },
   infoBlock: {
-  marginTop: 16,
-  borderTopWidth: 1,
-  borderTopColor: "#E5E7EB",
-  paddingTop: 12,
-},
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    paddingTop: 12,
+  },
 
-infoRow: {
-  marginBottom: 10,
-},
+  infoRow: {
+    marginBottom: 10,
+  },
 
-infoLabel: {
-  fontSize: 12,
-  color: "#6B7280",
-  marginBottom: 2,
-},
+  infoLabel: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 2,
+  },
 
-infoValue: {
-  fontSize: 14,
-  color: "#111827",
-  fontWeight: "500",
-},
-
+  infoValue: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "500",
+  },
 });

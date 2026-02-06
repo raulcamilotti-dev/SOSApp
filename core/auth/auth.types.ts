@@ -41,6 +41,7 @@ export interface AuthContextData {
   user: User | null;
   loading: boolean;
   login: (cpf: string, password: string) => Promise<User>;
+  googleLogin: (idToken: string) => Promise<User>;
   register: (data: RegisterPayload) => Promise<RegisterResponse>;
   logout: () => Promise<void>;
 }

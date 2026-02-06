@@ -1,5 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useAuth } from "@/core/auth/AuthContext";
+import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -11,6 +13,7 @@ interface Service {
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
   route?: string;
+  adminOnly?: boolean;
 }
 
 const SERVICES: Service[] = [
@@ -34,20 +37,38 @@ const SERVICES: Service[] = [
     description: "Descrição do serviço",
     icon: "briefcase-outline",
     route: "/processo-advogado",
+    adminOnly: true,
+  },
+  {
+    id: "4",
+    title: "Gestão de usuários",
+    description: "Clientes e imóveis vinculados",
+    icon: "people-outline",
+    route: "/usersmanagement",
+    adminOnly: true,
   },
 ];
 
 export default function ServicosScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const tintColor = useThemeColor({}, "tint");
-  const cardBg = useThemeColor({ light: "#f5f5f5", dark: "#1a1a1a" }, "tint");
-  const borderColor = useThemeColor({ light: "#e0e0e0", dark: "#333" }, "tint");
+  const cardBg = useThemeColor({ light: "#f5f5f5", dark: "#f5f5f5" }, "tint");
+  const borderColor = useThemeColor(
+    { light: "#e0e0e0", dark: "#e0e0e0" },
+    "tint",
+  );
 
   const handleServicePress = (route?: string) => {
     if (route) {
       router.push(route as any);
     }
   };
+
+  const isAdmin = isUserAdmin(user);
+  const visibleServices = SERVICES.filter(
+    (service) => !service.adminOnly || isAdmin,
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -60,7 +81,7 @@ export default function ServicosScreen() {
         showsVerticalScrollIndicator={false}
       >
         <ThemedView style={styles.grid}>
-          {SERVICES.map((service) => (
+          {visibleServices.map((service) => (
             <TouchableOpacity
               key={service.id}
               onPress={() => handleServicePress(service.route)}

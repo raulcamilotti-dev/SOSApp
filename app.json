@@ -22,14 +22,13 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-  "output": "static",
-  "bundler": "metro",
-  "display": "standalone",
-  "themeColor": "#020617",
-  "backgroundColor": "#020617",
-  "favicon": "./assets/images/favicon.png"
-}
-,
+      "output": "static",
+      "bundler": "metro",
+      "display": "standalone",
+      "themeColor": "#020617",
+      "backgroundColor": "#020617",
+      "favicon": "./assets/images/favicon.png"
+    },
     "plugins": [
       "expo-router",
       [
@@ -46,6 +45,12 @@
       ],
       "expo-secure-store"
     ],
+    "extra": {
+      "googleWebClientId": "637647880739-h025qro8lel127hi4cijcrf957r09fu1.apps.googleusercontent.com",
+      "googleIosClientId": "YOUR_IOS_CLIENT_ID",
+      "googleAndroidClientId": "YOUR_ANDROID_CLIENT_ID",
+      "googleAuthWebhook": "https://n8n.sosescritura.com.br/webhook/google_login"
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
