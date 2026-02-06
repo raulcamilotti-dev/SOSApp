@@ -5,7 +5,12 @@ import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  useWindowDimensions,
+} from "react-native";
 
 interface Service {
   id: string;
@@ -52,12 +57,14 @@ const SERVICES: Service[] = [
 export default function ServicosScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { width } = useWindowDimensions();
   const tintColor = useThemeColor({}, "tint");
   const cardBg = useThemeColor({ light: "#f5f5f5", dark: "#f5f5f5" }, "tint");
   const borderColor = useThemeColor(
     { light: "#e0e0e0", dark: "#e0e0e0" },
     "tint",
   );
+  const isNarrow = width < 380;
 
   const handleServicePress = (route?: string) => {
     if (route) {
@@ -86,7 +93,7 @@ export default function ServicosScreen() {
               key={service.id}
               onPress={() => handleServicePress(service.route)}
               activeOpacity={0.7}
-              style={styles.cardWrapper}
+              style={[styles.cardWrapper, isNarrow && styles.cardWrapperFull]}
             >
               <ThemedView
                 style={[
@@ -99,7 +106,7 @@ export default function ServicosScreen() {
               >
                 <Ionicons
                   name={service.icon}
-                  size={48}
+                  size={isNarrow ? 40 : 48}
                   color={tintColor}
                   style={styles.icon}
                 />
@@ -144,6 +151,9 @@ const styles = StyleSheet.create({
   cardWrapper: {
     width: "48%",
     minHeight: 200,
+  },
+  cardWrapperFull: {
+    width: "100%",
   },
   serviceCard: {
     flex: 1,
