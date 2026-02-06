@@ -54,6 +54,12 @@ export default function PropertyListScreen() {
   const [uploadingDocuments, setUploadingDocuments] = useState<
     Record<string, boolean>
   >({});
+  const [expandedProperties, setExpandedProperties] = useState<
+    Record<string, boolean>
+  >({});
+  const [latestUpdateByProperty, setLatestUpdateByProperty] = useState<
+    Record<string, { title: string; date?: string }>
+  >({});
 
   const borderColor = useThemeColor({ light: "#e0e0e0", dark: "#333" }, "text");
   // Removed unused backgroundColor variable
@@ -64,52 +70,41 @@ export default function PropertyListScreen() {
     "text",
   );
 
-  const regularizationStages = [
-    {
-      id: "analise-documental",
-      title: "Análise documental",
-    },
-    {
-      id: "levantamento-tecnico",
-      title: "Levantamento técnico",
-    },
-    {
-      id: "elaboracao-documentos",
-      title: "Elaboração de documentos",
-    },
-    {
-      id: "tramitacao",
-      title: "Trâmites em cartório",
-    },
-    {
-      id: "finalizacao",
-      title: "Finalização",
-    },
-  ];
-
-  const resolveStageIndex = (property: Record<string, any>) => {
-    const stageValue =
-      property?.regularization_stage ??
-      property?.current_stage ??
-      property?.stage ??
-      property?.etapa;
-    if (typeof stageValue === "number") {
-      return Math.max(0, Math.min(regularizationStages.length - 1, stageValue));
-    }
-    if (typeof stageValue === "string") {
-      const normalized = stageValue.toLowerCase();
-      const idx = regularizationStages.findIndex(
-        (stage) =>
-          stage.id === normalized || stage.title.toLowerCase() === normalized,
+  const fetchLatestUpdates = async () => {
+    if (!user?.id) return;
+    try {
+      const response = await api.post(
+        "https://n8n.sosescritura.com.br/webhook/property_process_update_listall",
+        { user_id: user.id },
       );
-      return idx >= 0 ? idx : 0;
+      const list = Array.isArray(response.data) ? response.data : [];
+      setLatestUpdateByProperty((prev) => {
+        const next = { ...prev };
+        list.forEach((item: any) => {
+          if (!item?.property_id) return;
+          const timeline = Array.isArray(item.timeline) ? item.timeline : [];
+          const latest = timeline[0];
+          next[item.property_id] = {
+            title: latest?.title || "Sem atualizações",
+            date: latest?.created_at,
+          };
+        });
+        return next;
+      });
+    } catch {
+      // ignore
     }
-    return 0;
   };
 
-  const resolveStageLabel = (property: Record<string, any>) => {
-    const index = resolveStageIndex(property);
-    return regularizationStages[index]?.title ?? "Não informado";
+  const formatDate = (value?: string) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
   };
 
   const fetchProperties = async () => {
@@ -137,6 +132,8 @@ export default function PropertyListScreen() {
           }));
         }
         setDocuments(docsMap);
+
+        await fetchLatestUpdates();
       }
     } catch (err) {
       const message =
@@ -293,6 +290,13 @@ export default function PropertyListScreen() {
     );
   };
 
+  const toggleProperty = (propertyId: string) => {
+    setExpandedProperties((prev) => ({
+      ...prev,
+      [propertyId]: !prev[propertyId],
+    }));
+  };
+
   if (loading) {
     return (
       <ThemedView
@@ -334,7 +338,8 @@ export default function PropertyListScreen() {
             shadowRadius: 1,
           }}
         >
-          <View
+          <TouchableOpacity
+            onPress={() => toggleProperty(property.id)}
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
@@ -345,11 +350,12 @@ export default function PropertyListScreen() {
             <ThemedText
               style={{ fontSize: 16, fontWeight: "700", color: "#000" }}
             >
-              {" "}
-              {/* Texto escuro */}
               {property.address || "Imóvel"}
             </ThemedText>
-          </View>
+            <ThemedText style={{ fontSize: 14, fontWeight: "700" }}>
+              {expandedProperties[property.id] ? "−" : "+"}
+            </ThemedText>
+          </TouchableOpacity>
 
           <View
             style={{
@@ -361,12 +367,46 @@ export default function PropertyListScreen() {
             }}
           >
             <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
-              Etapa: {resolveStageLabel(property)}
+              Última atualização:{" "}
+              {latestUpdateByProperty[property.id]?.title || "-"}
+              {latestUpdateByProperty[property.id]?.date
+                ? ` · ${formatDate(latestUpdateByProperty[property.id]?.date)}`
+                : ""}
             </ThemedText>
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => toggleProperty(property.id)}
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 10,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: borderColor,
+                backgroundColor: "#ffffff",
+              }}
+            >
+              <ThemedText
+                style={{ fontSize: 12, fontWeight: "600", color: "#0b0b0b" }}
+              >
+                {expandedProperties[property.id]
+                  ? "Ocultar detalhes"
+                  : "Ver detalhes"}
+              </ThemedText>
+            </TouchableOpacity>
+
             <TouchableOpacity
               onPress={() =>
                 router.push({
-                  pathname: "/etapaproperties",
+                  pathname: "/Processo",
                   params: { propertyId: property.id },
                 })
               }
@@ -377,133 +417,145 @@ export default function PropertyListScreen() {
                 backgroundColor: "#f15959",
               }}
             >
-              <ThemedText style={{ fontSize: 12, fontWeight: "600", color: "rgb(11, 11, 11)000" }}>
-                Ver etapas
+              <ThemedText
+                style={{ fontSize: 12, fontWeight: "600", color: "#0b0b0b" }}
+              >
+                Ver processo
               </ThemedText>
             </TouchableOpacity>
           </View>
 
-          <View style={{ gap: 0 }}>
-            {propertyFields.map((field) => (
-              <FieldRenderer
-                key={field.field}
-                propertyId={property.id}
-                field={field.field}
-                label={field.label}
-                type={field.type as "text" | "toggle" | "money"}
-                options={field.options}
-                value={(property as any)[field.field] ?? ""}
-                editable={false}
-                onSave={(value) =>
-                  handleSaveProperty(property.id, { [field.field]: value })
-                }
-              />
-            ))}
-          </View>
+          {expandedProperties[property.id] && (
+            <>
+              <View style={{ gap: 0 }}>
+                {propertyFields.map((field) => (
+                  <FieldRenderer
+                    key={field.field}
+                    propertyId={property.id}
+                    field={field.field}
+                    label={field.label}
+                    type={field.type as "text" | "toggle" | "money"}
+                    options={field.options}
+                    value={(property as any)[field.field] ?? ""}
+                    editable={false}
+                    onSave={(value) =>
+                      handleSaveProperty(property.id, { [field.field]: value })
+                    }
+                  />
+                ))}
+              </View>
 
-          {/* Seção de documentos */}
-          <View
-            style={{
-              marginTop: 16,
-              borderTopWidth: 1,
-              borderColor,
-              paddingTop: 12,
-            }}
-          >
-            <ThemedText
-              style={{ fontSize: 14, fontWeight: "600", marginBottom: 8 }}
-            >
-              Documentos ({documents[property.id]?.length || 0})
-            </ThemedText>
+              {/* Seção de documentos */}
+              <View
+                style={{
+                  marginTop: 16,
+                  borderTopWidth: 1,
+                  borderColor,
+                  paddingTop: 12,
+                }}
+              >
+                <ThemedText
+                  style={{ fontSize: 14, fontWeight: "600", marginBottom: 8 }}
+                >
+                  Documentos ({documents[property.id]?.length || 0})
+                </ThemedText>
 
-            {documents[property.id]?.length > 0 && (
-              <View style={{ marginBottom: 12 }}>
-                {documents[property.id].map((doc) => (
-                  <View
-                    key={doc.id}
-                    style={{
-                      padding: 12,
-                      marginBottom: 8,
-                      backgroundColor: "#f5f7fa",
-                      borderRadius: 6,
-                      borderLeftWidth: 4,
-                      borderLeftColor: tintColor,
-                    }}
-                  >
+                {documents[property.id]?.length > 0 && (
+                  <View style={{ marginBottom: 12 }}>
+                    {documents[property.id].map((doc) => (
+                      <View
+                        key={doc.id}
+                        style={{
+                          padding: 12,
+                          marginBottom: 8,
+                          backgroundColor: "#f5f7fa",
+                          borderRadius: 6,
+                          borderLeftWidth: 4,
+                          borderLeftColor: tintColor,
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <ThemedText
+                              style={{
+                                fontSize: 12,
+                                fontWeight: "600",
+                                color: "#111",
+                              }}
+                            >
+                              {doc.fileName}
+                            </ThemedText>
+                            <ThemedText
+                              style={{
+                                fontSize: 11,
+                                marginTop: 4,
+                                color: "#555",
+                              }}
+                            >
+                              {doc.description}
+                            </ThemedText>
+                          </View>
+
+                          <TouchableOpacity
+                            onPress={() =>
+                              handleRemoveDocument(property.id, doc.id)
+                            }
+                            style={{ padding: 8 }}
+                          >
+                            <ThemedText
+                              style={{ color: "#d11a2a", fontWeight: "700" }}
+                            >
+                              ✕
+                            </ThemedText>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  onPress={() => handleAddDocument(property.id)}
+                  disabled={!!uploadingDocuments[property.id]}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    backgroundColor: tintColor,
+                    borderRadius: 6,
+                    alignItems: "center",
+                    opacity: uploadingDocuments[property.id] ? 0.7 : 1,
+                  }}
+                >
+                  {uploadingDocuments[property.id] ? (
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        justifyContent: "space-between",
+                        gap: 8,
                       }}
                     >
-                      <View style={{ flex: 1, paddingRight: 8 }}>
-                        <ThemedText
-                          style={{
-                            fontSize: 12,
-                            fontWeight: "600",
-                            color: "#111",
-                          }}
-                        >
-                          {doc.fileName}
-                        </ThemedText>
-                        <ThemedText
-                          style={{ fontSize: 11, marginTop: 4, color: "#555" }}
-                        >
-                          {doc.description}
-                        </ThemedText>
-                      </View>
-
-                      <TouchableOpacity
-                        onPress={() =>
-                          handleRemoveDocument(property.id, doc.id)
-                        }
-                        style={{ padding: 8 }}
+                      <ActivityIndicator size="small" color="#333333" />
+                      <ThemedText
+                        style={{ color: "#333333", fontWeight: "600" }}
                       >
-                        <ThemedText
-                          style={{ color: "#d11a2a", fontWeight: "700" }}
-                        >
-                          ✕
-                        </ThemedText>
-                      </TouchableOpacity>
+                        Enviando...
+                      </ThemedText>
                     </View>
-                  </View>
-                ))}
+                  ) : (
+                    <ThemedText style={{ color: "#333333", fontWeight: "600" }}>
+                      + Adicionar Documento
+                    </ThemedText>
+                  )}
+                </TouchableOpacity>
               </View>
-            )}
-
-            <TouchableOpacity
-              onPress={() => handleAddDocument(property.id)}
-              disabled={!!uploadingDocuments[property.id]}
-              style={{
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-                backgroundColor: tintColor,
-                borderRadius: 6,
-                alignItems: "center",
-                opacity: uploadingDocuments[property.id] ? 0.7 : 1,
-              }}
-            >
-              {uploadingDocuments[property.id] ? (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <ActivityIndicator size="small" color="#333333" />
-                  <ThemedText style={{ color: "#333333", fontWeight: "600" }}>
-                    Enviando...
-                  </ThemedText>
-                </View>
-              ) : (
-                <ThemedText style={{ color: "#333333", fontWeight: "600" }}>
-                  + Adicionar Documento
-                </ThemedText>
-              )}
-            </TouchableOpacity>
-          </View>
+            </>
+          )}
         </ThemedView>
       ))}
     </ScrollView>

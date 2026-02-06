@@ -30,10 +30,10 @@ const SERVICES: Service[] = [
   },
   {
     id: "3",
-    title: "Serviço 3",
+    title: "Lançamento de processo",
     description: "Descrição do serviço",
     icon: "briefcase-outline",
-    route: "/serv.advogados",
+    route: "/processo-advogado",
   },
 ];
 

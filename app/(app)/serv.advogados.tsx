@@ -1,6 +1,6 @@
 import { StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'expo-router';
+
 import * as SecureStore from 'expo-secure-store';
 
 import { ThemedView } from '@/components/themed-view';
@@ -17,7 +17,7 @@ interface Lawyer {
 }
 
 export default function LawyersScreen() {
-    const router = useRouter();
+
     const [lawyers, setLawyers] = useState<Lawyer[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
