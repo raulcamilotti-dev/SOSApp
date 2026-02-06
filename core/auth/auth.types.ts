@@ -1,6 +1,6 @@
 import React from "react";
 
-export type UserRole = "admin" | "user" | "guest"  | "User";  
+export type UserRole = "admin" | "user" | "guest" | "User";
 
 export interface User {
   id: string;
@@ -25,17 +25,18 @@ export type RegisterPayload = {
 
 export type AuthProviderProps = {
   children: React.ReactNode;
-};  
+};
 
 export type RegisterResponse = {
   message?: string;
+  token?: string;
+  user?: User;
 };
-
 
 export type LoginResponse = {
   token: string;
   user: User;
-};  
+};
 export interface AuthContextData {
   user: User | null;
   loading: boolean;
@@ -45,4 +46,4 @@ export interface AuthContextData {
 }
 export interface AuthGateProps {
   children: React.ReactNode;
-} 
+}

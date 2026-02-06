@@ -1,24 +1,24 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  createContext,
-  ReactNode,
-  useContext,
-  useEffect,
-  useState,
+	createContext,
+	ReactNode,
+	useContext,
+	useEffect,
+	useState,
 } from "react";
 
+import { setAuthToken } from "@/services/api";
+import { getToken, getUser, saveToken, saveUser } from "./auth.storage";
 import {
-  AuthContextData,
-  RegisterPayload,
-  RegisterResponse,
-  User,
+	AuthContextData,
+	LoginResponse,
+	RegisterPayload,
+	RegisterResponse,
+	User,
 } from "./auth.types";
 
 type AuthProviderProps = {
   children: ReactNode;
 };
-
-const AUTH_USER_KEY = "@auth:user";
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
@@ -32,14 +32,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     async function restoreSession() {
       try {
-        const storedUser = await AsyncStorage.getItem(AUTH_USER_KEY);
+        const [storedUser, storedToken] = await Promise.all([
+          getUser(),
+          getToken(),
+        ]);
 
         if (storedUser) {
-          setUser(JSON.parse(storedUser));
+          setUser(storedUser);
+        }
+
+        if (storedToken) {
+          setAuthToken(storedToken);
         }
       } catch (err) {
         console.error("Erro ao restaurar sessão", err);
-        await AsyncStorage.removeItem(AUTH_USER_KEY);
+        await saveUser(null);
+        await saveToken(null);
         setUser(null);
       } finally {
         setLoading(false);
@@ -63,20 +71,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error("Erro ao fazer login");
     }
 
-    const data = await res.json();
+    const data: LoginResponse | User[] | any = await res.json();
 
-    // n8n retorna array
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error("Usuário não encontrado");
+    const payload = Array.isArray(data) ? data[0] : data;
+    const loggedUser: User | undefined = payload?.user ?? payload;
+    const token: string | undefined = payload?.token;
+
+    if (!loggedUser || !token) {
+      throw new Error("Usuário ou token inválido");
     }
 
-    const loggedUser: User = data[0];
-
     setUser(loggedUser);
-    await AsyncStorage.setItem(
-      AUTH_USER_KEY,
-      JSON.stringify(loggedUser),
-    );
+    await saveUser(loggedUser);
+    await saveToken(token);
+    setAuthToken(token);
 
     return loggedUser;
   }
@@ -84,9 +92,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   /* ======================================================
    * REGISTER
    * ====================================================== */
-  async function register(
-    payload: RegisterPayload,
-  ): Promise<RegisterResponse> {
+  async function register(payload: RegisterPayload): Promise<RegisterResponse> {
     setLoading(true);
 
     const res = await fetch(
@@ -102,15 +108,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     if (!res.ok) {
       setLoading(false);
+      if (res.status === 409) {
+        throw new Error(
+          result.message ||
+            "CPF ou telefone já cadastrado. Verifique seus dados.",
+        );
+      }
       throw new Error(result.message || "Erro no cadastro");
     }
 
-    if (result.user) {
+    if (result.user && result.token) {
       setUser(result.user);
-      await AsyncStorage.setItem(
-        AUTH_USER_KEY,
-        JSON.stringify(result.user),
-      );
+      await saveUser(result.user);
+      await saveToken(result.token);
+      setAuthToken(result.token);
     }
 
     setLoading(false);
@@ -122,7 +133,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * ====================================================== */
   async function logout() {
     setUser(null);
-    await AsyncStorage.removeItem(AUTH_USER_KEY);
+    await saveUser(null);
+    await saveToken(null);
+    setAuthToken(null);
   }
 
   /* ======================================================
