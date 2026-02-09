@@ -14,6 +14,12 @@ export default function AppLayout() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    router.replace(pathname as any);
+    setTimeout(() => setRefreshing(false), 300);
+  }, [router, pathname]);
+
   // enquanto carrega auth (importante!)
   if (loading) {
     return null; // ou splash
@@ -23,12 +29,6 @@ export default function AppLayout() {
   if (!user) {
     return <Redirect href="/(auth)/login" />;
   }
-
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    router.replace(pathname as any);
-    setTimeout(() => setRefreshing(false), 300);
-  }, [router, pathname]);
 
   return (
     <View style={{ flex: 1, backgroundColor }}>

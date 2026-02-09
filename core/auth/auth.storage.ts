@@ -4,6 +4,7 @@ import { User } from "./auth.types";
 
 const TOKEN_KEY = "auth_token";
 const USER_KEY = "auth_user";
+const PROFILE_COMPLETE_PREFIX = "profile_complete_";
 
 export async function saveToken(token: string | null) {
   try {
@@ -40,4 +41,19 @@ export async function saveUser(user: User | null) {
 export async function getUser(): Promise<User | null> {
   const raw = await AsyncStorage.getItem(USER_KEY);
   return raw ? JSON.parse(raw) : null;
+}
+
+export async function setProfileCompleted(userId: string, completed: boolean) {
+  const key = `${PROFILE_COMPLETE_PREFIX}${userId}`;
+  if (completed) {
+    await AsyncStorage.setItem(key, "1");
+  } else {
+    await AsyncStorage.removeItem(key);
+  }
+}
+
+export async function getProfileCompleted(userId: string) {
+  const key = `${PROFILE_COMPLETE_PREFIX}${userId}`;
+  const value = await AsyncStorage.getItem(key);
+  return value === "1";
 }

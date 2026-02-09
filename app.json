@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.sosescritura.portalimoveis"
     },
     "web": {
       "output": "static",
@@ -49,7 +50,11 @@
       "googleWebClientId": "637647880739-h025qro8lel127hi4cijcrf957r09fu1.apps.googleusercontent.com",
       "googleIosClientId": "YOUR_IOS_CLIENT_ID",
       "googleAndroidClientId": "YOUR_ANDROID_CLIENT_ID",
-      "googleAuthWebhook": "https://n8n.sosescritura.com.br/webhook/google_login"
+      "googleAuthWebhook": "https://n8n.sosescritura.com.br/webhook/google_login",
+      "router": {},
+      "eas": {
+        "projectId": "b4d69152-aab6-4323-bb3e-27b3e06cc678"
+      }
     },
     "experiments": {
       "typedRoutes": true,

@@ -32,7 +32,7 @@ export default function Register() {
       }
       setSubmitting(true);
       await register({ name, cpf, phone, email, password });
-      router.replace("/profile");
+      router.replace("/Usuario/Perfil");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao registrar");
       console.error("ERRO NO HANDLE REGISTER", err);

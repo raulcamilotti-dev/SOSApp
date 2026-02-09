@@ -43,6 +43,7 @@ export interface AuthContextData {
   login: (cpf: string, password: string) => Promise<User>;
   googleLogin: (idToken: string) => Promise<User>;
   register: (data: RegisterPayload) => Promise<RegisterResponse>;
+  updateUser: (patch: Partial<User>) => Promise<User>;
   logout: () => Promise<void>;
 }
 export interface AuthGateProps {

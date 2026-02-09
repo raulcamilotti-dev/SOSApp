@@ -1,6 +1,13 @@
 export type PropertyFieldType = "text" | "toggle" | "money";
 
-export const propertyFields = [
+export type PropertyField = {
+  field: string;
+  label: string;
+  type: PropertyFieldType;
+  options?: { label: string; value: string }[];
+};
+
+export const propertyFields: PropertyField[] = [
   {
     field: "address",
     label: "Endereço",
@@ -32,8 +39,13 @@ export const propertyFields = [
     type: "text",
   },
   {
+    field: "indicacao",
+    label: "Código promocional",
+    type: "text",
+  },
+  {
     field: "city_rural",
-    label: "Localização",
+    label: "O imóvel é urbano ou rural?",
     type: "toggle",
     options: [
       { label: "Urbano", value: "Urbano" },
@@ -42,7 +54,7 @@ export const propertyFields = [
   },
   {
     field: "has_registry",
-    label: "Possui registro?",
+    label: "O imóvel possui matrícula ou transcrição?",
     type: "toggle",
     options: [
       { label: "Sim", value: "Sim" },
@@ -51,7 +63,35 @@ export const propertyFields = [
   },
   {
     field: "has_contract",
-    label: "Possui contrato?",
+    label:
+      "Você possui contrato de compra e venda / contrato de gaveta deste imóvel?",
+    type: "toggle",
+    options: [
+      { label: "Sim", value: "Sim" },
+      { label: "Não", value: "Não" },
+    ],
+  },
+  {
+    field: "part_of_larger_area",
+    label: "Este imóvel está dentro de um terreno maior?",
+    type: "toggle",
+    options: [
+      { label: "Sim", value: "Sim" },
+      { label: "Não", value: "Não" },
+    ],
+  },
+  {
+    field: "owner_relative",
+    label: "O proprietário atual é seu parente?",
+    type: "toggle",
+    options: [
+      { label: "Sim", value: "Sim" },
+      { label: "Não", value: "Não" },
+    ],
+  },
+  {
+    field: "larger_area_registry",
+    label: "Se estiver dentro de um terreno maior, a área maior tem registro?",
     type: "toggle",
     options: [
       { label: "Sim", value: "Sim" },

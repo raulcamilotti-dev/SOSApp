@@ -8,28 +8,28 @@ import { Platform, StyleSheet } from "react-native";
 
 export const colors = {
   brand: {
-    primary: "#000000",
-    secondary: "#1A1A1A",
-    accent: "#0066FF",
+    primary: "#0a7ea4",
+    secondary: "#111827",
+    accent: "#38bdf8",
   },
 
   background: {
-    app: "#F7F7F7",
-    card: "#FFFFFF",
-    input: "#FFFFFF",
+    app: "#f7f7f7",
+    card: "#ffffff",
+    input: "#ffffff",
   },
 
   text: {
-    primary: "#111111",
-    secondary: "#555555",
-    muted: "#4b5563",
-    inverse: "#FFFFFF",
+    primary: "#0b0b0b",
+    secondary: "#334155",
+    muted: "#64748b",
+    inverse: "#ffffff",
   },
 
   border: {
-    light: "#E5E5E5",
-    medium: "#D0D0D0",
-    focus: "#0066FF",
+    light: "#e5e7eb",
+    medium: "#cbd5f5",
+    focus: "#38bdf8",
   },
   feedback: {
     success: "#2ECC71",
@@ -129,7 +129,7 @@ export const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 360,
-    backgroundColor: colors.background.card,
+    backgroundColor: "transparent",
     padding: spacing.lg,
     borderRadius: radius.md,
     ...(Platform.OS !== "web" ? shadows.card : {}),
@@ -181,7 +181,7 @@ export const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: colors.background.input,
+    backgroundColor: "transparent",
     color: colors.text.primary,
   },
 
@@ -212,7 +212,7 @@ export const styles = StyleSheet.create({
   /* ---------- PROCESSOS ---------- */
 
   processCard: {
-    backgroundColor: colors.background.card,
+    backgroundColor: "transparent",
     borderRadius: radius.md,
     padding: spacing.lg,
     borderWidth: 1,

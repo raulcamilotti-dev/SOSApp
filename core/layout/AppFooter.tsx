@@ -9,9 +9,9 @@ export function AppFooter() {
 
   const navItems = [
     { label: "Início", path: "/" },
-    { label: "Atendimento", path: "/atendimento" },
-    { label: "Serviços", path: "/servicos" },
-    { label: "Perfil", path: "/profile" },
+    { label: "Atendimento", path: "/Servicos/atendimento" },
+    { label: "Serviços", path: "/Servicos/servicos" },
+    { label: "Perfil", path: "/Usuario/Perfil" },
   ];
 
   function isActive(path: string) {

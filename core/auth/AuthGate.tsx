@@ -1,7 +1,7 @@
 import { useRouter, useSegments } from "expo-router";
 import { ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
-import { isUserAdmin } from "./auth.utils";
+import { isUserAdmin, isUserProfileComplete } from "./auth.utils";
 
 type Props = {
   children: ReactNode;
@@ -14,9 +14,13 @@ export function AuthGate({ children }: Props) {
 
   const inAuthGroup = segments[0] === "(auth)";
   const isAdmin = isUserAdmin(user);
-  const adminOnlyRoutes = ["usersmanagement", "processo-advogado"];
+  const isProfileComplete = isUserProfileComplete(user);
+  const adminOnlyRoutes = ["Administrador"];
   const isAdminRoute = segments.some((segment) =>
     adminOnlyRoutes.includes(segment),
+  );
+  const isProfileCompletionRoute = segments.some(
+    (segment) => segment === "complete-profile",
   );
 
   useEffect(() => {
@@ -27,13 +31,33 @@ export function AuthGate({ children }: Props) {
     }
 
     if (user && inAuthGroup) {
+      if (!isProfileComplete) {
+        router.replace("/(app)/Usuario/complete-profile");
+        return;
+      }
+
       router.replace("/");
+    }
+
+    if (user && !isProfileComplete && !isProfileCompletionRoute) {
+      router.replace("/(app)/Usuario/complete-profile");
+      return;
     }
 
     if (user && !isAdmin && isAdminRoute) {
       router.replace("/");
     }
-  }, [user, loading, segments, inAuthGroup, router]);
+  }, [
+    user,
+    loading,
+    segments,
+    inAuthGroup,
+    router,
+    isAdmin,
+    isAdminRoute,
+    isProfileComplete,
+    isProfileCompletionRoute,
+  ]);
 
   if (loading) return null;
 

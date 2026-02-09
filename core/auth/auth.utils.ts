@@ -47,3 +47,12 @@ export function isUserAdmin(user?: User | null): boolean {
 
   return normalizedFlag === "admin";
 }
+
+export function isUserProfileComplete(user?: User | null): boolean {
+  if (!user) return false;
+
+  const cpf = (user.cpf ?? "").toString().trim();
+  const phone = (user.phone ?? user.telefone ?? "").toString().trim();
+
+  return cpf.length > 0 && phone.length > 0;
+}

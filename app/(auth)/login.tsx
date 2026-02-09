@@ -1,10 +1,11 @@
+import { isUserProfileComplete } from "@/core/auth/auth.utils";
 import { useAuth } from "@/core/auth/AuthContext";
 import * as AuthSession from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -27,6 +28,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const lastGoogleTokenRef = useRef<string | null>(null);
 
   const extra =
     Constants.expoConfig?.extra ??
@@ -76,11 +78,22 @@ export default function Login() {
         return;
       }
 
+      if (lastGoogleTokenRef.current === idToken || googleSubmitting) {
+        return;
+      }
+
+      lastGoogleTokenRef.current = idToken;
+
       try {
         setGoogleSubmitting(true);
         setError("");
-        await googleLogin(idToken);
-        router.replace("/profile");
+        const loggedUser = await googleLogin(idToken);
+        console.log("GOOGLE LOGIN USER", loggedUser);
+        if (!isUserProfileComplete(loggedUser)) {
+          router.replace("/(app)/Usuario/complete-profile");
+        } else {
+          router.replace("/Usuario/Perfil");
+        }
       } catch (err) {
         console.error("ERRO NO LOGIN GOOGLE", err);
         setError("Não foi possível entrar com Google");
@@ -90,14 +103,14 @@ export default function Login() {
     };
 
     handleGoogleResponse();
-  }, [response, googleLogin, router]);
+  }, [response, googleLogin, router, googleSubmitting]);
 
   async function handleLogin() {
     try {
       setSubmitting(true);
       setError("");
       const result = await login(cpf, password);
-      router.replace("/profile");
+      router.replace("/Usuario/Perfil");
       console.log("RETORNO DO LOGIN", result);
     } catch (error) {
       console.error("ERRO NO HANDLE LOGIN", error);
@@ -120,7 +133,10 @@ export default function Login() {
       setError("");
       const useProxy =
         Platform.OS !== "web" && Constants.appOwnership === "expo";
-      await promptAsync({ useProxy });
+      const promptOptions = useProxy
+        ? ({ useProxy: true } as AuthSession.AuthRequestPromptOptions)
+        : undefined;
+      await promptAsync(promptOptions);
     } catch (err) {
       console.error("ERRO AO INICIAR GOOGLE", err);
       setError("Não foi possível iniciar o login com Google");
