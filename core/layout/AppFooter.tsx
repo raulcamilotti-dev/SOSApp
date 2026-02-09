@@ -1,8 +1,13 @@
+import { useThemeColor } from "@/hooks/use-theme-color";
 import { usePathname, useRouter, type Href } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export function AppFooter() {
+  const bgColor = useThemeColor({}, "card");
+  const borderColor = useThemeColor({}, "border");
+  const textColor = useThemeColor({}, "muted");
+  const activeColor = useThemeColor({}, "tint");
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -23,6 +28,8 @@ export function AppFooter() {
       style={[
         styles.container,
         {
+          backgroundColor: bgColor,
+          borderTopColor: borderColor,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
         },
       ]}
@@ -33,14 +40,15 @@ export function AppFooter() {
           onPress={() => router.push(item.path as Href)}
           style={({ pressed }) => [
             styles.navButton,
-            isActive(item.path) && styles.navButtonActive,
+            isActive(item.path) && { backgroundColor: activeColor + "22" },
             pressed && styles.navButtonPressed,
           ]}
         >
           <Text
             style={[
               styles.navLabel,
-              isActive(item.path) && styles.navLabelActive,
+              { color: isActive(item.path) ? activeColor : textColor },
+              isActive(item.path) && { fontWeight: "600" },
             ]}
           >
             {item.label}

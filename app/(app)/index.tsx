@@ -3,20 +3,18 @@ import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
 import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  useWindowDimensions,
 } from "react-native";
 
 interface Service {
   id: string;
   title: string;
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  // icon: keyof typeof Ionicons.glyphMap;
   route?: string;
   adminOnly?: boolean;
 }
@@ -26,28 +24,28 @@ const SERVICES: Service[] = [
     id: "1",
     title: "Imóveis",
     description: "Acompanhe seus imóveis e documentos",
-    icon: "home-outline",
+    // icon: "home-outline",
     route: "/Servicos/Imoveis",
   },
   {
     id: "2",
     title: "Advogados",
     description: "Conheça nossos advogados parceiros",
-    icon: "briefcase-outline",
+    // icon: "briefcase-outline",
     route: "/Servicos/Advogados",
   },
   {
     id: "3",
     title: "Tipos de regularização",
     description: "Saiba todas as formas de regularizar seu imóvel",
-    icon: "briefcase-outline",
+    // icon: "briefcase-outline",
     route: "/Servicos/Regularizacao",
   },
   {
     id: "4",
     title: "Administração",
     description: "Gerenciar páginas administrativas",
-    icon: "settings-outline",
+    // icon: "settings-outline",
     route: "/Administrador/home",
     adminOnly: true,
   },
@@ -55,7 +53,7 @@ const SERVICES: Service[] = [
     id: "5",
     title: "Gestão de usuários",
     description: "Clientes e imóveis vinculados",
-    icon: "people-outline",
+    // icon: "people-outline",
     route: "/Administrador/gestao-de-usuarios",
     adminOnly: true,
   },
@@ -63,7 +61,7 @@ const SERVICES: Service[] = [
     id: "6",
     title: "Gestor de prazos",
     description: "Projetos, tarefas e prazos",
-    icon: "calendar-outline",
+    // icon: "calendar-outline",
     route: "/Administrador/gestor-prazos",
     adminOnly: true,
   },
@@ -71,7 +69,7 @@ const SERVICES: Service[] = [
     id: "7",
     title: "Tenants",
     description: "Gestão de tenants",
-    icon: "business-outline",
+    // icon: "business-outline",
     route: "/Administrador/tenants",
     adminOnly: true,
   },
@@ -80,13 +78,8 @@ const SERVICES: Service[] = [
 export default function ServicosScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { width } = useWindowDimensions();
-  const tintColor = useThemeColor({}, "tint");
-  const cardBg = useThemeColor({}, "card");
-  const borderColor = useThemeColor({}, "border");
+  // const tintColor = useThemeColor({}, "tint");
   const mutedTextColor = useThemeColor({}, "muted");
-  const headerBorderColor = useThemeColor({}, "border");
-  const isNarrow = width < 380;
 
   const handleServicePress = (route?: string) => {
     if (route) {
@@ -100,49 +93,36 @@ export default function ServicosScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView
-        style={[styles.header, { borderBottomColor: headerBorderColor }]}
-      >
+    <ThemedView style={{ flex: 1 }}>
+      <ThemedView style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
         <ThemedText type="title">Serviços Adicionais</ThemedText>
       </ThemedView>
-
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        <ThemedView style={styles.grid}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <ThemedView style={{ padding: 16 }}>
           {visibleServices.map((service) => (
             <TouchableOpacity
               key={service.id}
               onPress={() => handleServicePress(service.route)}
               activeOpacity={0.7}
-              style={[styles.cardWrapper, isNarrow && styles.cardWrapperFull]}
+              style={styles.processCard}
             >
               <ThemedView
-                style={[
-                  styles.serviceCard,
-                  {
-                    backgroundColor: cardBg,
-                    borderColor: borderColor,
-                  },
-                ]}
+                style={{ alignItems: "center", justifyContent: "center" }}
               >
-                <Ionicons
-                  name={service.icon}
-                  size={isNarrow ? 40 : 48}
-                  color={tintColor}
-                  style={styles.icon}
-                />
                 <ThemedText
                   type="subtitle"
-                  style={styles.serviceTitle}
+                  style={{ marginBottom: 8, textAlign: "center" }}
                   numberOfLines={2}
                 >
                   {service.title}
                 </ThemedText>
                 <ThemedText
-                  style={[styles.serviceDescription, { color: mutedTextColor }]}
+                  style={{
+                    fontSize: 12,
+                    textAlign: "center",
+                    color: mutedTextColor,
+                    opacity: 0.7,
+                  }}
                   numberOfLines={3}
                 >
                   {service.description}
@@ -157,51 +137,15 @@ export default function ServicosScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  grid: {
-    padding: 16,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  cardWrapper: {
-    width: "48%",
-    minHeight: 200,
-  },
-  cardWrapperFull: {
-    width: "100%",
-  },
-  serviceCard: {
-    flex: 1,
+  processCard: {
+    backgroundColor: "#fff",
     borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
-    alignItems: "center",
-    justifyContent: "flex-start",
-  },
-  icon: {
+    padding: 16,
     marginBottom: 12,
-  },
-  serviceTitle: {
-    marginBottom: 8,
-    textAlign: "center",
-    flexShrink: 1,
-  },
-  serviceDescription: {
-    fontSize: 12,
-    textAlign: "center",
-    opacity: 0.7,
-    flexShrink: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });

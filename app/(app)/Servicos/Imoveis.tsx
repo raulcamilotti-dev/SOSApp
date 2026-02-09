@@ -10,17 +10,18 @@ import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Platform,
-    ScrollView,
-    Switch,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  Switch,
+  TextInput,
+  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
-import { styles } from "../../theme/styles";
+import { styles } from "../../theme";
 
 interface Property {
   id: string;
@@ -81,7 +82,7 @@ export default function PropertyListScreen() {
   >({});
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
-  const [cepLoading, setCepLoading] = useState(false);
+  // Removed unused cepLoading state
   const [createForm, setCreateForm] = useState<CreatePropertyForm>({
     address: "",
     number: "",
@@ -223,31 +224,7 @@ export default function PropertyListScreen() {
     });
   };
 
-  const handleCepLookup = async (rawCep: string) => {
-    const cep = rawCep.replace(/\D/g, "");
-    if (cep.length !== 8) return;
-    try {
-      setCepLoading(true);
-      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-      const data = await response.json();
-      if (data?.erro) {
-        Alert.alert("CEP inválido", "Não foi possível encontrar este CEP.");
-        return;
-      }
-      setCreateForm((prev) => ({
-        ...prev,
-        postal_code: cep,
-        address: data.logradouro ?? prev.address,
-        city: data.localidade ?? prev.city,
-        state: data.uf ?? prev.state,
-        number: prev.number,
-      }));
-    } catch {
-      Alert.alert("Erro", "Falha ao consultar CEP.");
-    } finally {
-      setCepLoading(false);
-    }
-  };
+  // Removed unused handleCepLookup function
 
   const handleCreateProperty = async () => {
     try {
@@ -409,7 +386,7 @@ export default function PropertyListScreen() {
     return (
       <ThemedView
         style={[
-          styles.container,
+          styles.container as ViewStyle,
           { justifyContent: "center", alignItems: "center" },
         ]}
       >
@@ -421,11 +398,24 @@ export default function PropertyListScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16 }}>
-      <ThemedView style={styles.processCard}>
-        <ThemedText style={[styles.processTitle, { color: textColor }]}>
+      <ThemedView
+        style={{
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 16,
+          backgroundColor: cardColor,
+          shadowColor: "#000",
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
+          elevation: 2,
+        }}
+      >
+        <ThemedText
+          style={{ fontSize: 18, fontWeight: "700", color: textColor }}
+        >
           Imóveis
         </ThemedText>
-        <ThemedText style={[styles.processSubtitle, { color: mutedTextColor }]}>
+        <ThemedText style={{ fontSize: 14, color: mutedTextColor }}>
           Gestão de imóveis e acompanhamento de processos.
         </ThemedText>
 
@@ -466,14 +456,26 @@ export default function PropertyListScreen() {
         const latestUpdate = latestUpdateByProperty[property.id];
 
         return (
-          <ThemedView key={property.id} style={styles.processCard}>
+          <ThemedView
+            key={property.id}
+            style={{
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 16,
+              backgroundColor: cardColor,
+              shadowColor: "#000",
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 2,
+            }}
+          >
             <TouchableOpacity onPress={() => toggleProperty(property.id)}>
-              <ThemedText style={[styles.processTitle, { color: textColor }]}>
+              <ThemedText
+                style={{ fontSize: 18, fontWeight: "700", color: textColor }}
+              >
                 {property.address || "Imóvel"}
               </ThemedText>
-              <ThemedText
-                style={[styles.processSubtitle, { color: mutedTextColor }]}
-              >
+              <ThemedText style={{ fontSize: 14, color: mutedTextColor }}>
                 {property.city || ""} {property.state || ""}
               </ThemedText>
             </TouchableOpacity>
@@ -500,21 +502,16 @@ export default function PropertyListScreen() {
                   paddingHorizontal: 10,
                   borderRadius: 6,
                   borderWidth: 1,
-                  borderColor: borderColor,
-                  backgroundColor: cardColor,
+                  borderColor: tintColor,
+                  marginRight: 8,
                 }}
               >
                 <ThemedText
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "600",
-                    color: textColor,
-                  }}
+                  style={{ fontSize: 12, fontWeight: "600", color: tintColor }}
                 >
                   {expanded ? "Ocultar detalhes" : "Ver detalhes"}
                 </ThemedText>
               </TouchableOpacity>
-
               <TouchableOpacity
                 onPress={() =>
                   router.push({
@@ -522,25 +519,14 @@ export default function PropertyListScreen() {
                     params: { propertyId: property.id },
                   })
                 }
-                style={{
-                  paddingVertical: 6,
-                  paddingHorizontal: 10,
-                  borderRadius: 6,
-                  backgroundColor: tintColor,
-                }}
               >
                 <ThemedText
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "600",
-                    color: onTintTextColor,
-                  }}
+                  style={{ fontSize: 12, fontWeight: "600", color: tintColor }}
                 >
                   Ver processo
                 </ThemedText>
               </TouchableOpacity>
             </View>
-
             {expanded ? (
               <View style={{ marginTop: 12 }}>
                 {propertyFields.map((field) => (
@@ -558,122 +544,93 @@ export default function PropertyListScreen() {
                     editable
                   />
                 ))}
-
-                <ThemedView style={{ marginTop: 12 }}>
-                  <ThemedText
-                    style={[styles.processTitle, { color: textColor }]}
-                  >
-                    Documentos
+                <ThemedText
+                  style={{ fontSize: 16, fontWeight: "700", marginTop: 16 }}
+                >
+                  Documentos
+                </ThemedText>
+                {propertyDocs.length === 0 ? (
+                  <ThemedText style={{ color: mutedTextColor }}>
+                    Nenhum documento anexado.
                   </ThemedText>
-
-                  {propertyDocs.length === 0 ? (
-                    <ThemedText style={{ color: mutedTextColor }}>
-                      Nenhum documento anexado.
-                    </ThemedText>
-                  ) : (
-                    propertyDocs.map((doc) => (
-                      <View
-                        key={doc.id}
+                ) : (
+                  propertyDocs.map((doc) => (
+                    <View key={doc.id} style={{ marginTop: 8 }}>
+                      <ThemedText
                         style={{
-                          padding: 12,
-                          marginTop: 8,
-                          backgroundColor: cardColor,
-                          borderRadius: 6,
-                          borderLeftWidth: 4,
-                          borderLeftColor: tintColor,
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: tintColor,
                         }}
                       >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                          }}
-                        >
-                          <View style={{ flex: 1, paddingRight: 8 }}>
-                            <ThemedText
-                              style={{
-                                fontSize: 12,
-                                fontWeight: "600",
-                                color: textColor,
-                              }}
-                            >
-                              {doc.fileName}
-                            </ThemedText>
-                            <ThemedText
-                              style={{
-                                fontSize: 11,
-                                marginTop: 4,
-                                color: mutedTextColor,
-                              }}
-                            >
-                              {doc.description}
-                            </ThemedText>
-                          </View>
-
-                          <TouchableOpacity
-                            onPress={() =>
-                              handleRemoveDocument(property.id, doc.id)
-                            }
-                            style={{ padding: 8 }}
-                          >
-                            <ThemedText
-                              style={{ color: tintColor, fontWeight: "700" }}
-                            >
-                              ✕
-                            </ThemedText>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))
-                  )}
-
-                  <TouchableOpacity
-                    onPress={() => handleAddDocument(property.id)}
-                    disabled={!!uploadingDocuments[property.id]}
-                    style={{
-                      marginTop: 12,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      backgroundColor: tintColor,
-                      borderRadius: 6,
-                      alignItems: "center",
-                      opacity: uploadingDocuments[property.id] ? 0.7 : 1,
-                    }}
-                  >
-                    {uploadingDocuments[property.id] ? (
-                      <View
+                        {doc.fileName}
+                      </ThemedText>
+                      <ThemedText
                         style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
+                          fontSize: 11,
+                          marginTop: 4,
+                          color: mutedTextColor,
                         }}
                       >
-                        <ActivityIndicator
-                          size="small"
-                          color={onTintTextColor}
-                        />
+                        {doc.description}
+                      </ThemedText>
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleRemoveDocument(property.id, doc.id)
+                        }
+                        style={{ marginTop: 4 }}
+                      >
                         <ThemedText
-                          style={{ color: onTintTextColor, fontWeight: "600" }}
+                          style={{ color: tintColor, fontWeight: "700" }}
                         >
-                          Enviando...
+                          ✕
                         </ThemedText>
-                      </View>
-                    ) : (
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+                <TouchableOpacity
+                  onPress={() => handleAddDocument(property.id)}
+                  disabled={!!uploadingDocuments[property.id]}
+                  style={{
+                    marginTop: 12,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    backgroundColor: tintColor,
+                    borderRadius: 6,
+                    alignItems: "center",
+                    opacity: uploadingDocuments[property.id] ? 0.7 : 1,
+                  }}
+                >
+                  {uploadingDocuments[property.id] ? (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <ActivityIndicator size="small" color={onTintTextColor} />
                       <ThemedText
                         style={{ color: onTintTextColor, fontWeight: "600" }}
                       >
-                        + Adicionar Documento
+                        Enviando...
                       </ThemedText>
-                    )}
-                  </TouchableOpacity>
-                </ThemedView>
+                    </View>
+                  ) : (
+                    <ThemedText
+                      style={{ color: onTintTextColor, fontWeight: "600" }}
+                    >
+                      + Adicionar Documento
+                    </ThemedText>
+                  )}
+                </TouchableOpacity>
               </View>
             ) : null}
           </ThemedView>
         );
       })}
-
+      {/* Move Modal inside main return */}
       <Modal
         transparent
         visible={createModalVisible}
@@ -696,7 +653,9 @@ export default function PropertyListScreen() {
               maxHeight: "90%",
             }}
           >
-            <ThemedText style={[styles.processTitle, { color: textColor }]}>
+            <ThemedText
+              style={{ fontSize: 18, fontWeight: "700", color: textColor }}
+            >
               Criar imóvel
             </ThemedText>
 
@@ -713,97 +672,79 @@ export default function PropertyListScreen() {
                 { key: "state", label: "Estado" },
                 { key: "property_value", label: "Valor do imóvel" },
                 { key: "indicacao", label: "Código promocional" },
+                // Add boolean fields for switches
+                {
+                  key: "has_registry",
+                  label: "Possui registro",
+                  type: "boolean",
+                },
+                {
+                  key: "has_contract",
+                  label: "Possui contrato",
+                  type: "boolean",
+                },
+                {
+                  key: "part_of_larger_area",
+                  label: "Parte de área maior",
+                  type: "boolean",
+                },
+                {
+                  key: "owner_relative",
+                  label: "Proprietário é parente",
+                  type: "boolean",
+                },
+                {
+                  key: "larger_area_registry",
+                  label: "Área maior registrada",
+                  type: "boolean",
+                },
+                { key: "city_rural", label: "Imóvel rural", type: "boolean" },
               ].map((field) => (
                 <View key={field.key} style={{ marginBottom: 12 }}>
                   <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
                     {field.label}
                   </ThemedText>
-                  <TextInput
-                    value={(createForm as any)[field.key]}
-                    onChangeText={(text) => {
-                      const nextValue =
-                        field.key === "number" ? text.replace(/\D/g, "") : text;
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        [field.key]: nextValue,
-                      }));
-                      if (field.key === "postal_code") {
-                        handleCepLookup(nextValue);
+                  {field.type === "boolean" ? (
+                    <Switch
+                      value={(createForm as any)[field.key]}
+                      onValueChange={(value) =>
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          [field.key]: value,
+                        }))
                       }
-                    }}
-                    placeholder={field.label}
-                    placeholderTextColor={placeholderColor}
-                    keyboardType={
-                      field.key === "postal_code" || field.key === "number"
-                        ? "numeric"
-                        : "default"
-                    }
-                    style={{
-                      borderWidth: 1,
-                      borderColor,
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      backgroundColor: inputBackground,
-                      color: inputTextColor,
-                      marginTop: 6,
-                    }}
-                  />
-                </View>
-              ))}
-
-              {cepLoading ? (
-                <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
-                  Buscando endereço pelo CEP...
-                </ThemedText>
-              ) : null}
-
-              {[
-                {
-                  key: "has_registry",
-                  label: "O imóvel possui matrícula ou transcrição?",
-                },
-                {
-                  key: "has_contract",
-                  label:
-                    "Você possui contrato de compra e venda / contrato de gaveta deste imóvel?",
-                },
-                {
-                  key: "part_of_larger_area",
-                  label: "Este imóvel está dentro de um terreno maior?",
-                },
-                {
-                  key: "owner_relative",
-                  label: "O proprietário atual é seu parente?",
-                },
-                {
-                  key: "larger_area_registry",
-                  label:
-                    "Se estiver dentro de um terreno maior, a área maior tem registro?",
-                },
-                { key: "city_rural", label: "O imóvel é urbano ou rural?" },
-              ].map((field) => (
-                <View
-                  key={field.key}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 12,
-                  }}
-                >
-                  <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
-                    {field.label}
-                  </ThemedText>
-                  <Switch
-                    value={(createForm as any)[field.key]}
-                    onValueChange={(value) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        [field.key]: value,
-                      }))
-                    }
-                  />
+                    />
+                  ) : (
+                    <TextInput
+                      value={(createForm as any)[field.key]}
+                      onChangeText={(text) => {
+                        const nextValue =
+                          field.key === "number"
+                            ? text.replace(/\D/g, "")
+                            : text;
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          [field.key]: nextValue,
+                        }));
+                      }}
+                      style={{
+                        backgroundColor: inputBackground,
+                        color: inputTextColor,
+                        borderRadius: 6,
+                        padding: 8,
+                        borderWidth: 1,
+                        borderColor,
+                        marginTop: 4,
+                      }}
+                      placeholder={field.label}
+                      placeholderTextColor={placeholderColor}
+                      keyboardType={
+                        field.key === "number" ? "numeric" : "default"
+                      }
+                      editable={!createSubmitting}
+                      autoCapitalize="none"
+                    />
+                  )}
                 </View>
               ))}
             </ScrollView>

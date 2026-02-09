@@ -277,6 +277,7 @@ export default function GestorPrazosDetailScreen() {
         prev.map((t) => (t.id === taskId ? { ...t, ...changes } : t)),
       );
     },
+    [],
   );
 
   const persistTaskUpdate = useCallback(

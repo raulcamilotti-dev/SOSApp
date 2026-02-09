@@ -1,4 +1,5 @@
-import { colors, spacing, typography } from "@/app/theme";
+import Colors from "@/app/theme/colors";
+import { spacing, typography } from "@/app/theme/styles";
 import { useAuth } from "@/core/auth/AuthContext";
 import { usePathname, useRouter } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -15,8 +16,8 @@ const headerStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
-    backgroundColor: "#05333B",
+    borderBottomColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
   },
 
   logoContainer: {
@@ -34,13 +35,13 @@ const headerStyles = StyleSheet.create({
   appName: {
     ...typography.body,
     fontWeight: "600",
-    color: "#FFFFFF",
+    color: Colors.light.text,
   },
 
   logout: {
     ...typography.body,
     fontWeight: "500",
-    color: "#ffffff",
+    color: Colors.light.text,
   },
 });
 

@@ -40,12 +40,10 @@ export default function CompleteProfile() {
     }
   }, [isComplete, router]);
 
-  const buildUserPatch = (payload: any) => {
-    if (!payload || typeof payload !== "object") return {};
-    const base = Array.isArray(payload) ? payload[0] : payload;
+  const buildUserPatch = (base: any) => {
+    if (!base || typeof base !== "object") return {};
     const raw = base.user ?? base.json ?? base.data?.[0] ?? base.data ?? base;
-
-    const normalized = {
+    return {
       id: raw.user_id ?? raw.userId ?? raw.id,
       fullname: raw.fullname ?? raw.full_name ?? raw.name ?? raw.nome,
       name: raw.name ?? raw.nome,
@@ -54,22 +52,13 @@ export default function CompleteProfile() {
       phone: raw.phone ?? raw.telefone ?? raw.phone_number,
       telefone: raw.telefone,
       role: raw.role ?? raw.user_role ?? raw.perfil ?? raw.type,
-    } as const;
-
-    const patch: Record<string, string> = {};
-    Object.entries(normalized).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && `${value}`.trim() !== "") {
-        patch[key] = String(value);
-      }
-    });
-
-    return patch;
+    };
   };
 
-  async function handleSave() {
-    let userId = user?.id ?? (user as any)?.user_id ?? (user as any)?.userId;
-    let resolvedEmail = user?.email as string | undefined;
-    let resolvedGoogleSub = (user as any)?.google_sub as string | undefined;
+  const handleSave = async () => {
+    let userId = user?.id;
+    let resolvedEmail = user?.email;
+    let resolvedGoogleSub = (user as any)?.google_sub;
 
     if (!userId) {
       const stored = await getUser();
@@ -165,7 +154,7 @@ export default function CompleteProfile() {
     } finally {
       setSaving(false);
     }
-  }
+  };
 
   const handleLogout = () => {
     Alert.alert("Sair", "Deseja sair da conta?", [

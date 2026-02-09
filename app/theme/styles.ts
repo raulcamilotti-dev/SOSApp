@@ -1,4 +1,5 @@
 import { Platform, StyleSheet } from "react-native";
+import Colors from "./colors";
 
 /* ======================================================
  * DESIGN TOKENS
@@ -7,36 +8,7 @@ import { Platform, StyleSheet } from "react-native";
 /* ---------- CORES ---------- */
 
 export const colors = {
-  brand: {
-    primary: "#0a7ea4",
-    secondary: "#111827",
-    accent: "#38bdf8",
-  },
-
-  background: {
-    app: "#f7f7f7",
-    card: "#ffffff",
-    input: "#ffffff",
-  },
-
-  text: {
-    primary: "#0b0b0b",
-    secondary: "#334155",
-    muted: "#64748b",
-    inverse: "#ffffff",
-  },
-
-  border: {
-    light: "#e5e7eb",
-    medium: "#cbd5f5",
-    focus: "#38bdf8",
-  },
-  feedback: {
-    success: "#2ECC71",
-    warning: "#F1C40F",
-    error: "#E74C3C",
-    info: "#3498DB",
-  },
+  // Removido: agora usamos Colors do tema global
 };
 
 /* ---------- ESPAÇAMENTO ---------- */
@@ -112,7 +84,7 @@ export const styles = StyleSheet.create({
 
   screen: {
     flex: 1,
-    backgroundColor: colors.background.app,
+    backgroundColor: Colors.light.background,
   },
 
   container: {
@@ -120,6 +92,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.lg,
+    backgroundColor: Colors.light.background,
   },
   listContainer: {
     padding: 24,
@@ -129,7 +102,7 @@ export const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 360,
-    backgroundColor: "transparent",
+    backgroundColor: Colors.light.card,
     padding: spacing.lg,
     borderRadius: radius.md,
     ...(Platform.OS !== "web" ? shadows.card : {}),
@@ -139,26 +112,26 @@ export const styles = StyleSheet.create({
 
   title: {
     ...typography.title,
-    color: colors.text.primary,
+    color: Colors.light.text,
     marginBottom: spacing.md,
     textAlign: "center",
   },
 
   text: {
     ...typography.body,
-    color: colors.text.primary,
+    color: Colors.light.text,
   },
 
   mutedText: {
     ...typography.body,
-    color: colors.text.muted,
+    color: Colors.light.muted,
   },
 
   /* ---------- LABEL / META ---------- */
 
   label: {
     ...typography.label,
-    color: colors.text.muted,
+    color: Colors.light.muted,
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
@@ -167,7 +140,7 @@ export const styles = StyleSheet.create({
 
   link: {
     marginTop: spacing.md,
-    color: colors.brand.accent,
+    color: Colors.light.tint,
     textAlign: "center",
     fontWeight: "500",
   },
@@ -177,23 +150,23 @@ export const styles = StyleSheet.create({
   input: {
     width: "100%",
     borderWidth: 1,
-    borderColor: colors.border.light,
+    borderColor: Colors.light.border,
     borderRadius: radius.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: "transparent",
-    color: colors.text.primary,
+    backgroundColor: Colors.light.input,
+    color: Colors.light.text,
   },
 
   inputError: {
-    borderColor: colors.feedback.error,
+    borderColor: "#E74C3C",
   },
 
   /* ---------- BOTÃO ---------- */
 
   button: {
     width: "100%",
-    backgroundColor: colors.brand.primary,
+    backgroundColor: Colors.light.primary,
     paddingVertical: spacing.md,
     borderRadius: radius.sm,
     marginTop: spacing.lg,
@@ -205,31 +178,38 @@ export const styles = StyleSheet.create({
   },
 
   buttonText: {
-    color: colors.text.inverse,
+    color: Colors.light.card,
     fontWeight: "600",
   },
 
   /* ---------- PROCESSOS ---------- */
 
   processCard: {
-    backgroundColor: "transparent",
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-    marginBottom: spacing.lg,
-    ...(Platform.OS !== "web" ? shadows.card : {}),
+    backgroundColor: Platform.OS === "web" ? "#23283a" : Colors.light.card,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    borderWidth: 1.5,
+    borderColor: Platform.OS === "web" ? "#e5e7eb" : Colors.light.border,
+    marginBottom: spacing.xxl,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 8,
+    ...(Platform.OS === "web"
+      ? { background: "linear-gradient(180deg, #23283a 0%, #2d3246 100%)" }
+      : {}),
   },
 
   processTitle: {
     ...typography.subtitle,
-    color: colors.text.primary,
+    color: Colors.light.text,
     marginBottom: spacing.xs,
   },
 
   processSubtitle: {
     ...typography.body,
-    color: colors.text.muted,
+    color: Colors.light.muted,
     marginBottom: spacing.sm,
   },
 
@@ -245,7 +225,7 @@ export const styles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     fontWeight: "500",
-    color: colors.brand.accent,
+    color: Colors.light.tint,
   },
   infoBlock: {
     marginTop: 16,
