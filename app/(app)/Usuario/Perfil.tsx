@@ -5,6 +5,7 @@ import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import { useAuth } from "../../../core/auth/AuthContext";
 import { useThemeColor } from "../../../hooks/use-theme-color";
+import Colors from "../../theme/colors";
 import { styles } from "../../theme/styles";
 
 export default function Profile() {
@@ -13,7 +14,14 @@ export default function Profile() {
   const backgroundColor = useThemeColor({}, "background");
   const tintColor = useThemeColor({}, "tint");
   const mutedTextColor = useThemeColor({}, "muted");
-  const cardBg = useThemeColor({}, "card");
+  // Garante fundo sólido para os cards do perfil
+  const cardBg = useThemeColor(
+    {
+      light: Colors.light.card,
+      dark: Colors.dark.card,
+    },
+    "card",
+  );
 
   if (!user) return null;
 
