@@ -4,11 +4,7 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { useRouter } from "expo-router";
-import {
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-} from "react-native";
+import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 
 interface Service {
   id: string;
@@ -49,37 +45,20 @@ const SERVICES: Service[] = [
     route: "/Administrador/home",
     adminOnly: true,
   },
-  {
-    id: "5",
-    title: "Gestão de usuários",
-    description: "Clientes e imóveis vinculados",
-    // icon: "people-outline",
-    route: "/Administrador/gestao-de-usuarios",
-    adminOnly: true,
-  },
-  {
-    id: "6",
-    title: "Gestor de prazos",
-    description: "Projetos, tarefas e prazos",
-    // icon: "calendar-outline",
-    route: "/Administrador/gestor-prazos",
-    adminOnly: true,
-  },
-  {
-    id: "7",
-    title: "Tenants",
-    description: "Gestão de tenants",
-    // icon: "business-outline",
-    route: "/Administrador/tenants",
-    adminOnly: true,
-  },
 ];
 
 export default function ServicosScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  // const tintColor = useThemeColor({}, "tint");
   const mutedTextColor = useThemeColor({}, "muted");
+  // Fundo translúcido com efeito glassmorphism
+  const cardBg = useThemeColor(
+    { light: "rgba(255,255,255,0.65)", dark: "rgba(36,37,46,0.55)" },
+    "background",
+  );
+  const cardBorder = useThemeColor({ light: "#0a7ea4", dark: "#fff" }, "tint");
+  // Use a direct color value for shadow since "shadow" is not a valid theme key
+  const shadowColor = "#000";
 
   const handleServicePress = (route?: string) => {
     if (route) {
@@ -94,40 +73,47 @@ export default function ServicosScreen() {
 
   return (
     <ThemedView style={{ flex: 1 }}>
-      <ThemedView style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
-        <ThemedText type="title">Serviços Adicionais</ThemedText>
+      <ThemedView style={{ paddingHorizontal: 20, paddingVertical: 24 }}>
+        <ThemedText type="title" style={{ fontSize: 26, fontWeight: "700" }}>
+          Serviços
+        </ThemedText>
       </ThemedView>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <ThemedView style={{ padding: 16 }}>
+        <ThemedView style={styles.cardsContainer}>
           {visibleServices.map((service) => (
             <TouchableOpacity
               key={service.id}
               onPress={() => handleServicePress(service.route)}
-              activeOpacity={0.7}
-              style={styles.processCard}
+              activeOpacity={0.88}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: cardBg,
+                  borderColor: cardBorder,
+                  shadowColor: shadowColor,
+                  ...(Platform.OS === "web"
+                    ? { backdropFilter: "blur(12px)" }
+                    : {}),
+                },
+              ]}
             >
-              <ThemedView
-                style={{ alignItems: "center", justifyContent: "center" }}
-              >
+              <View style={styles.cardGradientOverlay} pointerEvents="none" />
+              <View style={styles.cardContent}>
+                {/* Ícone pode ser adicionado aqui futuramente */}
                 <ThemedText
                   type="subtitle"
-                  style={{ marginBottom: 8, textAlign: "center" }}
+                  style={styles.cardTitle}
                   numberOfLines={2}
                 >
                   {service.title}
                 </ThemedText>
                 <ThemedText
-                  style={{
-                    fontSize: 12,
-                    textAlign: "center",
-                    color: mutedTextColor,
-                    opacity: 0.7,
-                  }}
+                  style={[styles.cardDescription, { color: mutedTextColor }]}
                   numberOfLines={3}
                 >
                   {service.description}
                 </ThemedText>
-              </ThemedView>
+              </View>
             </TouchableOpacity>
           ))}
         </ThemedView>
@@ -137,15 +123,57 @@ export default function ServicosScreen() {
 }
 
 const styles = StyleSheet.create({
-  processCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  cardsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  card: {
+    width: "48%",
+    minHeight: 120,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    marginBottom: 16,
+    padding: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    // Sombra iOS
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    // Sombra Android
+    elevation: 8,
+    // Transição suave
+    transitionDuration: "200ms",
+    borderStyle: "solid",
+  },
+  cardGradientOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+    borderRadius: 20,
+    opacity: 0.25,
+    backgroundColor: "transparent",
+    // Gradiente sutil (manual, pois não usamos LinearGradient aqui)
+    // Para web, pode-se usar background: 'linear-gradient(...)', mas RN puro não suporta
+  },
+  cardContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardTitle: {
+    marginBottom: 8,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  cardDescription: {
+    fontSize: 13,
+    textAlign: "center",
+    opacity: 0.75,
+    fontWeight: "400",
   },
 });
