@@ -7,7 +7,6 @@ import {
 } from "react";
 
 import { setAuthToken } from "@/services/api";
-import Constants from "expo-constants";
 import { getToken, getUser, saveToken, saveUser } from "./auth.storage";
 import {
     AuthContextData,
@@ -167,15 +166,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * GOOGLE LOGIN
    * ====================================================== */
   async function googleLogin(idToken: string): Promise<User> {
-    const googleAuthWebhook =
-      Constants.expoConfig?.extra?.googleAuthWebhook ??
-      "https://n8n.sosescritura.com.br/webhook/google_login";
-
-    const res = await fetch(googleAuthWebhook, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id_token: idToken }),
-    });
+    const res = await fetch(
+      "https://n8n.sosescritura.com.br/webhook/google_login",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: idToken }),
+      },
+    );
 
     if (!res.ok) {
       throw new Error("Erro ao fazer login com Google");
