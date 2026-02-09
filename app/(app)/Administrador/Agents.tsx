@@ -27,6 +27,9 @@ const createRow = async (payload: Partial<Row>): Promise<unknown> => {
 const updateRow = async (
   payload: Partial<Row> & { id?: string | null },
 ): Promise<unknown> => {
+  if (!payload.id) {
+    throw new Error("Id obrigatorio para atualizar");
+  }
   const response = await api.post(ENDPOINT, {
     action: "update",
     table: "agents",
@@ -41,8 +44,8 @@ export default function AgentsScreen() {
       key: "id",
       label: "Id",
       placeholder: "Id",
-      required: true,
       visibleInList: true,
+      visibleInForm: false,
     },
     {
       key: "tenant_id",
@@ -65,8 +68,18 @@ export default function AgentsScreen() {
     { key: "is_default", label: "Is Default", placeholder: "Is Default" },
     { key: "is_active", label: "Is Active", placeholder: "Is Active" },
     { key: "version", label: "Version", placeholder: "Version" },
-    { key: "created_at", label: "Created At", placeholder: "Created At" },
-    { key: "updated_at", label: "Updated At", placeholder: "Updated At" },
+    {
+      key: "created_at",
+      label: "Created At",
+      placeholder: "Created At",
+      visibleInForm: false,
+    },
+    {
+      key: "updated_at",
+      label: "Updated At",
+      placeholder: "Updated At",
+      visibleInForm: false,
+    },
   ];
 
   return (

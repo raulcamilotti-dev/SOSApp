@@ -5,13 +5,13 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { useIsFocused } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export type CrudFieldType = "text" | "multiline" | "json";
@@ -23,6 +23,8 @@ export type CrudFieldConfig<T> = {
   type?: CrudFieldType;
   required?: boolean;
   visibleInList?: boolean;
+  visibleInForm?: boolean;
+  readOnly?: boolean;
 };
 
 type DetailItem = { label: string; value: string };
@@ -74,6 +76,11 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const [editingId, setEditingId] = useState<string | null>(null);
   const isFocused = useIsFocused();
 
+  const formFields = useMemo(
+    () => fields.filter((field) => field.visibleInForm !== false),
+    [fields],
+  );
+
   const textColor = useThemeColor({}, "text");
   const mutedTextColor = useThemeColor({}, "muted");
   const borderColor = useThemeColor({}, "border");
@@ -111,13 +118,13 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
   const resetForm = useCallback(() => {
     const nextState: Record<string, string> = {};
-    fields.forEach((field) => {
+    formFields.forEach((field) => {
       nextState[field.key] = "";
     });
     setFormState(nextState);
     setFormError(null);
     setEditingId(null);
-  }, [fields]);
+  }, [formFields]);
 
   const openCreate = useCallback(() => {
     setModalMode("create");
@@ -128,7 +135,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const openEdit = useCallback(
     (item: T) => {
       const nextState: Record<string, string> = {};
-      fields.forEach((field) => {
+      formFields.forEach((field) => {
         const value = item[field.key];
         if (field.type === "json") {
           nextState[field.key] = value ? JSON.stringify(value, null, 2) : "";
@@ -142,12 +149,15 @@ export function CrudScreen<T extends Record<string, unknown>>({
       setEditingId(getId(item));
       setModalOpen(true);
     },
-    [fields, getId],
+    [formFields, getId],
   );
 
   const handleSave = useCallback(async () => {
     const payload: Record<string, unknown> = {};
-    for (const field of fields) {
+    for (const field of formFields) {
+      if (field.readOnly) {
+        continue;
+      }
       const rawValue = formState[field.key] ?? "";
       if (field.required && !rawValue.trim()) {
         setFormError(`Informe ${field.label.toLowerCase()}.`);
@@ -190,7 +200,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
       setSaving(false);
     }
   }, [
-    fields,
+    formFields,
     formState,
     modalMode,
     createItem,
@@ -344,7 +354,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
               style={{ marginTop: 12 }}
               contentContainerStyle={{ paddingBottom: 8 }}
             >
-              {fields.map((field) => (
+              {formFields.map((field) => (
                 <View key={field.key} style={{ marginBottom: 12 }}>
                   <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
                     {field.label}
@@ -359,6 +369,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
                     multiline={
                       field.type === "multiline" || field.type === "json"
                     }
+                    editable={!field.readOnly}
                     style={{
                       borderWidth: 1,
                       borderColor,
