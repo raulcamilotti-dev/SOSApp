@@ -80,7 +80,7 @@ export default function UsersManagementScreen() {
         "",
     ) || undefined;
 
-  const resolveClientFromProperty = (
+  const resolveClientFromProperty = useCallback((
     property?: Property,
   ): ClientInfo | null => {
     if (!property) return null;
@@ -113,7 +113,7 @@ export default function UsersManagementScreen() {
       phone: phone ?? undefined,
       role: property.role ?? property.perfil ?? property.type,
     };
-  };
+  }, []);
 
   const mergeClientInfo = (
     primary: ClientInfo | null,
@@ -220,7 +220,7 @@ export default function UsersManagementScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resolveClientFromProperty]);
 
   useEffect(() => {
     fetchData();
