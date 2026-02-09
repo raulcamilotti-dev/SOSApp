@@ -1,7 +1,7 @@
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { useRouter } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { radius, spacing } from "../../theme/styles";
+import { radius, spacing, styles } from "../../theme/styles";
 
 const services = [
   {
@@ -35,69 +35,72 @@ export default function ServicosScreen() {
   const borderColor = useThemeColor({}, "border");
 
   return (
-    <View style={{ flex: 1, backgroundColor }}>
-      <ScrollView
-        contentContainerStyle={{
-          padding: spacing.lg,
-          paddingBottom: 40,
-        }}
-        showsVerticalScrollIndicator={false}
-      >
+    <ScrollView
+      style={{ flex: 1, backgroundColor }}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.container}>
         <Text
           style={{
             fontSize: 32,
             fontWeight: "bold",
-            color: textColor,
+            color: "#22272a",
             marginBottom: spacing.xl,
             marginTop: spacing.lg,
             textAlign: "left",
           }}
         >
-          Serviços Adicionais
+          Serviços
         </Text>
         {services.map((service) => (
-          <Pressable
+          <View
             key={service.title}
-            onPress={() => router.push(service.route as any)}
-            style={({ pressed }) => [
-              {
-                backgroundColor: cardColor,
-                borderRadius: radius.xl,
-                marginBottom: spacing.lg,
-                padding: spacing.xl,
-                borderWidth: 1.5,
-                borderColor: pressed ? textColor : borderColor,
-                shadowColor: "#000",
-                shadowOpacity: pressed ? 0.1 : 0.06,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: pressed ? 6 : 2,
-                transform: [{ scale: pressed ? 0.98 : 1 }],
-              },
-            ]}
+            style={{ width: "100%", alignSelf: "stretch" }}
           >
-            <Text
-              style={{
-                color: textColor,
-                fontSize: 22,
-                fontWeight: "700",
-                marginBottom: 6,
-              }}
+            <Pressable
+              onPress={() => router.push(service.route as any)}
+              style={({ pressed }) => [
+                {
+                  backgroundColor: cardColor,
+                  borderRadius: radius.xl,
+                  marginBottom: spacing.lg,
+                  padding: spacing.xl,
+                  borderWidth: 1.5,
+                  borderColor: pressed ? textColor : borderColor,
+                  shadowColor: "#000",
+                  shadowOpacity: pressed ? 0.1 : 0.06,
+                  shadowRadius: 16,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: pressed ? 6 : 2,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                  width: "100%",
+                  alignSelf: "stretch",
+                },
+              ]}
             >
-              {service.title}
-            </Text>
-            <Text
-              style={{
-                color: mutedTextColor,
-                fontSize: 15,
-                fontWeight: "400",
-              }}
-            >
-              {service.description}
-            </Text>
-          </Pressable>
+              <Text
+                style={{
+                  color: textColor,
+                  fontSize: 22,
+                  fontWeight: "700",
+                  marginBottom: 6,
+                }}
+              >
+                {service.title}
+              </Text>
+              <Text
+                style={{
+                  color: mutedTextColor,
+                  fontSize: 15,
+                  fontWeight: "400",
+                }}
+              >
+                {service.description}
+              </Text>
+            </Pressable>
+          </View>
         ))}
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }

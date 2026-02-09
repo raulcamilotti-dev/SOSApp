@@ -68,25 +68,24 @@ export default function Profile() {
               {user.fullname?.[0] || user.name?.[0] || "U"}
             </ThemedText>
           </View>
-          <ThemedText type="title">{user.fullname || user.name}</ThemedText>
-          <ThemedText style={{ color: mutedTextColor, marginTop: 4 }}>
+          <ThemedText
+            style={{ marginTop: 4, fontSize: 18, fontWeight: "500" }}
+            lightColor="#22272a"
+            darkColor="#22272a"
+          >
             {user.role}
           </ThemedText>
-        </View>
-
-        {/* Informações Principais */}
-        <View style={{ marginTop: 24 }}>
-          <ThemedText type="subtitle" style={{ marginBottom: 12 }}>
+          <ThemedText type="title" lightColor="#22272a" darkColor="#22272a">
+            {user.fullname || user.name}
+          </ThemedText>
+          <ThemedText
+            type="subtitle"
+            style={{ marginBottom: 12 }}
+            lightColor="#22272a"
+            darkColor="#22272a"
+          >
             Informações Pessoais
           </ThemedText>
-          <ProfileCard
-            icon="person"
-            label="Nome Completo"
-            value={user.fullname || user.name}
-            cardBg={cardBg}
-            tintColor={tintColor}
-            mutedTextColor={mutedTextColor}
-          />
           <ProfileCard
             icon="id-card"
             label="CPF"
@@ -115,7 +114,12 @@ export default function Profile() {
 
         {/* Ações */}
         <View style={{ marginTop: 32 }}>
-          <ThemedText type="subtitle" style={{ marginBottom: 12 }}>
+          <ThemedText
+            type="subtitle"
+            style={{ marginBottom: 12 }}
+            lightColor="#22272a"
+            darkColor="#22272a"
+          >
             Segurança
           </ThemedText>
           <ActionButton
@@ -191,6 +195,8 @@ function ProfileCard({
         padding: 14,
         marginBottom: 10,
         gap: 12,
+        width: "100%",
+        alignSelf: "stretch",
       }}
     >
       <View

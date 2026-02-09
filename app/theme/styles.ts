@@ -89,9 +89,11 @@ export const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.lg,
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: 0,
     backgroundColor: Colors.light.background,
   },
   listContainer: {
@@ -101,7 +103,6 @@ export const styles = StyleSheet.create({
 
   card: {
     width: "100%",
-    maxWidth: 360,
     backgroundColor: Colors.light.card,
     padding: spacing.lg,
     borderRadius: radius.md,

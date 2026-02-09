@@ -1,179 +1,138 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { useAuth } from "@/core/auth/AuthContext";
-import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { useRouter } from "expo-router";
-import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Image, ScrollView, StyleSheet, View } from "react-native";
 
-interface Service {
-  id: string;
+type Service = {
   title: string;
   description: string;
-  // icon: keyof typeof Ionicons.glyphMap;
-  route?: string;
-  adminOnly?: boolean;
-}
+  icon?: any;
+};
 
-const SERVICES: Service[] = [
+const services: Service[] = [
   {
-    id: "1",
-    title: "Imóveis",
-    description: "Acompanhe seus imóveis e documentos",
-    // icon: "home-outline",
-    route: "/Servicos/Imoveis",
+    title: "Gestão de Imóveis",
+    description:
+      "Gerencie seus imóveis de forma eficiente, com cadastro, atualização e acompanhamento em tempo real. Controle contratos, locações e vendas em um só lugar.",
+    //icon: require("@/assets/icons/property.png"),
   },
   {
-    id: "2",
-    title: "Advogados",
-    description: "Conheça nossos advogados parceiros",
-    // icon: "briefcase-outline",
-    route: "/Servicos/Advogados",
+    title: "Anúncios Inteligentes",
+    description:
+      "Publique seus imóveis nos principais portais automaticamente, com integração e atualização de anúncios para máxima visibilidade.",
+   // icon: require("@/assets/icons/ads.png"),
   },
   {
-    id: "3",
-    title: "Tipos de regularização",
-    description: "Saiba todas as formas de regularizar seu imóvel",
-    // icon: "briefcase-outline",
-    route: "/Servicos/Regularizacao",
+    title: "Assinatura Digital",
+    description:
+      "Facilite a assinatura de contratos com segurança jurídica e validade digital, eliminando burocracias e papelada.",
+   // icon: require("@/assets/icons/signature.png"),
   },
   {
-    id: "4",
-    title: "Administração",
-    description: "Gerenciar páginas administrativas",
-    // icon: "settings-outline",
-    route: "/Administrador/home",
-    adminOnly: true,
+    title: "Gestão de Clientes",
+    description:
+      "Organize contatos, acompanhe leads e mantenha o relacionamento com clientes de forma centralizada e eficiente.",
+   // icon: require("@/assets/icons/clients.png"),
+  },
+  {
+    title: "Relatórios e Insights",
+    description:
+      "Acesse relatórios detalhados sobre desempenho, visitas, propostas e contratos para tomar decisões estratégicas.",
+   // icon: require("@/assets/icons/report.png"),
+  },
+  {
+    title: "Atendimento Personalizado",
+    description:
+      "Conte com suporte especializado para dúvidas, treinamentos e otimização do uso da plataforma.",
+  //  icon: require("@/assets/icons/support.png"),
   },
 ];
 
-export default function ServicosScreen() {
-  const router = useRouter();
-  const { user } = useAuth();
-  const mutedTextColor = useThemeColor({}, "muted");
-  // Fundo translúcido com efeito glassmorphism
-  const cardBg = useThemeColor(
-    { light: "rgba(255,255,255,0.65)", dark: "rgba(36,37,46,0.55)" },
-    "background",
-  );
-  const cardBorder = useThemeColor({ light: "#0a7ea4", dark: "#fff" }, "tint");
-  // Use a direct color value for shadow since "shadow" is not a valid theme key
-  const shadowColor = "#000";
-
-  const handleServicePress = (route?: string) => {
-    if (route) {
-      router.push(route as any);
-    }
-  };
-
-  const isAdmin = isUserAdmin(user);
-  const visibleServices = SERVICES.filter(
-    (service) => !service.adminOnly || isAdmin,
-  );
+export default function HomeScreen() {
+  const tint = useThemeColor({ light: "#0a7ea4", dark: "#f3f3f3" }, "tint");
+  const bg = useThemeColor({ light: "#fff", dark: "#000000" }, "background");
 
   return (
-    <ThemedView style={{ flex: 1 }}>
-      <ThemedView style={{ paddingHorizontal: 20, paddingVertical: 24 }}>
-        <ThemedText type="title" style={{ fontSize: 26, fontWeight: "700" }}>
-          Serviços
+    <ScrollView style={[styles.container, { backgroundColor: bg }]}>
+      <ThemedView style={styles.header}>
+        <ThemedText type="title" style={[styles.title, { color: tint }]}>
+          Bem-vindo ao SOSApp Imóveis
+        </ThemedText>
+        <ThemedText type="subtitle" style={styles.subtitle}>
+          Soluções completas para gestão, divulgação e assinatura digital de
+          imóveis.
         </ThemedText>
       </ThemedView>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <ThemedView style={styles.cardsContainer}>
-          {visibleServices.map((service) => (
-            <TouchableOpacity
-              key={service.id}
-              onPress={() => handleServicePress(service.route)}
-              activeOpacity={0.88}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: cardBg,
-                  borderColor: cardBorder,
-                  shadowColor: shadowColor,
-                  ...(Platform.OS === "web"
-                    ? { backdropFilter: "blur(12px)" }
-                    : {}),
-                },
-              ]}
-            >
-              <View style={styles.cardGradientOverlay} pointerEvents="none" />
-              <View style={styles.cardContent}>
-                {/* Ícone pode ser adicionado aqui futuramente */}
-                <ThemedText
-                  type="subtitle"
-                  style={styles.cardTitle}
-                  numberOfLines={2}
-                >
-                  {service.title}
-                </ThemedText>
-                <ThemedText
-                  style={[styles.cardDescription, { color: mutedTextColor }]}
-                  numberOfLines={3}
-                >
-                  {service.description}
-                </ThemedText>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ThemedView>
-      </ScrollView>
-    </ThemedView>
+      <View style={styles.servicesList}>
+        {services.map((service, idx) => (
+          <ThemedView key={service.title} style={styles.serviceCard}>
+            <Image
+              source={service.icon}
+              style={styles.icon}
+              resizeMode="contain"
+            />
+            <View style={styles.textContainer}>
+              <ThemedText type="default" style={[styles.serviceTitle, { fontWeight: "600" }]}>
+                {service.title}
+              </ThemedText>
+              <ThemedText type="default" style={styles.serviceDesc}>
+                {service.description}
+              </ThemedText>
+            </View>
+          </ThemedView>
+        ))}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  cardsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 24,
+  container: {
+    flex: 1,
   },
-  card: {
-    width: "48%",
-    minHeight: 120,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    marginBottom: 16,
-    padding: 20,
-    justifyContent: "center",
+  header: {
+    paddingTop: 32,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
     alignItems: "center",
-    overflow: "hidden",
-    // Sombra iOS
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    // Sombra Android
-    elevation: 8,
-    // Transição suave
-    transitionDuration: "200ms",
-    borderStyle: "solid",
   },
-  cardGradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-    borderRadius: 20,
-    opacity: 0.25,
-    backgroundColor: "transparent",
-    // Gradiente sutil (manual, pois não usamos LinearGradient aqui)
-    // Para web, pode-se usar background: 'linear-gradient(...)', mas RN puro não suporta
-  },
-  cardContent: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardTitle: {
+  title: {
+    fontSize: 26,
     marginBottom: 8,
     textAlign: "center",
-    fontSize: 18,
-    fontWeight: "600",
-    letterSpacing: 0.2,
   },
-  cardDescription: {
-    fontSize: 13,
+  subtitle: {
+    fontSize: 16,
     textAlign: "center",
-    opacity: 0.75,
-    fontWeight: "400",
+    color: "#888",
+  },
+  servicesList: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  serviceCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#f6f8fa",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 1,
+  },
+  icon: {
+    width: 44,
+    height: 44,
+    marginRight: 16,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  serviceTitle: {
+    fontSize: 18,
+    marginBottom: 4,
+  },
+  serviceDesc: {
+    fontSize: 15,
+    color: "#555",
   },
 });

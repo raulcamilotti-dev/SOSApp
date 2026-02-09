@@ -28,6 +28,7 @@ interface Property {
   [key: string]: any;
 }
 
+// Interface para documentos de imóvel
 interface Document {
   id: string;
   fileName: string;
@@ -39,34 +40,53 @@ interface Document {
   driveWebContentLink?: string;
 }
 
+// Interface para resposta do upload N8n
 interface N8nUploadResponse {
-  drive_file_id?: string;
-  file_name?: string;
   description?: string;
+  file_name?: string;
   mime_type?: string;
-  file_size?: number;
+  drive_file_id?: string;
   drive_web_view_link?: string;
   drive_web_content_link?: string;
 }
 
-type CreatePropertyForm = {
-  address: string;
-  number: string;
-  postal_code: string;
-  complement: string;
-  property_value: string;
-  city: string;
-  state: string;
-  indicacao: string;
-  has_registry: boolean;
-  has_contract: boolean;
-  part_of_larger_area: boolean;
-  owner_relative: boolean;
-  larger_area_registry: boolean;
-  city_rural: boolean;
-};
+interface N8nUploadResponse {
+  description?: string;
+  file_name?: string;
+  mime_type?: string;
+  drive_file_id?: string;
+  drive_web_view_link?: string;
+  drive_web_content_link?: string;
+}
 
 export default function PropertyListScreen() {
+  // Criação de novo imóvel
+  const handleCreateProperty = async () => {
+    try {
+      setCreateSubmitting(true);
+      const sanitizedNumber = createForm.number.replace(/\D/g, "");
+      const payload = {
+        ...createForm,
+        number: sanitizedNumber,
+        user_id: user?.id,
+      };
+      await api.post(
+        "https://n8n.sosescritura.com.br/webhook/property_create",
+        payload,
+      );
+      Alert.alert("Sucesso", "Imóvel criado com sucesso");
+      setCreateModalVisible(false);
+      resetCreateForm();
+      await fetchProperties();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Falha ao criar imóvel";
+      Alert.alert("Erro", message);
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
+  // HOOKS E VARIÁVEIS DE ESTADO
   const { user } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,8 +102,7 @@ export default function PropertyListScreen() {
   >({});
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
-  // Removed unused cepLoading state
-  const [createForm, setCreateForm] = useState<CreatePropertyForm>({
+  const [createForm, setCreateForm] = useState({
     address: "",
     number: "",
     postal_code: "",
@@ -99,7 +118,6 @@ export default function PropertyListScreen() {
     larger_area_registry: false,
     city_rural: false,
   });
-
   const router = useRouter();
   const tintColor = useThemeColor({}, "tint");
   const textColor = useThemeColor({}, "text");
@@ -112,6 +130,7 @@ export default function PropertyListScreen() {
   const inputTextColor = useThemeColor({}, "text");
   const placeholderColor = useThemeColor({}, "muted");
 
+  // FUNÇÕES AUXILIARES E EFFECTS
   const fetchLatestUpdates = async () => {
     if (!user?.id) return;
     try {
@@ -173,7 +192,6 @@ export default function PropertyListScreen() {
           }));
         }
         setDocuments(docsMap);
-
         await fetchLatestUpdates();
       }
     } catch (err) {
@@ -224,34 +242,7 @@ export default function PropertyListScreen() {
     });
   };
 
-  // Removed unused handleCepLookup function
-
-  const handleCreateProperty = async () => {
-    try {
-      setCreateSubmitting(true);
-      const sanitizedNumber = createForm.number.replace(/\D/g, "");
-      const payload = {
-        ...createForm,
-        number: sanitizedNumber,
-        user_id: user?.id,
-      };
-      await api.post(
-        "https://n8n.sosescritura.com.br/webhook/property_create",
-        payload,
-      );
-      Alert.alert("Sucesso", "Imóvel criado com sucesso");
-      setCreateModalVisible(false);
-      resetCreateForm();
-      await fetchProperties();
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Falha ao criar imóvel";
-      Alert.alert("Erro", message);
-    } finally {
-      setCreateSubmitting(false);
-    }
-  };
-
+  // Função para upload de documento
   const uploadDocumentToN8n = async (
     propertyId: string,
     file: DocumentPicker.DocumentPickerAsset,
@@ -286,6 +277,7 @@ export default function PropertyListScreen() {
     return response.data;
   };
 
+  // Adicionar documento
   const handleAddDocument = async (propertyId: string) => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -359,6 +351,7 @@ export default function PropertyListScreen() {
     }
   };
 
+  // Remover documento
   const handleRemoveDocument = (propertyId: string, docId: string) => {
     Alert.alert("Remover documento", "Deseja remover este documento?", [
       { text: "Cancelar", style: "cancel" },
@@ -375,6 +368,7 @@ export default function PropertyListScreen() {
     ]);
   };
 
+  // Expandir/ocultar detalhes do imóvel
   const toggleProperty = (propertyId: string) => {
     setExpandedProperties((prev) => ({
       ...prev,
@@ -382,6 +376,7 @@ export default function PropertyListScreen() {
     }));
   };
 
+  // Renderização condicional de loading
   if (loading) {
     return (
       <ThemedView
@@ -396,6 +391,7 @@ export default function PropertyListScreen() {
     );
   }
 
+  // JSX principal
   return (
     <ScrollView contentContainerStyle={{ padding: 16 }}>
       <ThemedView
@@ -443,6 +439,7 @@ export default function PropertyListScreen() {
       ) : null}
 
       {properties.map((property) => {
+        // Calcula os updates para os campos editáveis deste imóvel
         const updates = propertyFields.reduce(
           (acc, field) => {
             acc[field.field] = property[field.field] ?? "";
@@ -777,7 +774,7 @@ export default function PropertyListScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={handleCreateProperty}
+                onPress={() => handleCreateProperty()}
                 disabled={createSubmitting}
                 style={{
                   paddingVertical: 10,
