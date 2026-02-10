@@ -8,13 +8,21 @@ import * as Clipboard from "expo-clipboard";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+
+const humanize = (value: string) =>
+  value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 export default function TablesScreen() {
   // Busca as tabelas ao montar o componente
   useEffect(() => {
@@ -31,12 +39,6 @@ export default function TablesScreen() {
       }
     })();
   }, []);
-  const humanize = (value: string) =>
-    value
-      .replace(/[_-]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .replace(/\b\w/g, (char) => char.toUpperCase());
   const isAutoColumn = (col: TableInfoRow) => {
     const def = String(col.column_default ?? "").toLowerCase();
     return (
@@ -55,6 +57,14 @@ export default function TablesScreen() {
       return col.column_name.replace(/_id$/i, "");
     }
     return null;
+  };
+  const isSystemColumnName = (name: string) =>
+    ["created_at", "updated_at", "deleted_at"].includes(name.toLowerCase());
+  const inferFieldType = (col: TableInfoRow) => {
+    const dataType = String(col.data_type ?? "").toLowerCase();
+    if (dataType.includes("json")) return "json";
+    if (dataType.includes("text")) return "multiline";
+    return undefined;
   };
 
   // State and hooks
@@ -76,6 +86,10 @@ export default function TablesScreen() {
   const [execError] = useState<string | null>(null);
   const [execResult] = useState<any[] | null>(null);
   const [builderUseCrud, setBuilderUseCrud] = useState(true);
+  const [builderPayloadMode, setBuilderPayloadMode] = useState<
+    "payload" | "data"
+  >("payload");
+  const [builderIncludeTable, setBuilderIncludeTable] = useState(true);
   const [builderCopyStatus, setBuilderCopyStatus] = useState("");
   const [builderRouteStatus, setBuilderRouteStatus] = useState("");
   // Theme color variables
@@ -89,22 +103,61 @@ export default function TablesScreen() {
 
   // onRefresh already declared above, remove this duplicate.
 
+  const uniqueColumns = useMemo(() => {
+    return columns.filter(
+      (col, idx, arr) =>
+        arr.findIndex((c) => c.column_name === col.column_name) === idx,
+    );
+  }, [columns]);
+
   const builderTemplate = useMemo(() => {
     const tableName = builderTableName || selectedTable || "sua_tabela";
     const screenName = builderScreenName || tableName;
     const title = humanize(tableName);
     const route = builderRoute || `/Administrador/${screenName}`;
-    const firstField = columns[0]?.column_name ?? "id";
+    const payloadKey = builderPayloadMode === "payload" ? "payload" : "data";
+    const tableLine = builderIncludeTable ? `, table: "${tableName}"` : "";
+    const idField =
+      uniqueColumns.find((col) => col.column_name === "id")?.column_name ??
+      uniqueColumns[0]?.column_name ??
+      "id";
+    const titleField =
+      uniqueColumns.find((col) => col.column_name !== idField)?.column_name ??
+      idField;
+    const fieldLines = uniqueColumns.length
+      ? uniqueColumns
+          .map((col, index) => {
+            const label = humanize(col.column_name);
+            const fieldType = inferFieldType(col);
+            const hideInForm =
+              isAutoColumn(col) || isSystemColumnName(col.column_name);
+            const required = col.is_nullable === "NO" && !hideInForm;
+            const visibleInList = !hideInForm && index < 5;
+            const entries = [
+              `key: "${col.column_name}"`,
+              `label: "${label}"`,
+              `placeholder: "${label}"`,
+            ];
+            if (fieldType) entries.push(`type: "${fieldType}"`);
+            if (required) entries.push("required: true");
+            if (visibleInList) entries.push("visibleInList: true");
+            if (hideInForm) entries.push("visibleInForm: false");
+            return `  {\n    ${entries.join(",\n    ")}\n  },`;
+          })
+          .join("\n")
+      : "  // Defina campos aqui";
     if (!builderUseCrud) {
       return `// Rota sugerida: ${route}\n// Tela: app/(app)/Administrador/${screenName}.tsx\n// TODO: implementar sua tela manualmente.`;
     }
-    return `// Rota sugerida: ${route}\n// Tela: app/(app)/Administrador/${screenName}.tsx\n// Veja documentação para uso do CrudScreen.\n// Campos: [ ... ]\n// Funções: listRows, createRow, updateRow\n// getId: (item) => String(item.id ?? item.${firstField} ?? "")\n// getTitle: (item) => String(item.${firstField} ?? "${title}")\n`;
+    return `import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";\nimport { api } from "@/services/api";\n\ntype Row = Record<string, unknown>;\n\nconst ENDPOINT = "https://n8n.sosescritura.com.br/webhook/${tableName}";\n\nconst listRows = async (): Promise<Row[]> => {\n  const response = await api.post(ENDPOINT, { action: "list"${tableLine} });\n  const data = response.data;\n  const list = Array.isArray(data) ? data : (data?.data ?? []);\n  return Array.isArray(list) ? (list as Row[]) : [];\n};\n\nconst createRow = async (payload: Partial<Row>): Promise<unknown> => {\n  const response = await api.post(ENDPOINT, { action: "create"${tableLine}, ${payloadKey}: payload });\n  return response.data;\n};\n\nconst updateRow = async (payload: Partial<Row> & { id?: string | null }): Promise<unknown> => {\n  if (!payload.id) {\n    throw new Error("Id obrigatorio para atualizar");\n  }\n  const response = await api.post(ENDPOINT, { action: "update"${tableLine}, ${payloadKey}: payload });\n  return response.data;\n};\n\nexport default function ${humanize(screenName).replace(/\s+/g, "")}Screen() {\n  const fields: CrudFieldConfig<Row>[] = [\n${fieldLines}\n  ];\n\n  return (\n    <CrudScreen<Row>\n      title="${title}"\n      subtitle="Gestao de ${title.toLowerCase()}"\n      fields={fields}\n      loadItems={listRows}\n      createItem={createRow}\n      updateItem={updateRow}\n      getId={(item) => String(item.${idField} ?? "") }\n      getTitle={(item) => String(item.${titleField} ?? "${title}") }\n    />\n  );\n}\n\n// Rota sugerida: ${route}\n// Tela: app/(app)/Administrador/${screenName}.tsx\n// Ajuste o payload conforme o webhook do n8n.`;
   }, [
     builderRoute,
     builderScreenName,
     builderTableName,
     builderUseCrud,
-    columns,
+    builderPayloadMode,
+    builderIncludeTable,
+    uniqueColumns,
     selectedTable,
   ]);
 
@@ -261,68 +314,52 @@ export default function TablesScreen() {
             <ActivityIndicator style={{ marginTop: 12 }} />
           ) : (
             <View style={{ marginTop: 12, gap: 8 }}>
-              {/* Filter columns to ensure uniqueness by column_name */}
-              {(() => {
-                const uniqueColumns = columns.filter(
-                  (col, idx, arr) =>
-                    arr.findIndex((c) => c.column_name === col.column_name) ===
-                    idx,
-                );
-                return uniqueColumns.length === 0 ? (
-                  <ThemedText style={{ color: mutedTextColor }}>
-                    Nenhuma coluna encontrada.
-                  </ThemedText>
-                ) : (
-                  uniqueColumns.map((col) => (
-                    <View
-                      key={`${selectedTable}-${col.column_name}`}
-                      style={{
-                        borderWidth: 1,
-                        borderColor,
-                        borderRadius: 8,
-                        padding: 10,
-                        backgroundColor: cardColor,
-                      }}
-                    >
-                      <ThemedText
-                        style={{ fontWeight: "600", color: textColor }}
-                      >
-                        {col.column_name}
-                      </ThemedText>
-                      <ThemedText
-                        style={{ fontSize: 12, color: mutedTextColor }}
-                      >
-                        Tipo: {col.data_type}
-                      </ThemedText>
+              {uniqueColumns.length === 0 ? (
+                <ThemedText style={{ color: mutedTextColor }}>
+                  Nenhuma coluna encontrada.
+                </ThemedText>
+              ) : (
+                uniqueColumns.map((col) => (
+                  <View
+                    key={`${selectedTable}-${col.column_name}`}
+                    style={{
+                      borderWidth: 1,
+                      borderColor,
+                      borderRadius: 8,
+                      padding: 10,
+                      backgroundColor: cardColor,
+                    }}
+                  >
+                    <ThemedText style={{ fontWeight: "600", color: textColor }}>
+                      {col.column_name}
+                    </ThemedText>
+                    <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
+                      Tipo: {col.data_type}
+                    </ThemedText>
+                    <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
+                      Nullable: {col.is_nullable ?? "-"}
+                    </ThemedText>
+                    <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
+                      Default: {col.column_default ?? "-"}
+                    </ThemedText>
+                    {inferReferencedTable(col) ? (
                       <ThemedText
                         style={{ fontSize: 12, color: mutedTextColor }}
                       >
-                        Nullable: {col.is_nullable ?? "-"}
+                        FK: {inferReferencedTable(col)}.
+                        {col.referenced_column_name ?? "id"}
                       </ThemedText>
+                    ) : null}
+                    {isAutoColumn(col) ? (
                       <ThemedText
                         style={{ fontSize: 12, color: mutedTextColor }}
                       >
-                        Default: {col.column_default ?? "-"}
+                        Auto: sim
                       </ThemedText>
-                      {inferReferencedTable(col) ? (
-                        <ThemedText
-                          style={{ fontSize: 12, color: mutedTextColor }}
-                        >
-                          FK: {inferReferencedTable(col)}.
-                          {col.referenced_column_name ?? "id"}
-                        </ThemedText>
-                      ) : null}
-                      {isAutoColumn(col) ? (
-                        <ThemedText
-                          style={{ fontSize: 12, color: mutedTextColor }}
-                        >
-                          Auto: sim
-                        </ThemedText>
-                      ) : null}
-                    </View>
-                  ))
-                );
-              })()}
+                    ) : null}
+                  </View>
+                ))
+              )}
 
               <View style={{ marginTop: 12 }}>
                 <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
@@ -496,6 +533,44 @@ export default function TablesScreen() {
                     {builderUseCrud
                       ? "Usar CrudScreen: Sim"
                       : "Usar CrudScreen: Não"}
+                  </ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    setBuilderPayloadMode((prev) =>
+                      prev === "payload" ? "data" : "payload",
+                    )
+                  }
+                  style={{
+                    marginTop: 8,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    backgroundColor: cardColor,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor,
+                  }}
+                >
+                  <ThemedText style={{ color: textColor, fontWeight: "600" }}>
+                    Formato do payload: {builderPayloadMode}
+                  </ThemedText>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setBuilderIncludeTable((prev) => !prev)}
+                  style={{
+                    marginTop: 8,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    backgroundColor: cardColor,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor,
+                  }}
+                >
+                  <ThemedText style={{ color: textColor, fontWeight: "600" }}>
+                    Incluir table no body: {builderIncludeTable ? "Sim" : "Não"}
                   </ThemedText>
                 </TouchableOpacity>
 
