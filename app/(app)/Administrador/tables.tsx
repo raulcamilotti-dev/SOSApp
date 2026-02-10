@@ -39,6 +39,7 @@ export default function TablesScreen() {
       }
     })();
   }, []);
+
   const isAutoColumn = (col: TableInfoRow) => {
     const def = String(col.column_default ?? "").toLowerCase();
     return (
@@ -76,6 +77,9 @@ export default function TablesScreen() {
   const [builderTableName, setBuilderTableName] = useState("");
   const [builderScreenName, setBuilderScreenName] = useState("");
   const [builderRoute, setBuilderRoute] = useState("");
+  const [builderAppGroup, setBuilderAppGroup] = useState<
+    "Administrador" | "Servicos"
+  >("Administrador");
   // const [builderAutoName, setBuilderAutoName] = useState(""); // não usado
   const [search, setSearch] = useState("");
   const [columns, setColumns] = useState<TableInfoRow[]>([]);
@@ -90,6 +94,12 @@ export default function TablesScreen() {
     "payload" | "data"
   >("payload");
   const [builderIncludeTable, setBuilderIncludeTable] = useState(true);
+  const [builderReferenceLabels, setBuilderReferenceLabels] = useState<
+    Record<string, string>
+  >({});
+  const [referenceTableColumns, setReferenceTableColumns] = useState<
+    Record<string, TableInfoRow[]>
+  >({});
   const [builderCopyStatus, setBuilderCopyStatus] = useState("");
   const [builderRouteStatus, setBuilderRouteStatus] = useState("");
   // Theme color variables
@@ -101,6 +111,11 @@ export default function TablesScreen() {
   const tintColor = useThemeColor({}, "tint");
   // const backgroundColor = useThemeColor({}, "background"); // não usado
 
+  useEffect(() => {
+    if (!selectedTable) return;
+    setBuilderRoute(`/${builderAppGroup}/${selectedTable}`);
+  }, [builderAppGroup, selectedTable]);
+
   // onRefresh already declared above, remove this duplicate.
 
   const uniqueColumns = useMemo(() => {
@@ -110,13 +125,69 @@ export default function TablesScreen() {
     );
   }, [columns]);
 
+  const referenceColumns = useMemo(
+    () => uniqueColumns.filter((col) => inferReferencedTable(col)),
+    [uniqueColumns],
+  );
+
+  useEffect(() => {
+    if (uniqueColumns.length === 0) return;
+    setBuilderReferenceLabels((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      uniqueColumns.forEach((col) => {
+        if (inferReferencedTable(col) && !next[col.column_name]) {
+          next[col.column_name] = "name";
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [uniqueColumns]);
+
+  useEffect(() => {
+    const refs = referenceColumns
+      .map((col) => inferReferencedTable(col))
+      .filter((ref): ref is string => !!ref);
+    const uniqueRefs = Array.from(new Set(refs));
+    const missing = uniqueRefs.filter((ref) => !referenceTableColumns[ref]);
+    if (missing.length === 0) return;
+
+    let active = true;
+    (async () => {
+      const results = await Promise.all(
+        missing.map(async (refTable) => {
+          try {
+            const info = await getTableInfo(refTable);
+            return { refTable, info };
+          } catch {
+            return { refTable, info: [] as TableInfoRow[] };
+          }
+        }),
+      );
+      if (!active) return;
+      setReferenceTableColumns((prev) => {
+        const next = { ...prev };
+        results.forEach((res) => {
+          next[res.refTable] = res.info;
+        });
+        return next;
+      });
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [referenceColumns, referenceTableColumns]);
+
   const builderTemplate = useMemo(() => {
     const tableName = builderTableName || selectedTable || "sua_tabela";
     const screenName = builderScreenName || tableName;
     const title = humanize(tableName);
-    const route = builderRoute || `/Administrador/${screenName}`;
+    const route = builderRoute || `/${builderAppGroup}/${screenName}`;
     const payloadKey = builderPayloadMode === "payload" ? "payload" : "data";
     const tableLine = builderIncludeTable ? `, table: "${tableName}"` : "";
+    const filePath = `app/(app)/${builderAppGroup}/${screenName}.tsx`;
     const idField =
       uniqueColumns.find((col) => col.column_name === "id")?.column_name ??
       uniqueColumns[0]?.column_name ??
@@ -128,7 +199,10 @@ export default function TablesScreen() {
       ? uniqueColumns
           .map((col, index) => {
             const label = humanize(col.column_name);
-            const fieldType = inferFieldType(col);
+            const referencedTable = inferReferencedTable(col);
+            const fieldType = referencedTable
+              ? "reference"
+              : inferFieldType(col);
             const hideInForm =
               isAutoColumn(col) || isSystemColumnName(col.column_name);
             const required = col.is_nullable === "NO" && !hideInForm;
@@ -139,6 +213,14 @@ export default function TablesScreen() {
               `placeholder: "${label}"`,
             ];
             if (fieldType) entries.push(`type: "${fieldType}"`);
+            if (referencedTable) {
+              const labelField =
+                builderReferenceLabels[col.column_name] || "name";
+              entries.push(`referenceTable: "${referencedTable}"`);
+              entries.push(`referenceLabelField: "${labelField}"`);
+              entries.push(`referenceSearchField: "${labelField}"`);
+              entries.push('referenceIdField: "id"');
+            }
             if (required) entries.push("required: true");
             if (visibleInList) entries.push("visibleInList: true");
             if (hideInForm) entries.push("visibleInForm: false");
@@ -149,7 +231,7 @@ export default function TablesScreen() {
     if (!builderUseCrud) {
       return `// Rota sugerida: ${route}\n// Tela: app/(app)/Administrador/${screenName}.tsx\n// TODO: implementar sua tela manualmente.`;
     }
-    return `import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";\nimport { api } from "@/services/api";\n\ntype Row = Record<string, unknown>;\n\nconst ENDPOINT = "https://n8n.sosescritura.com.br/webhook/${tableName}";\n\nconst listRows = async (): Promise<Row[]> => {\n  const response = await api.post(ENDPOINT, { action: "list"${tableLine} });\n  const data = response.data;\n  const list = Array.isArray(data) ? data : (data?.data ?? []);\n  return Array.isArray(list) ? (list as Row[]) : [];\n};\n\nconst createRow = async (payload: Partial<Row>): Promise<unknown> => {\n  const response = await api.post(ENDPOINT, { action: "create"${tableLine}, ${payloadKey}: payload });\n  return response.data;\n};\n\nconst updateRow = async (payload: Partial<Row> & { id?: string | null }): Promise<unknown> => {\n  if (!payload.id) {\n    throw new Error("Id obrigatorio para atualizar");\n  }\n  const response = await api.post(ENDPOINT, { action: "update"${tableLine}, ${payloadKey}: payload });\n  return response.data;\n};\n\nexport default function ${humanize(screenName).replace(/\s+/g, "")}Screen() {\n  const fields: CrudFieldConfig<Row>[] = [\n${fieldLines}\n  ];\n\n  return (\n    <CrudScreen<Row>\n      title="${title}"\n      subtitle="Gestao de ${title.toLowerCase()}"\n      fields={fields}\n      loadItems={listRows}\n      createItem={createRow}\n      updateItem={updateRow}\n      getId={(item) => String(item.${idField} ?? "") }\n      getTitle={(item) => String(item.${titleField} ?? "${title}") }\n    />\n  );\n}\n\n// Rota sugerida: ${route}\n// Tela: app/(app)/Administrador/${screenName}.tsx\n// Ajuste o payload conforme o webhook do n8n.`;
+    return `import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";\nimport { api } from "@/services/api";\n\ntype Row = Record<string, unknown>;\n\nconst ENDPOINT = "https://n8n.sosescritura.com.br/webhook/api_crud";\n\nconst listRows = async (): Promise<Row[]> => {\n  const response = await api.post(ENDPOINT, { action: "list"${tableLine} });\n  const data = response.data;\n  const list = Array.isArray(data) ? data : (data?.data ?? []);\n  return Array.isArray(list) ? (list as Row[]) : [];\n};\n\nconst createRow = async (payload: Partial<Row>): Promise<unknown> => {\n  const response = await api.post(ENDPOINT, { action: "create"${tableLine}, ${payloadKey}: payload });\n  return response.data;\n};\n\nconst updateRow = async (payload: Partial<Row> & { id?: string | null }): Promise<unknown> => {\n  if (!payload.id) {\n    throw new Error("Id obrigatorio para atualizar");\n  }\n  const response = await api.post(ENDPOINT, { action: "update"${tableLine}, ${payloadKey}: payload });\n  return response.data;\n};\n\nexport default function ${humanize(screenName).replace(/\s+/g, "")}Screen() {\n  const fields: CrudFieldConfig<Row>[] = [\n${fieldLines}\n  ];\n\n  return (\n    <CrudScreen<Row>\n      title="${title}"\n      subtitle="Gestao de ${title.toLowerCase()}"\n      fields={fields}\n      loadItems={listRows}\n      createItem={createRow}\n      updateItem={updateRow}\n      getId={(item) => String(item.${idField} ?? "") }\n      getTitle={(item) => String(item.${titleField} ?? "${title}") }\n    />\n  );\n}\n\n// Rota sugerida: ${route}\n// Tela: ${filePath}\n// Ajuste o payload conforme o webhook do n8n.`;
   }, [
     builderRoute,
     builderScreenName,
@@ -157,14 +239,19 @@ export default function TablesScreen() {
     builderUseCrud,
     builderPayloadMode,
     builderIncludeTable,
+    builderAppGroup,
+    builderReferenceLabels,
     uniqueColumns,
     selectedTable,
   ]);
 
   const builderAdminEntry = useMemo(() => {
+    if (builderAppGroup !== "Administrador") {
+      return "";
+    }
     const screenName = builderScreenName || selectedTable || "nova-tela";
     const title = humanize(builderTableName || selectedTable || screenName);
-    const route = builderRoute || `/Administrador/${screenName}`;
+    const route = builderRoute || `/${builderAppGroup}/${screenName}`;
     return `{
     id: "${screenName}",
     title: "${title}",
@@ -172,7 +259,13 @@ export default function TablesScreen() {
     icon: "list-outline",
     route: "${route}",
   },`;
-  }, [builderRoute, builderScreenName, builderTableName, selectedTable]);
+  }, [
+    builderAppGroup,
+    builderRoute,
+    builderScreenName,
+    builderTableName,
+    selectedTable,
+  ]);
 
   const handleCopyBuilder = useCallback(async () => {
     if (!builderTemplate.trim()) return;
@@ -220,7 +313,7 @@ export default function TablesScreen() {
     // Preenche campos do builder e sugere query
     setBuilderTableName(table);
     setBuilderScreenName(table);
-    setBuilderRoute(`/Administrador/${table}`);
+    setBuilderRoute(`/${builderAppGroup}/${table}`);
     setQueryText(`SELECT * FROM ${table} LIMIT 50;`);
     try {
       const info = await getTableInfo(table);
@@ -536,6 +629,66 @@ export default function TablesScreen() {
                   </ThemedText>
                 </TouchableOpacity>
 
+                <View
+                  style={{
+                    marginTop: 8,
+                    flexDirection: "row",
+                    borderWidth: 1,
+                    borderColor,
+                    borderRadius: 8,
+                    overflow: "hidden",
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => setBuilderAppGroup("Administrador")}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      backgroundColor:
+                        builderAppGroup === "Administrador"
+                          ? tintColor
+                          : cardColor,
+                      alignItems: "center",
+                    }}
+                  >
+                    <ThemedText
+                      style={{
+                        color:
+                          builderAppGroup === "Administrador"
+                            ? "#ffffff"
+                            : textColor,
+                        fontWeight: "600",
+                      }}
+                    >
+                      Administrador
+                    </ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setBuilderAppGroup("Servicos")}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      backgroundColor:
+                        builderAppGroup === "Servicos" ? tintColor : cardColor,
+                      alignItems: "center",
+                      borderLeftWidth: 1,
+                      borderLeftColor: borderColor,
+                    }}
+                  >
+                    <ThemedText
+                      style={{
+                        color:
+                          builderAppGroup === "Servicos"
+                            ? "#ffffff"
+                            : textColor,
+                        fontWeight: "600",
+                      }}
+                    >
+                      Servicos
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+
                 <TouchableOpacity
                   onPress={() =>
                     setBuilderPayloadMode((prev) =>
@@ -573,6 +726,91 @@ export default function TablesScreen() {
                     Incluir table no body: {builderIncludeTable ? "Sim" : "Não"}
                   </ThemedText>
                 </TouchableOpacity>
+
+                {referenceColumns.length > 0 ? (
+                  <View style={{ marginTop: 12 }}>
+                    <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
+                      Campos de referência
+                    </ThemedText>
+                    {referenceColumns.map((col) => {
+                      const refTable = inferReferencedTable(col);
+                      if (!refTable) return null;
+                      const refCols = referenceTableColumns[refTable] ?? [];
+                      return (
+                        <View key={col.column_name} style={{ marginTop: 10 }}>
+                          <ThemedText
+                            style={{ fontSize: 12, color: mutedTextColor }}
+                          >
+                            {col.column_name} → {refTable}
+                          </ThemedText>
+                          <TextInput
+                            value={
+                              builderReferenceLabels[col.column_name] ?? ""
+                            }
+                            onChangeText={(text) =>
+                              setBuilderReferenceLabels((prev) => ({
+                                ...prev,
+                                [col.column_name]: text,
+                              }))
+                            }
+                            placeholder="Campo exibido (ex.: name)"
+                            placeholderTextColor={mutedTextColor}
+                            style={{
+                              borderWidth: 1,
+                              borderColor,
+                              borderRadius: 8,
+                              paddingHorizontal: 12,
+                              paddingVertical: 10,
+                              backgroundColor: inputBackground,
+                              color: textColor,
+                              marginTop: 6,
+                            }}
+                          />
+                          {refCols.length > 0 ? (
+                            <View
+                              style={{
+                                marginTop: 6,
+                                flexDirection: "row",
+                                flexWrap: "wrap",
+                                gap: 6,
+                              }}
+                            >
+                              {refCols.map((refCol) => (
+                                <TouchableOpacity
+                                  key={`${col.column_name}-${refCol.column_name}`}
+                                  onPress={() =>
+                                    setBuilderReferenceLabels((prev) => ({
+                                      ...prev,
+                                      [col.column_name]: refCol.column_name,
+                                    }))
+                                  }
+                                  style={{
+                                    paddingVertical: 6,
+                                    paddingHorizontal: 10,
+                                    backgroundColor: cardColor,
+                                    borderRadius: 6,
+                                    borderWidth: 1,
+                                    borderColor,
+                                  }}
+                                >
+                                  <ThemedText
+                                    style={{
+                                      color: textColor,
+                                      fontSize: 12,
+                                      fontWeight: "600",
+                                    }}
+                                  >
+                                    {refCol.column_name}
+                                  </ThemedText>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
 
                 <View style={{ marginTop: 12 }}>
                   <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
@@ -619,51 +857,55 @@ export default function TablesScreen() {
                   </ThemedText>
                 ) : null}
 
-                <View style={{ marginTop: 12 }}>
-                  <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
-                    Entrada no menu Admin
-                  </ThemedText>
-                  <TextInput
-                    value={builderAdminEntry}
-                    editable={false}
-                    multiline
-                    style={{
-                      borderWidth: 1,
-                      borderColor,
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      minHeight: 90,
-                      backgroundColor: inputBackground,
-                      color: textColor,
-                      marginTop: 6,
-                      textAlignVertical: "top",
-                    }}
-                  />
-                </View>
+                {builderAppGroup === "Administrador" ? (
+                  <View style={{ marginTop: 12 }}>
+                    <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
+                      Entrada no menu Admin
+                    </ThemedText>
+                    <TextInput
+                      value={builderAdminEntry}
+                      editable={false}
+                      multiline
+                      style={{
+                        borderWidth: 1,
+                        borderColor,
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        minHeight: 90,
+                        backgroundColor: inputBackground,
+                        color: textColor,
+                        marginTop: 6,
+                        textAlignVertical: "top",
+                      }}
+                    />
 
-                <TouchableOpacity
-                  onPress={handleCopyRoute}
-                  style={{
-                    marginTop: 8,
-                    paddingVertical: 10,
-                    paddingHorizontal: 12,
-                    backgroundColor: cardColor,
-                    borderRadius: 6,
-                    alignItems: "center",
-                    borderWidth: 1,
-                    borderColor,
-                  }}
-                >
-                  <ThemedText style={{ color: textColor, fontWeight: "600" }}>
-                    Copiar entrada do menu
-                  </ThemedText>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleCopyRoute}
+                      style={{
+                        marginTop: 8,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        backgroundColor: cardColor,
+                        borderRadius: 6,
+                        alignItems: "center",
+                        borderWidth: 1,
+                        borderColor,
+                      }}
+                    >
+                      <ThemedText
+                        style={{ color: textColor, fontWeight: "600" }}
+                      >
+                        Copiar entrada do menu
+                      </ThemedText>
+                    </TouchableOpacity>
 
-                {builderRouteStatus ? (
-                  <ThemedText style={{ marginTop: 6, color: tintColor }}>
-                    {builderRouteStatus}
-                  </ThemedText>
+                    {builderRouteStatus ? (
+                      <ThemedText style={{ marginTop: 6, color: tintColor }}>
+                        {builderRouteStatus}
+                      </ThemedText>
+                    ) : null}
+                  </View>
                 ) : null}
               </View>
             </View>

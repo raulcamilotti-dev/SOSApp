@@ -30,7 +30,7 @@ export type UpdateTenantPayload = {
   config?: TenantConfig;
 };
 
-const TENANT_ENDPOINT = "https://n8n.sosescritura.com.br/webhook/tenants";
+const TENANT_ENDPOINT = "https://n8n.sosescritura.com.br/webhook/api_crud";
 
 const normalizeTenant = (payload: any): Tenant => {
   if (!payload || typeof payload !== "object") {
@@ -50,7 +50,10 @@ const normalizeTenant = (payload: any): Tenant => {
 };
 
 export async function listTenants(): Promise<Tenant[]> {
-  const response = await api.post(TENANT_ENDPOINT, { action: "list" });
+  const response = await api.post(TENANT_ENDPOINT, {
+    action: "list",
+    table: "tenants",
+  });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
   return Array.isArray(list) ? list.map(normalizeTenant) : [];
@@ -61,7 +64,8 @@ export async function createTenant(
 ): Promise<Tenant> {
   const response = await api.post(TENANT_ENDPOINT, {
     action: "create",
-    data: payload,
+    table: "tenants",
+    payload,
   });
   const data = response.data;
   const base = Array.isArray(data) ? data[0] : (data?.data ?? data);
@@ -73,7 +77,8 @@ export async function updateTenant(
 ): Promise<Tenant> {
   const response = await api.post(TENANT_ENDPOINT, {
     action: "update",
-    data: payload,
+    table: "tenants",
+    payload,
   });
   const data = response.data;
   const base = Array.isArray(data) ? data[0] : (data?.data ?? data);

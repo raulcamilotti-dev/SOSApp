@@ -2,6 +2,7 @@ import { styles } from "@/app/theme/styles";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { api } from "@/services/api";
 import { useIsFocused } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -14,7 +15,7 @@ import {
     View,
 } from "react-native";
 
-export type CrudFieldType = "text" | "multiline" | "json";
+export type CrudFieldType = "text" | "multiline" | "json" | "reference";
 
 export type CrudFieldConfig<T> = {
   key: keyof T & string;
@@ -25,9 +26,16 @@ export type CrudFieldConfig<T> = {
   visibleInList?: boolean;
   visibleInForm?: boolean;
   readOnly?: boolean;
+  referenceTable?: string;
+  referenceLabelField?: string;
+  referenceIdField?: string;
+  referenceSearchField?: string;
 };
 
 type DetailItem = { label: string; value: string };
+type ReferenceOption = { id: string; label: string; raw: any };
+
+const REFERENCE_ENDPOINT = "https://n8n.sosescritura.com.br/webhook/api_crud";
 
 type Props<T> = {
   title: string;
@@ -74,11 +82,26 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const [formError, setFormError] = useState<string | null>(null);
   const [formState, setFormState] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [referenceModalField, setReferenceModalField] =
+    useState<CrudFieldConfig<T> | null>(null);
+  const [referenceOptions, setReferenceOptions] = useState<ReferenceOption[]>(
+    [],
+  );
+  const [referenceSearch, setReferenceSearch] = useState("");
+  const [referenceLoading, setReferenceLoading] = useState(false);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
+  const [referenceLabels, setReferenceLabels] = useState<
+    Record<string, string>
+  >({});
   const isFocused = useIsFocused();
 
   const formFields = useMemo(
     () => fields.filter((field) => field.visibleInForm !== false),
     [fields],
+  );
+  const formFieldKeys = useMemo(
+    () => new Set(formFields.map((field) => field.key)),
+    [formFields],
   );
 
   const textColor = useThemeColor({}, "text");
@@ -122,6 +145,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
       nextState[field.key] = "";
     });
     setFormState(nextState);
+    setReferenceLabels({});
     setFormError(null);
     setEditingId(null);
   }, [formFields]);
@@ -135,15 +159,20 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const openEdit = useCallback(
     (item: T) => {
       const nextState: Record<string, string> = {};
+      const nextLabels: Record<string, string> = {};
       formFields.forEach((field) => {
         const value = item[field.key];
         if (field.type === "json") {
           nextState[field.key] = value ? JSON.stringify(value, null, 2) : "";
+        } else if (field.type === "reference") {
+          nextState[field.key] = value ? String(value) : "";
+          nextLabels[field.key] = value ? String(value) : "";
         } else {
           nextState[field.key] = value ? String(value) : "";
         }
       });
       setFormState(nextState);
+      setReferenceLabels(nextLabels);
       setFormError(null);
       setModalMode("edit");
       setEditingId(getId(item));
@@ -152,18 +181,78 @@ export function CrudScreen<T extends Record<string, unknown>>({
     [formFields, getId],
   );
 
+  const loadReferenceOptions = useCallback(
+    async (field: CrudFieldConfig<T>, searchValue: string) => {
+      if (!field.referenceTable || !field.referenceLabelField) {
+        setReferenceError("Configuração de referência inválida.");
+        setReferenceOptions([]);
+        return;
+      }
+
+      setReferenceLoading(true);
+      setReferenceError(null);
+
+      try {
+        const searchField = field.referenceSearchField;
+        const response = await api.post(REFERENCE_ENDPOINT, {
+          action: "list",
+          table: field.referenceTable,
+          search: searchValue || undefined,
+          search_field: searchField || undefined,
+        });
+        const data = response.data;
+        const list = Array.isArray(data) ? data : (data?.data ?? []);
+        const idField = field.referenceIdField ?? "id";
+        const labelField = field.referenceLabelField ?? idField;
+        const options = Array.isArray(list)
+          ? list
+              .map((item) => ({
+                id: String(item?.[idField] ?? item?.id ?? ""),
+                label: String(item?.[labelField] ?? item?.id ?? ""),
+                raw: item,
+              }))
+              .filter((opt) => opt.id)
+          : [];
+        setReferenceOptions(options);
+      } catch {
+        setReferenceError("Falha ao carregar dados.");
+        setReferenceOptions([]);
+      } finally {
+        setReferenceLoading(false);
+      }
+    },
+    [],
+  );
+
+  const openReferenceModal = useCallback(
+    (field: CrudFieldConfig<T>) => {
+      setReferenceModalField(field);
+      setReferenceSearch("");
+      setReferenceOptions([]);
+      setReferenceError(null);
+      loadReferenceOptions(field, "");
+    },
+    [loadReferenceOptions],
+  );
+
   const handleSave = useCallback(async () => {
+    const payloadFields = modalMode === "create" ? fields : formFields;
     const payload: Record<string, unknown> = {};
-    for (const field of formFields) {
+    for (const field of payloadFields) {
       if (field.readOnly) {
         continue;
       }
       const rawValue = formState[field.key] ?? "";
-      if (field.required && !rawValue.trim()) {
+      const trimmedValue = rawValue.trim();
+      if (formFieldKeys.has(field.key) && field.required && !trimmedValue) {
         setFormError(`Informe ${field.label.toLowerCase()}.`);
         return;
       }
-      if (field.type === "json" && rawValue.trim()) {
+      if (field.type === "json") {
+        if (!trimmedValue) {
+          payload[field.key] = null;
+          continue;
+        }
         try {
           payload[field.key] = JSON.parse(rawValue);
         } catch {
@@ -171,13 +260,17 @@ export function CrudScreen<T extends Record<string, unknown>>({
           return;
         }
       } else {
-        payload[field.key] = rawValue.trim() || undefined;
+        payload[field.key] = trimmedValue ? trimmedValue : null;
       }
     }
 
     if (modalMode === "edit" && !editingId) {
       setFormError("Registro inválido para edição.");
       return;
+    }
+
+    if (modalMode === "create") {
+      delete payload.id;
     }
 
     try {
@@ -200,8 +293,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
       setSaving(false);
     }
   }, [
+    fields,
     formFields,
     formState,
+    formFieldKeys,
     modalMode,
     createItem,
     updateItem,
@@ -209,6 +304,11 @@ export function CrudScreen<T extends Record<string, unknown>>({
     load,
     resetForm,
   ]);
+
+  useEffect(() => {
+    if (!referenceModalField) return;
+    loadReferenceOptions(referenceModalField, referenceSearch.trim());
+  }, [referenceModalField, referenceSearch, loadReferenceOptions]);
 
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => getTitle(a).localeCompare(getTitle(b)));
@@ -359,36 +459,58 @@ export function CrudScreen<T extends Record<string, unknown>>({
                   <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
                     {field.label}
                   </ThemedText>
-                  <TextInput
-                    value={formState[field.key] ?? ""}
-                    onChangeText={(text) =>
-                      setFormState((prev) => ({ ...prev, [field.key]: text }))
-                    }
-                    placeholder={field.placeholder ?? field.label}
-                    placeholderTextColor={mutedTextColor}
-                    multiline={
-                      field.type === "multiline" || field.type === "json"
-                    }
-                    editable={!field.readOnly}
-                    style={{
-                      borderWidth: 1,
-                      borderColor,
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      minHeight:
+                  {field.type === "reference" ? (
+                    <TouchableOpacity
+                      onPress={() => openReferenceModal(field)}
+                      style={{
+                        borderWidth: 1,
+                        borderColor,
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        paddingVertical: 12,
+                        backgroundColor: inputBackground,
+                        marginTop: 6,
+                      }}
+                    >
+                      <ThemedText style={{ color: textColor }}>
+                        {referenceLabels[field.key] ||
+                          formState[field.key] ||
+                          field.placeholder ||
+                          "Selecionar"}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  ) : (
+                    <TextInput
+                      value={formState[field.key] ?? ""}
+                      onChangeText={(text) =>
+                        setFormState((prev) => ({ ...prev, [field.key]: text }))
+                      }
+                      placeholder={field.placeholder ?? field.label}
+                      placeholderTextColor={mutedTextColor}
+                      multiline={
                         field.type === "multiline" || field.type === "json"
-                          ? 90
-                          : undefined,
-                      backgroundColor: inputBackground,
-                      color: textColor,
-                      marginTop: 6,
-                      textAlignVertical:
-                        field.type === "multiline" || field.type === "json"
-                          ? "top"
-                          : "auto",
-                    }}
-                  />
+                      }
+                      editable={!field.readOnly}
+                      style={{
+                        borderWidth: 1,
+                        borderColor,
+                        borderRadius: 8,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        minHeight:
+                          field.type === "multiline" || field.type === "json"
+                            ? 90
+                            : undefined,
+                        backgroundColor: inputBackground,
+                        color: textColor,
+                        marginTop: 6,
+                        textAlignVertical:
+                          field.type === "multiline" || field.type === "json"
+                            ? "top"
+                            : "auto",
+                      }}
+                    />
+                  )}
                 </View>
               ))}
             </ScrollView>
@@ -442,6 +564,116 @@ export function CrudScreen<T extends Record<string, unknown>>({
                 </ThemedText>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={!!referenceModalField}
+        animationType="slide"
+        onRequestClose={() => setReferenceModalField(null)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: modalBackdrop,
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: cardColor,
+              borderRadius: 12,
+              padding: 16,
+              maxHeight: "90%",
+            }}
+          >
+            <ThemedText style={[styles.processTitle, { color: textColor }]}>
+              Selecionar
+            </ThemedText>
+
+            <TextInput
+              value={referenceSearch}
+              onChangeText={setReferenceSearch}
+              placeholder="Buscar"
+              placeholderTextColor={mutedTextColor}
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                backgroundColor: inputBackground,
+                color: textColor,
+                marginTop: 12,
+              }}
+            />
+
+            {referenceLoading ? (
+              <ActivityIndicator style={{ marginTop: 12 }} />
+            ) : null}
+
+            {referenceError ? (
+              <ThemedText style={{ color: tintColor, marginTop: 8 }}>
+                {referenceError}
+              </ThemedText>
+            ) : null}
+
+            <ScrollView style={{ marginTop: 12 }}>
+              {referenceOptions.length === 0 && !referenceLoading ? (
+                <ThemedText style={{ color: mutedTextColor }}>
+                  Nenhum resultado encontrado.
+                </ThemedText>
+              ) : null}
+
+              {referenceOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  onPress={() => {
+                    if (!referenceModalField) return;
+                    setFormState((prev) => ({
+                      ...prev,
+                      [referenceModalField.key]: option.id,
+                    }));
+                    setReferenceLabels((prev) => ({
+                      ...prev,
+                      [referenceModalField.key]: option.label,
+                    }));
+                    setReferenceModalField(null);
+                  }}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 8,
+                    borderBottomWidth: 1,
+                    borderBottomColor: borderColor,
+                  }}
+                >
+                  <ThemedText style={{ color: textColor }}>
+                    {option.label} ({option.id})
+                  </ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={() => setReferenceModalField(null)}
+              style={{
+                marginTop: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 12,
+                backgroundColor: cardColor,
+                borderRadius: 6,
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor,
+              }}
+            >
+              <ThemedText style={{ color: textColor, fontWeight: "600" }}>
+                Fechar
+              </ThemedText>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

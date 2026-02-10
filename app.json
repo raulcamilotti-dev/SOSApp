@@ -8,6 +8,14 @@
     "scheme": "portalimoveis",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sosescritura.portalimoveis",
@@ -17,7 +25,7 @@
     },
     "android": {
       "versionCode": 2,
-      "permissions": ["com.google.android.gms.permission.884-329-1664"],
+      "permissions": ["com.google.android.gms.permission.AD_ID"],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
