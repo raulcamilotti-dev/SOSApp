@@ -6,7 +6,9 @@
   "scripts": {
     "start": "expo start",
     "build": "expo export --platform web",
-    "generate:crud": "node scripts/generate-crud.js"
+    "generate:crud": "node scripts/generate-crud.js",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

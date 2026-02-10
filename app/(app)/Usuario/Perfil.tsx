@@ -129,6 +129,13 @@ export default function Profile() {
             color={tintColor}
             cardBg={cardBg}
           />
+          <ActionButton
+            icon="trash"
+            label="Excluir Conta"
+            onPress={() => router.push("/(app)/Usuario/delete-account" as any)}
+            color="#ff3b30"
+            cardBg={cardBg}
+          />
         </View>
 
         {/* Logout */}
