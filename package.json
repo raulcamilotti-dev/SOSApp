@@ -1,5 +1,5 @@
 {
-  "name": "portal-imoveis",
+  "name": "sos-escritura",
   "version": "1.0.0",
   "private": true,
   "main": "expo-router/entry",
@@ -8,7 +8,10 @@
     "build": "expo export --platform web",
     "generate:crud": "node scripts/generate-crud.js",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "sync:n8n:upload": "node scripts/sync-n8n-workflow.js upload",
+    "sync:n8n:download": "node scripts/sync-n8n-workflow.js download",
+    "sync:n8n:validate": "node scripts/sync-n8n-workflow.js validate"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -34,6 +37,7 @@
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
     "expo-web-browser": "~15.0.10",
+    "pg": "^8.18.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
@@ -48,6 +52,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "babel-plugin-module-resolver": "^5.0.2",
+    "dotenv": "^16.4.5",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
