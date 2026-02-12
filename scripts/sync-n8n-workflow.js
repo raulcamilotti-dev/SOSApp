@@ -26,6 +26,31 @@ const n8nApi = axios.create({
   },
 });
 
+const sanitizeWorkflowPayload = (workflow) => {
+  const allowedKeys = [
+    "name",
+    "nodes",
+    "connections",
+    "settings",
+    "active",
+    "tags",
+    "staticData",
+    "pinData",
+  ];
+
+  const payload = {};
+  allowedKeys.forEach((key) => {
+    if (workflow[key] !== undefined) {
+      payload[key] = workflow[key];
+    }
+  });
+
+  if (!payload.connections) payload.connections = {};
+  if (!payload.settings) payload.settings = {};
+
+  return payload;
+};
+
 /**
  * Baixa o workflow editado do n8n e salva localmente
  */
@@ -85,15 +110,16 @@ async function uploadWorkflow() {
     console.log(`📤 Enviando workflow para n8n...`);
 
     const workflow = JSON.parse(fs.readFileSync(WORKFLOW_FILE, "utf-8"));
+    const payload = sanitizeWorkflowPayload(workflow);
 
     // Se tem ID, fazer update; senão, criar novo
     if (workflow.id) {
-      await n8nApi.put(`/workflows/${workflow.id}`, workflow);
+      await n8nApi.put(`/workflows/${workflow.id}`, payload);
       console.log(`✅ Workflow atualizado no n8n`);
       console.log(`   ID: ${workflow.id}`);
       console.log(`   Nome: ${workflow.name}`);
     } else {
-      const response = await n8nApi.post("/workflows", workflow);
+      const response = await n8nApi.post("/workflows", payload);
       console.log(`✅ Novo workflow criado no n8n`);
       console.log(`   ID: ${response.data.id}`);
       console.log(`   Nome: ${response.data.name}`);
