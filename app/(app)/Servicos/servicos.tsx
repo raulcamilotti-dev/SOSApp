@@ -10,9 +10,14 @@ const services = [
     route: "/Servicos/Imoveis",
   },
   {
-    title: "Advogados",
-    description: "Conheça nossos advogados parceiros",
-    route: "/Servicos/Advogados",
+    title: "Serviços e Agendamento",
+    description: "Buscar serviços e profissionais e agendar",
+    route: "/Servicos/SolicitarServico",
+  },
+  {
+    title: "Meus serviços",
+    description: "Acompanhar agendamentos e avaliar",
+    route: "/Servicos/MeusServicos",
   },
   {
     title: "Tipos de regularização",

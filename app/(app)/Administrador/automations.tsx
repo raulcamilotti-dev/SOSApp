@@ -1,4 +1,5 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
 
 type Row = Record<string, unknown>;
@@ -12,7 +13,7 @@ const listRows = async (): Promise<Row[]> => {
   });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
-  return Array.isArray(list) ? (list as Row[]) : [];
+  return filterActive(Array.isArray(list) ? (list as Row[]) : []);
 };
 
 const createRow = async (payload: Partial<Row>): Promise<unknown> => {
@@ -34,6 +35,22 @@ const updateRow = async (
     action: "update",
     table: "automations",
     payload,
+  });
+  return response.data;
+};
+
+const deleteRow = async (
+  payload: Partial<Row> & { id?: string | null },
+): Promise<unknown> => {
+  if (!payload.id) {
+    throw new Error("Id obrigatorio para deletar");
+  }
+  const response = await api.post(ENDPOINT, {
+    action: "delete",
+    table: "automations",
+    payload: {
+      id: payload.id,
+    },
   });
   return response.data;
 };
@@ -94,6 +111,7 @@ export default function AutomationsScreen() {
       loadItems={listRows}
       createItem={createRow}
       updateItem={updateRow}
+      deleteItem={deleteRow}
       getId={(item) => String(item.id ?? "")}
       getTitle={(item) => String(item.trigger ?? "Automation")}
     />

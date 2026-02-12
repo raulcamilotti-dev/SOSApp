@@ -3,14 +3,22 @@ import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
+import {
+  createDocumentResponse,
+  listDocumentRequests,
+  type DocumentRequest,
+} from "@/services/document-requests";
+import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Linking,
-    ScrollView,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { styles } from "../../theme/styles";
 
@@ -60,6 +68,15 @@ export default function EtapaPropertiesScreen() {
   const [loading, setLoading] = useState(true);
   const [updates, setUpdates] = useState<ProcessUpdate[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [documentRequests, setDocumentRequests] = useState<
+    Map<string, DocumentRequest[]>
+  >(new Map());
+  const [loadingDocuments, setLoadingDocuments] = useState<Set<string>>(
+    new Set(),
+  );
+  const [uploadingDocuments, setUploadingDocuments] = useState<Set<string>>(
+    new Set(),
+  );
 
   const tintColor = useThemeColor({}, "tint");
   const titleTextColor = useThemeColor({}, "text");
@@ -111,6 +128,20 @@ export default function EtapaPropertiesScreen() {
         });
       }
       setUpdates(list);
+
+      // Load document requests for each update
+      const docRequests = new Map<string, DocumentRequest[]>();
+      for (const update of list) {
+        if (update.is_client_visible !== false) {
+          try {
+            const docs = await listDocumentRequests(update.id);
+            docRequests.set(update.id, docs);
+          } catch (err) {
+            console.error("Erro ao carregar documentos solicitados:", err);
+          }
+        }
+      }
+      setDocumentRequests(docRequests);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Falha ao carregar atualizações",
@@ -118,6 +149,87 @@ export default function EtapaPropertiesScreen() {
       setUpdates([]);
     }
   }, [propertyId, user?.id]);
+
+  const handleUploadDocumentRequest = useCallback(
+    async (documentRequestId: string, updateId: string) => {
+      try {
+        setUploadingDocuments((prev) => new Set(prev).add(documentRequestId));
+
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ["application/pdf", "image/*"],
+          copyToCacheDirectory: true,
+        });
+
+        if (result.canceled || !result.assets?.[0]) return;
+
+        const file = result.assets[0];
+        const formData = new FormData();
+        formData.append("property_process_update_id", updateId);
+
+        if (Platform.OS === "web") {
+          const fileResponse = await fetch(file.uri);
+          const blob = await fileResponse.blob();
+          const webFile = new File([blob], file.name, {
+            type: file.mimeType ?? blob.type ?? "application/octet-stream",
+          });
+          formData.append("files", webFile);
+        } else {
+          formData.append("files", {
+            uri: file.uri,
+            name: file.name,
+            type: file.mimeType ?? "application/octet-stream",
+          } as any);
+        }
+
+        const uploadResponse = await api.post(
+          "https://n8n.sosescritura.com.br/webhook/property_process_updates_add_files",
+          formData,
+        );
+
+        const responseData = uploadResponse.data?.data || uploadResponse.data;
+        const fileId = responseData?.id || responseData?.drive_file_id;
+        const fileLink = responseData?.drive_web_view_link || responseData?.url;
+
+        if (fileId) {
+          // Create document response and mark request as fulfilled
+          await createDocumentResponse({
+            document_request_id: documentRequestId,
+            file_name: file.name,
+            mime_type: file.mimeType ?? "application/octet-stream",
+            drive_file_id: fileId,
+            drive_web_view_link: fileLink,
+          });
+
+          // Update local state to mark as fulfilled
+          setDocumentRequests((prev) => {
+            const updated = new Map(prev);
+            const docs = updated.get(updateId) || [];
+            updated.set(
+              updateId,
+              docs.map((doc) =>
+                doc.id === documentRequestId
+                  ? { ...doc, is_fulfilled: true }
+                  : doc,
+              ),
+            );
+            return updated;
+          });
+
+          Alert.alert("Sucesso", "Documento enviado com sucesso!");
+        }
+      } catch (err) {
+        console.error("Erro ao enviar documento:", err);
+        Alert.alert("Erro", "Falha ao enviar documento");
+      } finally {
+        setUploadingDocuments((prev) => {
+          const updated = new Set(prev);
+          updated.delete(documentRequestId);
+          return updated;
+        });
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -315,6 +427,133 @@ export default function EtapaPropertiesScreen() {
                             </View>
                           );
                         })}
+                    </View>
+                  );
+                })()}
+
+                {(() => {
+                  const docs = documentRequests.get(update.id) || [];
+                  if (docs.length === 0) return null;
+
+                  return (
+                    <View
+                      style={{
+                        marginTop: 12,
+                        paddingTop: 12,
+                        borderTopWidth: 1,
+                        borderTopColor: cardBorderColor,
+                      }}
+                    >
+                      <ThemedText
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: bodyTextColor,
+                          marginBottom: 8,
+                        }}
+                      >
+                        Documentos solicitados
+                      </ThemedText>
+                      <View style={{ gap: 8 }}>
+                        {docs.map((doc) => {
+                          const isUploading = uploadingDocuments.has(doc.id);
+                          return (
+                            <View
+                              key={doc.id}
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 8,
+                                backgroundColor: doc.is_fulfilled
+                                  ? tintColor + "20"
+                                  : cardBorderColor + "20",
+                                borderRadius: 6,
+                                borderLeftWidth: 3,
+                                borderLeftColor: doc.is_fulfilled
+                                  ? tintColor
+                                  : mutedTextColor,
+                              }}
+                            >
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <View style={{ flex: 1 }}>
+                                  <ThemedText
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: "600",
+                                      color: bodyTextColor,
+                                    }}
+                                  >
+                                    {doc.document_type}
+                                  </ThemedText>
+                                  {doc.description ? (
+                                    <ThemedText
+                                      style={{
+                                        fontSize: 11,
+                                        color: mutedTextColor,
+                                        marginTop: 2,
+                                      }}
+                                    >
+                                      {doc.description}
+                                    </ThemedText>
+                                  ) : null}
+                                  {doc.is_fulfilled ? (
+                                    <ThemedText
+                                      style={{
+                                        fontSize: 10,
+                                        color: tintColor,
+                                        marginTop: 4,
+                                        fontWeight: "600",
+                                      }}
+                                    >
+                                      ✓ Enviado
+                                    </ThemedText>
+                                  ) : null}
+                                </View>
+                                {!doc.is_fulfilled ? (
+                                  <TouchableOpacity
+                                    onPress={() =>
+                                      handleUploadDocumentRequest(
+                                        doc.id,
+                                        update.id,
+                                      )
+                                    }
+                                    disabled={isUploading}
+                                    style={{
+                                      marginLeft: 8,
+                                      paddingHorizontal: 10,
+                                      paddingVertical: 6,
+                                      backgroundColor: tintColor,
+                                      borderRadius: 4,
+                                    }}
+                                  >
+                                    {isUploading ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={bodyTextColor}
+                                      />
+                                    ) : (
+                                      <ThemedText
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: "600",
+                                          color: "white",
+                                        }}
+                                      >
+                                        Enviar
+                                      </ThemedText>
+                                    )}
+                                  </TouchableOpacity>
+                                ) : null}
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
                     </View>
                   );
                 })()}

@@ -12,7 +12,7 @@ function parseJsonArg(name, fallback) {
   if (!raw) return fallback;
   try {
     return JSON.parse(raw);
-  } catch (err) {
+  } catch (_err) {
     console.error(`Invalid JSON for --${name}`);
     process.exit(1);
   }
@@ -38,7 +38,7 @@ if (!listEndpoint || !createEndpoint || !updateEndpoint) {
   process.exit(1);
 }
 
-const workspace = path.resolve(__dirname, "..");
+const workspace = path.resolve(process.cwd(), "..");
 const servicesDir = path.join(workspace, "services");
 const appAdminDir = path.join(workspace, "app", "(app)", "Administrador");
 const adminPagesPath = path.join(workspace, "core", "admin", "admin-pages.ts");

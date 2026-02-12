@@ -6,14 +6,14 @@ import { api } from "@/services/api";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  Switch,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    Switch,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { styles } from "../../theme/styles";
 
@@ -35,6 +35,12 @@ interface LocalFile {
   size?: number;
 }
 
+interface DocumentRequestItem {
+  id: string;
+  type: string;
+  description: string;
+}
+
 export default function ProcessoAdvogadoScreen() {
   const { user } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
@@ -51,12 +57,18 @@ export default function ProcessoAdvogadoScreen() {
     Record<string, string>
   >({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [documentRequests, setDocumentRequests] = useState<
+    DocumentRequestItem[]
+  >([]);
+  const [newDocumentType, setNewDocumentType] = useState("");
+  const [newDocumentDescription, setNewDocumentDescription] = useState("");
 
   const tintColor = useThemeColor({}, "tint");
   const mutedTextColor = useThemeColor({}, "muted");
   const primaryTextColor = useThemeColor({}, "text");
   const placeholderColor = useThemeColor({}, "muted");
   const borderColor = useThemeColor({}, "border");
+  const borderTopColor = useThemeColor({}, "border");
   const inputBackground = useThemeColor({}, "input");
   const onTintTextColor = useThemeColor({}, "background");
   const cardColor = useThemeColor({}, "card");
@@ -212,15 +224,35 @@ export default function ProcessoAdvogadoScreen() {
         }
       }
 
-      await api.post(
+      const response = await api.post(
         "https://n8n.sosescritura.com.br/webhook/property_process_update_create_advogado",
         formData,
       );
+
+      const processUpdateId = response.data?.id || response.data?.data?.id;
+
+      // Create document requests if any
+      if (isClientVisible && documentRequests.length > 0 && processUpdateId) {
+        for (const docRequest of documentRequests) {
+          try {
+            await createDocumentRequest({
+              property_process_update_id: processUpdateId,
+              document_type: docRequest.type,
+              description: docRequest.description || undefined,
+            });
+          } catch (error) {
+            console.error("Erro ao criar solicitação de documento:", error);
+          }
+        }
+      }
 
       setTitle("");
       setDescription("");
       setIsClientVisible(true);
       setFiles([]);
+      setDocumentRequests([]);
+      setNewDocumentType("");
+      setNewDocumentDescription("");
       setSuccessMessage("Atualização publicada com sucesso.");
     } catch {
       Alert.alert("Erro", "Falha ao publicar atualização");
@@ -333,6 +365,176 @@ export default function ProcessoAdvogadoScreen() {
                   </ThemedText>
                   <TouchableOpacity onPress={() => removeFile(file.id)}>
                     <ThemedText style={{ color: tintColor, fontSize: 12 }}>
+                      Remover
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <View
+          style={{
+            marginTop: 16,
+            paddingTop: 16,
+            borderTopWidth: 1,
+            borderTopColor,
+          }}
+        >
+          <ThemedText
+            style={{ fontSize: 12, color: mutedTextColor, fontWeight: "600" }}
+          >
+            Solicitar documentos do cliente
+          </ThemedText>
+
+          <View style={{ marginTop: 12 }}>
+            <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
+              Tipo de documento
+            </ThemedText>
+            <TextInput
+              value={newDocumentType}
+              onChangeText={setNewDocumentType}
+              placeholder="Ex.: RG, Comprovante de Renda"
+              placeholderTextColor={placeholderColor}
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                backgroundColor: inputBackground,
+                color: primaryTextColor,
+                marginTop: 6,
+              }}
+            />
+          </View>
+
+          <View style={{ marginTop: 12 }}>
+            <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
+              Descrição (opcional)
+            </ThemedText>
+            <TextInput
+              value={newDocumentDescription}
+              onChangeText={setNewDocumentDescription}
+              placeholder="Ex.: Documento original ou cópia autenticada"
+              placeholderTextColor={placeholderColor}
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                minHeight: 60,
+                backgroundColor: inputBackground,
+                color: primaryTextColor,
+                textAlignVertical: "top",
+                marginTop: 6,
+              }}
+            />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => {
+              if (!newDocumentType.trim()) {
+                Alert.alert("Atenção", "Informe o tipo de documento");
+                return;
+              }
+
+              setDocumentRequests((prev) => [
+                ...prev,
+                {
+                  id: Date.now().toString(),
+                  type: newDocumentType.trim(),
+                  description: newDocumentDescription.trim(),
+                },
+              ]);
+
+              setNewDocumentType("");
+              setNewDocumentDescription("");
+            }}
+            style={{
+              marginTop: 12,
+              backgroundColor: tintColor,
+              paddingVertical: 10,
+              borderRadius: 8,
+              alignItems: "center",
+            }}
+          >
+            <ThemedText
+              style={{
+                color: onTintTextColor,
+                fontWeight: "600",
+                fontSize: 12,
+              }}
+            >
+              Adicionar solicitação
+            </ThemedText>
+          </TouchableOpacity>
+
+          {documentRequests.length > 0 ? (
+            <View style={{ marginTop: 12, gap: 8 }}>
+              <ThemedText
+                style={{
+                  fontSize: 12,
+                  color: mutedTextColor,
+                  fontWeight: "600",
+                }}
+              >
+                Documentos solicitados ({documentRequests.length})
+              </ThemedText>
+              {documentRequests.map((doc) => (
+                <View
+                  key={doc.id}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    backgroundColor: cardColor,
+                    borderRadius: 6,
+                    borderLeftWidth: 3,
+                    borderLeftColor: tintColor,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <ThemedText
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "600",
+                        color: primaryTextColor,
+                      }}
+                    >
+                      {doc.type}
+                    </ThemedText>
+                    {doc.description ? (
+                      <ThemedText
+                        style={{
+                          fontSize: 11,
+                          color: mutedTextColor,
+                          marginTop: 4,
+                        }}
+                      >
+                        {doc.description}
+                      </ThemedText>
+                    ) : null}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setDocumentRequests((prev) =>
+                        prev.filter((d) => d.id !== doc.id),
+                      )
+                    }
+                    style={{ marginLeft: 12 }}
+                  >
+                    <ThemedText
+                      style={{
+                        color: tintColor,
+                        fontSize: 12,
+                        fontWeight: "600",
+                      }}
+                    >
                       Remover
                     </ThemedText>
                   </TouchableOpacity>

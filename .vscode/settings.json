@@ -4,5 +4,8 @@
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
   },
-  "terminal.integrated.sendKeybindingsToShell": true
+  "terminal.integrated.sendKeybindingsToShell": true,
+  "chat.tools.terminal.autoApprove": {
+    "&": true
+  }
 }

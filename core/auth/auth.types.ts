@@ -8,6 +8,7 @@ export interface User {
   email?: string;
   role?: string;
   fullname?: string;
+  tenant_id?: string;
 
   // opcionais (não obrigar agora)
   name?: string;

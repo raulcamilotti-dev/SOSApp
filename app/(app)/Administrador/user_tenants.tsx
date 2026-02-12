@@ -1,4 +1,7 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
+import { PERMISSIONS } from "@/core/auth/permissions";
+import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
 
 type Row = Record<string, unknown>;
@@ -12,7 +15,7 @@ const listRows = async (): Promise<Row[]> => {
   });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
-  return Array.isArray(list) ? (list as Row[]) : [];
+  return filterActive(Array.isArray(list) ? (list as Row[]) : []);
 };
 
 const createRow = async (payload: Partial<Row>): Promise<unknown> => {
@@ -38,6 +41,22 @@ const updateRow = async (
   return response.data;
 };
 
+const deleteRow = async (
+  payload: Partial<Row> & { id?: string | null },
+): Promise<unknown> => {
+  if (!payload.id) {
+    throw new Error("Id obrigatorio para deletar");
+  }
+  const response = await api.post(ENDPOINT, {
+    action: "delete",
+    table: "user_tenants",
+    payload: {
+      id: payload.id,
+    },
+  });
+  return response.data;
+};
+
 export default function UserTenantsScreen() {
   const fields: CrudFieldConfig<Row>[] = [
     { key: "id", label: "Id", placeholder: "Id", visibleInForm: false },
@@ -50,6 +69,7 @@ export default function UserTenantsScreen() {
       referenceLabelField: "fullname",
       referenceSearchField: "fullname",
       referenceIdField: "id",
+      resolveReferenceLabelInList: true,
       required: true,
       visibleInList: true,
     },
@@ -62,6 +82,7 @@ export default function UserTenantsScreen() {
       referenceLabelField: "company_name",
       referenceSearchField: "company_name",
       referenceIdField: "id",
+      resolveReferenceLabelInList: true,
       required: true,
       visibleInList: true,
     },
@@ -74,6 +95,7 @@ export default function UserTenantsScreen() {
       referenceLabelField: "name",
       referenceSearchField: "name",
       referenceIdField: "id",
+      resolveReferenceLabelInList: true,
       required: true,
       visibleInList: true,
     },
@@ -92,15 +114,22 @@ export default function UserTenantsScreen() {
   ];
 
   return (
-    <CrudScreen<Row>
-      title="User Tenants"
-      subtitle="Gestao de vinculos usuario-tenant"
-      fields={fields}
-      loadItems={listRows}
-      createItem={createRow}
-      updateItem={updateRow}
-      getId={(item) => String(item.id ?? "")}
-      getTitle={(item) => String(item.user_id ?? "User Tenants")}
-    />
+    <ProtectedRoute
+      requiredPermission={[PERMISSIONS.USER_WRITE, PERMISSIONS.TENANT_MANAGE]}
+    >
+      <CrudScreen<Row>
+        title="User Tenants"
+        subtitle="Gestao de vinculos usuario-tenant"
+        searchPlaceholder="Buscar por usuario, tenant ou role"
+        searchFields={["user_id", "tenant_id", "role_id"]}
+        fields={fields}
+        loadItems={listRows}
+        createItem={createRow}
+        updateItem={updateRow}
+        deleteItem={deleteRow}
+        getId={(item) => String(item.id ?? "")}
+        getTitle={(item) => String(item.user_id ?? "User Tenants")}
+      />
+    </ProtectedRoute>
   );
 }

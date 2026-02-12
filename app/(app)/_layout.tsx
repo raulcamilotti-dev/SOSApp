@@ -1,7 +1,9 @@
 import { useAuth } from "@/core/auth/AuthContext";
+import { NotificationsProvider } from "@/core/context/NotificationsContext";
 import { AppFooter } from "@/core/layout/AppFooter";
 import { AppHeader } from "@/core/layout/AppHeader";
 import { Breadcrumbs } from "@/core/layout/Breadcrumbs";
+import { NotificationsModal } from "@/core/layout/NotificationsModal";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Redirect, Slot, usePathname, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
@@ -31,21 +33,24 @@ export default function AppLayout() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor }}>
-      <AppHeader />
-      <Breadcrumbs />
-      <ScrollView
-        style={{ flex: 1, backgroundColor }}
-        contentContainerStyle={{ flexGrow: 1 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        <Slot />
-      </ScrollView>
+    <NotificationsProvider>
+      <View style={{ flex: 1, backgroundColor }}>
+        <AppHeader />
+        <Breadcrumbs />
+        <ScrollView
+          style={{ flex: 1, backgroundColor }}
+          contentContainerStyle={{ flexGrow: 1 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          <Slot />
+        </ScrollView>
 
-      <AppFooter />
-    </View>
+        <AppFooter />
+        <NotificationsModal />
+      </View>
+    </NotificationsProvider>
   );
 }

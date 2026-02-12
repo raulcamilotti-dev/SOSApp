@@ -107,12 +107,14 @@ export async function listTables(): Promise<string[]> {
 }
 
 export async function getTableInfo(tableName: string): Promise<TableInfoRow[]> {
+  // Tentar primeiro via N8N (com cache busting)
   try {
     const headers = await getAuthHeaders();
     const response = await api.post(
       ENDPOINTS.tableInfo,
       {
         table_name: tableName,
+        _cache_bust: Date.now(), // Evitar cache
       },
       {
         headers,
@@ -121,60 +123,38 @@ export async function getTableInfo(tableName: string): Promise<TableInfoRow[]> {
     const data = response.data;
     const list = Array.isArray(data) ? data : (data?.data ?? []);
     const rows = Array.isArray(list) ? (list as TableInfoRow[]) : [];
-    const hasFkMeta = rows.some(
-      (row) => row.referenced_table_name || row.referenced_column_name,
-    );
-    if (rows.length > 0 && !hasFkMeta) {
-      const fallback = await executeQuery(
-        "SELECT c.column_name, c.data_type, c.udt_name, c.is_nullable, c.column_default, c.is_identity, c.identity_generation, c.is_generated, ccu.table_name AS referenced_table_name, ccu.column_name AS referenced_column_name " +
-          "FROM information_schema.columns c " +
-          "LEFT JOIN information_schema.key_column_usage kcu " +
-          "  ON c.table_schema = kcu.table_schema AND c.table_name = kcu.table_name AND c.column_name = kcu.column_name " +
-          "LEFT JOIN information_schema.table_constraints tc " +
-          "  ON kcu.constraint_schema = tc.constraint_schema AND kcu.constraint_name = tc.constraint_name AND tc.constraint_type = 'FOREIGN KEY' " +
-          "LEFT JOIN information_schema.constraint_column_usage ccu " +
-          "  ON tc.constraint_schema = ccu.constraint_schema AND tc.constraint_name = ccu.constraint_name " +
-          "WHERE c.table_schema = 'public' AND c.table_name = $1 " +
-          "ORDER BY c.ordinal_position;".replace(
-            "$1",
-            `'${tableName.replace(/'/g, "''")}'`,
-          ),
-      );
-      return Array.isArray(fallback.rows)
-        ? (fallback.rows as TableInfoRow[])
-        : rows;
+
+    // Se N8N retornou dados, usar
+    if (rows.length > 0) {
+      return rows;
     }
+  } catch {
+    // Em caso de erro, usar fallback
+  }
+
+  // Fallback: consulta direta ao banco
+  try {
+    const fallback = await executeQuery(
+      "SELECT c.column_name, c.data_type, c.udt_name, c.is_nullable, c.column_default, c.is_identity, c.identity_generation, c.is_generated, ccu.table_name AS referenced_table_name, ccu.column_name AS referenced_column_name " +
+        "FROM information_schema.columns c " +
+        "LEFT JOIN information_schema.key_column_usage kcu " +
+        "  ON c.table_schema = kcu.table_schema AND c.table_name = kcu.table_name AND c.column_name = kcu.column_name " +
+        "LEFT JOIN information_schema.table_constraints tc " +
+        "  ON kcu.constraint_schema = tc.constraint_schema AND kcu.constraint_name = tc.constraint_name AND tc.constraint_type = 'FOREIGN KEY' " +
+        "LEFT JOIN information_schema.constraint_column_usage ccu " +
+        "  ON tc.constraint_schema = ccu.constraint_schema AND tc.constraint_name = ccu.constraint_name " +
+        "WHERE c.table_schema = 'public' AND c.table_name = $1 " +
+        "ORDER BY c.ordinal_position;".replace(
+          "$1",
+          `'${tableName.replace(/'/g, "''")}'`,
+        ),
+    );
+    const rows = Array.isArray(fallback.rows)
+      ? (fallback.rows as TableInfoRow[])
+      : [];
     return rows;
   } catch {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await api.get(ENDPOINTS.tableInfo, {
-        params: { table_name: tableName },
-        headers,
-      });
-      const data = response.data;
-      const list = Array.isArray(data) ? data : (data?.data ?? []);
-      return Array.isArray(list) ? (list as TableInfoRow[]) : [];
-    } catch {
-      const fallback = await executeQuery(
-        "SELECT c.column_name, c.data_type, c.udt_name, c.is_nullable, c.column_default, c.is_identity, c.identity_generation, c.is_generated, ccu.table_name AS referenced_table_name, ccu.column_name AS referenced_column_name " +
-          "FROM information_schema.columns c " +
-          "LEFT JOIN information_schema.key_column_usage kcu " +
-          "  ON c.table_schema = kcu.table_schema AND c.table_name = kcu.table_name AND c.column_name = kcu.column_name " +
-          "LEFT JOIN information_schema.table_constraints tc " +
-          "  ON kcu.constraint_schema = tc.constraint_schema AND kcu.constraint_name = tc.constraint_name AND tc.constraint_type = 'FOREIGN KEY' " +
-          "LEFT JOIN information_schema.constraint_column_usage ccu " +
-          "  ON tc.constraint_schema = ccu.constraint_schema AND tc.constraint_name = ccu.constraint_name " +
-          "WHERE c.table_schema = 'public' AND c.table_name = $1 " +
-          "ORDER BY c.ordinal_position;".replace(
-            "$1",
-            `'${tableName.replace(/'/g, "''")}'`,
-          ),
-      );
-      return Array.isArray(fallback.rows)
-        ? (fallback.rows as TableInfoRow[])
-        : [];
-    }
+    return [];
   }
 }
 

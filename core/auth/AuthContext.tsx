@@ -16,12 +16,16 @@ import {
     RegisterResponse,
     User,
 } from "./auth.types";
+import { useAutoSyncPermissions } from "./useAutoSyncPermissions";
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Auto-sincronizar permissões quando o app iniciar
+  useAutoSyncPermissions(!loading && !!user);
 
   function normalizeUser(input: any): User | undefined {
     if (!input || typeof input !== "object") return undefined;
@@ -37,6 +41,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       phone: raw.phone ?? raw.telefone ?? raw.phone_number,
       telefone: raw.telefone,
       role: raw.role ?? raw.user_role ?? raw.perfil ?? raw.type,
+      tenant_id: raw.tenant_id ?? raw.tenantId,
     };
 
     return { ...raw, ...normalized } as User;

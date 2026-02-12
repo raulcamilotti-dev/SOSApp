@@ -1,4 +1,5 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
 
 type Row = Record<string, unknown>;
@@ -12,7 +13,7 @@ const listRows = async (): Promise<Row[]> => {
   });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
-  return Array.isArray(list) ? (list as Row[]) : [];
+  return filterActive(Array.isArray(list) ? (list as Row[]) : []);
 };
 
 const createRow = async (payload: Partial<Row>): Promise<unknown> => {
@@ -34,6 +35,22 @@ const updateRow = async (payload: Partial<Row>): Promise<unknown> => {
   return response.data;
 };
 
+const deleteRow = async (
+  payload: Partial<Row> & { id?: string | null },
+): Promise<unknown> => {
+  if (!payload.id) {
+    throw new Error("Id obrigatorio para deletar");
+  }
+  const response = await api.post(ENDPOINT, {
+    action: "delete",
+    table: "role_permissions",
+    payload: {
+      id: payload.id,
+    },
+  });
+  return response.data;
+};
+
 export default function RolePermissionsScreen() {
   const fields: CrudFieldConfig<Row>[] = [
     {
@@ -45,6 +62,7 @@ export default function RolePermissionsScreen() {
       referenceLabelField: "name",
       referenceSearchField: "name",
       referenceIdField: "id",
+      resolveReferenceLabelInList: true,
       required: true,
       visibleInList: true,
     },
@@ -57,6 +75,7 @@ export default function RolePermissionsScreen() {
       referenceLabelField: "code",
       referenceSearchField: "code",
       referenceIdField: "id",
+      resolveReferenceLabelInList: true,
       required: true,
       visibleInList: true,
     },
@@ -66,10 +85,13 @@ export default function RolePermissionsScreen() {
     <CrudScreen<Row>
       title="Role Permissions"
       subtitle="Gestao de permissoes por role"
+      searchPlaceholder="Buscar por role ou permissao"
+      searchFields={["role_id", "permission_id"]}
       fields={fields}
       loadItems={listRows}
       createItem={createRow}
       updateItem={updateRow}
+      deleteItem={deleteRow}
       getId={(item) =>
         `${String(item.role_id ?? "")}::${String(item.permission_id ?? "")}`
       }

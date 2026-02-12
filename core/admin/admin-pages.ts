@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 export type AdminPage = {
   id: string;
+  group: string;
   title: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -11,6 +12,7 @@ export type AdminPage = {
 export const ADMIN_PAGES: AdminPage[] = [
   {
     id: "tables",
+    group: "Sistema",
     title: "Tabelas",
     description: "Consultar colunas e formatos",
     icon: "list-outline",
@@ -18,6 +20,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "tenants",
+    group: "Sistema",
     title: "Tenants",
     description: "Gestão de tenants",
     icon: "business-outline",
@@ -25,6 +28,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "user_tenants",
+    group: "Sistema",
     title: "User Tenants",
     description: "Vinculos usuario-tenant",
     icon: "people-outline",
@@ -32,6 +36,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "roles",
+    group: "Acesso & Permissões",
     title: "Roles",
     description: "Perfis e roles",
     icon: "shield-outline",
@@ -39,27 +44,135 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "permissions",
+    group: "Acesso & Permissões",
     title: "Permissions",
     description: "Permissoes do sistema",
     icon: "key-outline",
     route: "/Administrador/permissions",
   },
   {
+    id: "permissions_sync",
+    group: "Acesso & Permissões",
+    title: "Sincronizar Permissões",
+    description: "Criar permissões do código",
+    icon: "sync-outline",
+    route: "/Administrador/permissions_sync",
+  },
+  {
     id: "role_permissions",
+    group: "Acesso & Permissões",
     title: "Role Permissions",
     description: "Permissoes por role",
     icon: "list-outline",
     route: "/Administrador/role_permissions",
   },
   {
+    id: "role_permissions_matrix",
+    group: "Acesso & Permissões",
+    title: "Matriz de Permissoes",
+    description: "Gerenciar permissoes por role",
+    icon: "grid-outline",
+    route: "/Administrador/role_permissions_matrix",
+  },
+  {
     id: "services",
+    group: "Serviços & Agenda",
     title: "Services",
     description: "Catalogo de servicos",
     icon: "construct-outline",
     route: "/Administrador/services",
   },
   {
+    id: "service_types",
+    group: "Serviços & Agenda",
+    title: "Tipos de Serviço",
+    description: "Categorias de serviços",
+    icon: "list-outline",
+    route: "/Administrador/ServiceTypes",
+  },
+  {
+    id: "agenda",
+    group: "Serviços & Agenda",
+    title: "Agenda",
+    description: "Gestão de agendamentos",
+    icon: "calendar-outline",
+    route: "/Administrador/Agenda",
+  },
+  {
+    id: "execucoes",
+    group: "Serviços & Agenda",
+    title: "Execução",
+    description: "Gestão de execuções de serviço",
+    icon: "construct-outline",
+    route: "/Administrador/ExecucoesServico",
+  },
+  {
+    id: "avaliacoes",
+    group: "Serviços & Agenda",
+    title: "Avaliações",
+    description: "Gestão de reviews",
+    icon: "star-outline",
+    route: "/Administrador/AvaliacoesServico",
+  },
+  {
+    id: "customers",
+    group: "Clientes & Usuários",
+    title: "Customers",
+    description: "Gestão de customers",
+    icon: "people-outline",
+    route: "/Administrador/customers",
+  },
+  {
+    id: "parceiros",
+    group: "Parceiros",
+    title: "Parceiros",
+    description: "Gestão de parceiros",
+    icon: "people-outline",
+    route: "/Administrador/Parceiros",
+  },
+  {
+    id: "disp_parceiro",
+    group: "Parceiros",
+    title: "Disponibilidade",
+    description: "Disponibilidade semanal do parceiro",
+    icon: "calendar-outline",
+    route: "/Administrador/DisponibilidadeParceiro",
+  },
+  {
+    id: "folgas_parceiro",
+    group: "Parceiros",
+    title: "Folgas",
+    description: "Time off / indisponibilidades",
+    icon: "calendar-outline",
+    route: "/Administrador/FolgasParceiro",
+  },
+  {
+    id: "rating_summary",
+    group: "Parceiros",
+    title: "Média do parceiro",
+    description: "Resumo automático de avaliações",
+    icon: "list-outline",
+    route: "/Administrador/ResumoAvaliacaoParceiro",
+  },
+  {
+    id: "logs_agend",
+    group: "Auditoria & Logs",
+    title: "Logs de agendamentos",
+    description: "Rastreabilidade de agendamentos",
+    icon: "list-outline",
+    route: "/Administrador/LogsAgendamentos",
+  },
+  {
+    id: "logs_reviews",
+    group: "Auditoria & Logs",
+    title: "Logs de avaliações",
+    description: "Rastreabilidade de reviews",
+    icon: "list-outline",
+    route: "/Administrador/LogsAvaliacoes",
+  },
+  {
     id: "usuarios",
+    group: "Clientes & Usuários",
     title: "Gestão de usuários",
     description: "Clientes e imóveis vinculados",
     icon: "people-outline",
@@ -67,6 +180,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "processos",
+    group: "Operação",
     title: "Lançamento de processo",
     description: "Publicação de atualizações",
     icon: "briefcase-outline",
@@ -74,6 +188,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "prazos",
+    group: "Operação",
     title: "Gestor de prazos",
     description: "Projetos, tarefas e prazos",
     icon: "calendar-outline",
@@ -81,13 +196,15 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "agents",
+    group: "Automação & Workflows",
     title: "Agents",
     description: "Gestão de agents",
-    icon: "robot-outline",
+    icon: "boat-outline",
     route: "/Administrador/Agents",
   },
   {
     id: "agent_states",
+    group: "Automação & Workflows",
     title: "Agent States",
     description: "Gestão de estados do agent",
     icon: "list-outline",
@@ -95,6 +212,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "automations",
+    group: "Automação & Workflows",
     title: "Automations",
     description: "Automacoes e triggers",
     icon: "flash-outline",
@@ -102,6 +220,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "workflow_templates",
+    group: "Automação & Workflows",
     title: "Workflow Templates",
     description: "Templates de workflow",
     icon: "git-branch",
@@ -109,13 +228,39 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "workflow_steps",
+    group: "Automação & Workflows",
     title: "Workflow Steps",
     description: "Etapas de workflow",
     icon: "list-outline",
     route: "/Administrador/workflow_steps",
   },
   {
+    id: "inicializar_workflow",
+    group: "Automação & Workflows",
+    title: "⚙️ Inicializar Template",
+    description: "Criar template de workflow padrão",
+    icon: "settings-outline",
+    route: "/Administrador/inicializar-workflow",
+  },
+  {
+    id: "kanban_processos",
+    group: "Automação & Workflows",
+    title: "Kanban de Processos",
+    description: "Visualização de processos em kanban",
+    icon: "grid-outline",
+    route: "/Administrador/kanban-processos",
+  },
+  {
+    id: "gestor_prazos_processos",
+    group: "Automação & Workflows",
+    title: "Gestor de Prazos",
+    description: "Gerenciamento de prazos dos processos",
+    icon: "time-outline",
+    route: "/Administrador/gestor-prazos-processos",
+  },
+  {
     id: "auth_codes",
+    group: "Acesso & Permissões",
     title: "Auth Codes",
     description: "Codigos de autenticacao",
     icon: "key-outline",
@@ -123,9 +268,18 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "auth_tokens",
+    group: "Acesso & Permissões",
     title: "Auth Tokens",
     description: "Tokens de autenticacao",
     icon: "key-outline",
     route: "/Administrador/auth_tokens",
+  },
+  {
+    id: "notifications",
+    group: "Auditoria & Logs",
+    title: "Notificações",
+    description: "Gerenciar notificações",
+    icon: "notifications-outline",
+    route: "/Notificacoes",
   },
 ];
