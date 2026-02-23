@@ -1,0 +1,32 @@
+# sos-api-crud Cloudflare Worker
+
+name = "sos-api-crud"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set via `wrangler secret put`):
+#   DATABASE_URL  — postgres://USER:PASS@HOST:PORT/DB
+#   API_KEY       — same key used by the app (X-Api-Key header)
+#
+# When Easypanel PG gets SSL enabled, migrate to Hyperdrive:
+#   wrangler hyperdrive create sos-postgres --connection-string="$DATABASE_URL"
+#   Then add [[hyperdrive]] binding and update src/db.ts
+
+[vars]
+ENVIRONMENT = "production"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1

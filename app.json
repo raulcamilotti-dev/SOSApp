@@ -1,0 +1,84 @@
+{
+  "expo": {
+    "name": "SOS Escritura",
+    "slug": "sos-escritura",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "portalimoveis",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sosescritura.portalimoveis",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "versionCode": 2,
+      "permissions": ["com.google.android.gms.permission.AD_ID"],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.sosescritura.portalimoveis"
+    },
+    "web": {
+      "output": "static",
+      "bundler": "metro",
+      "display": "standalone",
+      "themeColor": "#020617",
+      "backgroundColor": "#020617",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "extra": {
+      "tenantSlug": "sos-escritura",
+      "googleWebClientId": "637647880739-h025qro8lel127hi4cijcrf957r09fu1.apps.googleusercontent.com",
+      "googleIosClientId": "YOUR_IOS_CLIENT_ID",
+      "googleAndroidClientId": "YOUR_ANDROID_CLIENT_ID",
+      "googleAuthWebhook": "https://n8n.sosescritura.com.br/webhook/google_login",
+      "govBrClientId": "",
+      "govBrClientSecret": "",
+      "govBrEnv": "staging",
+      "onrApiUrl": "https://api.onr.org.br/srei/v1",
+      "onrApiKey": "",
+      "router": {},
+      "eas": {
+        "projectId": "b4d69152-aab6-4323-bb3e-27b3e06cc678"
+      }
+    },
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

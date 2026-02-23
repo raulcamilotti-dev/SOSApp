@@ -1,0 +1,65 @@
+name: Sync N8N Workflows
+
+on:
+  push:
+    paths:
+      - "n8n/workflows/**"
+      - ".github/workflows/sync-n8n.yml"
+    branches:
+      - main
+      - develop
+  pull_request:
+    paths:
+      - "n8n/workflows/**"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate workflow structure
+        run: npm run sync:n8n:validate
+        env:
+          N8N_WORKFLOW_ID: Ar17RgJt19MHQwbJqD8ZK
+
+  upload:
+    needs: validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Upload workflow to N8N
+        run: npm run sync:n8n:upload
+        env:
+          N8N_URL: ${{ secrets.N8N_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+          N8N_WORKFLOW_ID: Ar17RgJt19MHQwbJqD8ZK
+
+      - name: Notify on success
+        if: success()
+        run: echo "N8N workflow synced successfully"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Failed to sync N8N workflow"
+          exit 1

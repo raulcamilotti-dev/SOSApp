@@ -1,0 +1,185 @@
+/* ============================================================
+   RADUL — Legal Pages Styles (Privacy Policy & Terms of Use)
+   ============================================================ */
+
+.legal-page {
+  padding: 120px 0 60px;
+  background: var(--white);
+}
+
+.legal-container {
+  max-width: 820px;
+}
+
+.legal-container h1 {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 800;
+  color: var(--dark);
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.legal-meta {
+  font-size: 14px;
+  color: var(--gray-600);
+  margin-bottom: 48px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--gray-300);
+}
+
+.legal-container section {
+  padding: 0;
+  margin-bottom: 40px;
+}
+
+.legal-container h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--dark);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--primary-light);
+}
+
+.legal-container h3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--gray-800);
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.legal-container p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--gray-700);
+  margin-bottom: 12px;
+}
+
+.legal-container ul,
+.legal-container ol {
+  margin-bottom: 16px;
+  padding-left: 24px;
+}
+
+.legal-container li {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+}
+
+.legal-container li ul {
+  margin-top: 6px;
+  margin-bottom: 8px;
+}
+
+.legal-container a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(37, 99, 235, 0.3);
+  text-underline-offset: 3px;
+  transition: var(--transition);
+}
+
+.legal-container a:hover {
+  color: var(--primary-dark);
+  text-decoration-color: var(--primary-dark);
+}
+
+.legal-container code {
+  background: var(--gray-200);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--gray-800);
+}
+
+.legal-container strong {
+  color: var(--gray-900);
+}
+
+/* ---- Legal Tables ---- */
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--gray-300);
+}
+
+.legal-table thead {
+  background: var(--primary-light);
+}
+
+.legal-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--primary-dark);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.legal-table td {
+  padding: 12px 16px;
+  border-top: 1px solid var(--gray-300);
+  color: var(--gray-700);
+  line-height: 1.5;
+  vertical-align: top;
+}
+
+.legal-table tbody tr:hover {
+  background: var(--gray-100);
+}
+
+/* ---- Contact Card ---- */
+.legal-contact-card {
+  background: var(--gray-100);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-top: 16px;
+}
+
+.legal-contact-card p {
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+/* ---- Footer overrides for legal pages ---- */
+.legal-page + .footer {
+  margin-top: 0;
+}
+
+.legal-page + .footer .footer-bottom a {
+  color: var(--gray-500);
+  transition: var(--transition);
+}
+
+.legal-page + .footer .footer-bottom a:hover {
+  color: var(--white);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+  .legal-container {
+    padding: 0 16px;
+  }
+
+  .legal-table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .legal-container h1 {
+    font-size: 28px;
+  }
+
+  .legal-container h2 {
+    font-size: 19px;
+  }
+}

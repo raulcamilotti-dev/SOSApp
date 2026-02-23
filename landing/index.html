@@ -1,0 +1,1204 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Radul — Plataforma de Operações para Empresas de Serviço</title>
+    <meta
+      name="description"
+      content="Gerencie toda a operação do seu negócio em um só lugar. PDV, estoque, financeiro, workflows, kanban, CRM, IA e muito mais. Todos os módulos inclusos. Comece grátis."
+    />
+    <meta
+      name="keywords"
+      content="SaaS, gestão de serviços, ERP, CRM, PDV, ponto de venda, estoque, workflow, kanban, jurídico, advocacia, comércio, varejo, consultoria, saúde, clínica, revenda, white-label, MSP, plataforma operacional, gestão empresarial, automação comercial"
+    />
+
+    <!-- Open Graph -->
+    <meta
+      property="og:title"
+      content="Radul — Plataforma de Operações para Empresas de Serviço"
+    />
+    <meta
+      property="og:description"
+      content="Gerencie toda a operação do seu negócio em um só lugar. 15+ módulos inclusos em todos os planos. Comece grátis."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://radul.com.br" />
+    <meta property="og:image" content="https://radul.com.br/og-image.png" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Radul" />
+
+    <!-- SEO -->
+    <link rel="canonical" href="https://radul.com.br/" />
+    <meta
+      name="robots"
+      content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
+    />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="author" content="Radulf LTDA" />
+    <meta name="theme-color" content="#2563eb" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Radul — Plataforma de Operações para Empresas de Serviço"
+    />
+    <meta
+      name="twitter:description"
+      content="Gerencie toda a operação do seu negócio em um só lugar. PDV, estoque, financeiro, workflows, kanban, CRM, IA e muito mais."
+    />
+    <meta name="twitter:image" content="https://radul.com.br/og-image.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css" />
+
+    <!-- Schema.org SoftwareApplication -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Radul",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, iOS, Android",
+        "offers": {
+          "@type": "AggregateOffer",
+          "lowPrice": "0",
+          "highPrice": "499",
+          "priceCurrency": "BRL",
+          "offerCount": "5"
+        },
+        "creator": {
+          "@type": "Organization",
+          "name": "Radulf LTDA",
+          "url": "https://radul.com.br"
+        },
+        "description": "Plataforma modular de operações para empresas de serviço. PDV, estoque, financeiro, workflows, CRM, IA e mais.",
+        "screenshot": "https://radul.com.br/og-image.png"
+      }
+    </script>
+
+    <!-- Schema.org FAQ -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Todos os módulos são realmente inclusos no plano grátis?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. Todos os 15 módulos (PDV, Estoque, Financeiro, CRM, Workflows, BI, IA etc.) estão disponíveis em todos os planos, inclusive no grátis. Você só paga mais quando cresce em número de clientes ativos."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "O que é um cliente ativo?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Um cliente ativo é qualquer cliente que teve alguma interação nos últimos 90 dias — incluindo processos, faturas, mensagens, acessos ao portal ou qualquer movimentação no sistema."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso usar meu próprio domínio?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. A partir do plano Growth, você configura seu domínio personalizado (app.suaempresa.com.br) com marca, cores e identidade visual próprias. White-label completo."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Quantos usuários posso ter?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No plano Grátis, até 3 usuários. Em todos os planos pagos (Starter, Growth, Scale e Enterprise), os usuários são ilimitados."
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <!-- ============================================================ -->
+    <!--  NAVIGATION                                                    -->
+    <!-- ============================================================ -->
+    <nav class="nav">
+      <div class="container nav-inner">
+        <a href="#" class="nav-logo">radul<span>.</span></a>
+        <ul class="nav-links">
+          <li><a href="#funcionalidades">Funcionalidades</a></li>
+          <li><a href="#modulos">Módulos</a></li>
+          <li><a href="#planos">Planos</a></li>
+          <li><a href="#verticais">Verticais</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="/blog/radul" id="js-blog-link">Blog</a></li>
+        </ul>
+        <div class="nav-cta">
+          <a
+            href="https://app.radul.com.br/login"
+            class="btn btn-sm btn-secondary"
+            id="js-enter-link"
+            >Entrar</a
+          >
+          <a href="#planos" class="btn btn-sm btn-primary">Começar Grátis</a>
+        </div>
+        <button
+          class="nav-mobile-toggle"
+          onclick="toggleMenu()"
+          aria-label="Menu"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M3 12h18M3 6h18M3 18h18" />
+          </svg>
+        </button>
+      </div>
+    </nav>
+
+    <!-- ============================================================ -->
+    <!--  HERO                                                          -->
+    <!-- ============================================================ -->
+    <section class="hero">
+      <div class="hero-glow"></div>
+      <div class="container hero-inner">
+        <div class="hero-content">
+          <div class="hero-badge">🚀 Todos os Módulos Inclusos — Sempre</div>
+          <h1>Toda a operação do seu negócio em <em>um só lugar</em></h1>
+          <p class="hero-desc">
+            PDV completo, estoque, compras, financeiro, workflows, CRM, portal
+            do cliente, IA e mais. Tudo incluso desde o plano grátis — pague
+            apenas conforme seus clientes ativos crescem.
+          </p>
+          <div class="hero-actions">
+            <a href="#planos" class="btn btn-primary btn-lg"
+              >Começar Grátis →</a
+            >
+            <a href="#como-funciona" class="btn btn-ghost btn-lg"
+              >Como Funciona</a
+            >
+          </div>
+          <div class="hero-trust">
+            <div class="hero-trust-item">
+              <svg
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                width="16"
+                height="16"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              Sem cartão de crédito
+            </div>
+            <div class="hero-trust-item">
+              <svg
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                width="16"
+                height="16"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              Setup em 5 minutos
+            </div>
+            <div class="hero-trust-item">
+              <svg
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                width="16"
+                height="16"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              Cancele quando quiser
+            </div>
+          </div>
+        </div>
+        <div class="hero-visual">
+          <div class="hero-feature-stack">
+            <div class="hero-feature-pill">
+              <span>🛒</span> PDV &amp; Vendas
+            </div>
+            <div class="hero-feature-pill">
+              <span>📦</span> Estoque &amp; Compras
+            </div>
+            <div class="hero-feature-pill"><span>⚡</span> Workflows</div>
+            <div class="hero-feature-pill">
+              <span>📊</span> Kanban &amp; DRE
+            </div>
+            <div class="hero-feature-pill"><span>💰</span> Financeiro</div>
+            <div class="hero-feature-pill"><span>🎯</span> CRM &amp; Leads</div>
+            <div class="hero-feature-pill"><span>📄</span> Documentos</div>
+            <div class="hero-feature-pill">
+              <span>🤖</span> IA &amp; Automação
+            </div>
+            <div class="hero-feature-pill"><span>🤝</span> Parceiros</div>
+            <div class="hero-feature-pill"><span>🌐</span> Portal Público</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-stats-bar">
+        <div class="container hero-stats">
+          <div>
+            <div class="hero-stat-value">15+</div>
+            <div class="hero-stat-label">Módulos</div>
+          </div>
+          <div class="hero-stat-divider"></div>
+          <div>
+            <div class="hero-stat-value">60+</div>
+            <div class="hero-stat-label">Telas prontas</div>
+          </div>
+          <div class="hero-stat-divider"></div>
+          <div>
+            <div class="hero-stat-value">6</div>
+            <div class="hero-stat-label">Verticais</div>
+          </div>
+          <div class="hero-stat-divider"></div>
+          <div>
+            <div class="hero-stat-value">∞</div>
+            <div class="hero-stat-label">Usuários inclusos</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  SOCIAL PROOF BAR                                              -->
+    <!-- ============================================================ -->
+    <section class="social-proof">
+      <div class="container">
+        <p class="social-proof-text">
+          Usado por empresas de <strong>advocacia</strong>,
+          <strong>comércio</strong>, <strong>consultoria</strong>,
+          <strong>saúde</strong>, <strong>tecnologia</strong> e
+          <strong>mais</strong> em todo o Brasil.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  FEATURES                                                      -->
+    <!-- ============================================================ -->
+    <section id="funcionalidades">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-badge">✨ Funcionalidades</div>
+          <h2 class="section-title">
+            Tudo que sua empresa precisa para operar
+          </h2>
+          <p class="section-desc">
+            Cada funcionalidade foi pensada para simplificar operações reais.
+            Aprenda uma vez, use em todas as telas.
+          </p>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon fi-blue">📋</div>
+            <h3>Telas Inteligentes (CrudScreen)</h3>
+            <p>
+              60+ telas que se adaptam ao seu negócio. Crie, edite e gerencie
+              qualquer entidade com buscas, filtros, validações e máscaras
+              automáticas (CPF, CNPJ, CEP, telefone).
+            </p>
+            <span class="feature-tag feature-tag-core">Core</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-violet">⚡</div>
+            <h3>Workflows Automatizados</h3>
+            <p>
+              Defina etapas, transições, tarefas e formulários. O sistema guia
+              cada processo do início ao fim com prazos, notificações e
+              escalonamento automático.
+            </p>
+            <span class="feature-tag feature-tag-core">Core</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-amber">📊</div>
+            <h3>Kanban Visual</h3>
+            <p>
+              Acompanhe processos, leads e tarefas em quadros visuais com
+              contadores de processos ativos por categoria e tipo. Drag &amp;
+              drop intuitivo.
+            </p>
+            <span class="feature-tag feature-tag-core">Core</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-emerald">💰</div>
+            <h3>Financeiro Completo</h3>
+            <p>
+              Faturas, pagamentos, contas a receber/pagar, DRE automático,
+              dashboard de inadimplência e gestão de cobrança com workflow
+              completo. PIX integrado.
+            </p>
+            <span class="feature-tag feature-tag-core">Incluso</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-pink">🎯</div>
+            <h3>CRM &amp; Pipeline de Vendas</h3>
+            <p>
+              Capte leads, acompanhe o funil de vendas, converta em clientes.
+              Orçamentos online com portal público para aprovação. Marketing
+              integrado.
+            </p>
+            <span class="feature-tag feature-tag-core">Incluso</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-indigo">📄</div>
+            <h3>Documentos &amp; Assinaturas</h3>
+            <p>
+              Templates dinâmicos, geração de PDF, assinatura digital
+              ICP-Brasil, OCR inteligente e gestão de documentos do cliente.
+            </p>
+            <span class="feature-tag feature-tag-core">Incluso</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-amber">🛒</div>
+            <h3>PDV &amp; Ponto de Venda</h3>
+            <p>
+              Venda produtos e serviços direto no app. Carrinho com busca
+              rápida, desconto automático, múltiplas formas de pagamento,
+              pré-vendas e emissão de financeiro integrada.
+            </p>
+            <span class="feature-tag feature-tag-new">Novo</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-emerald">📦</div>
+            <h3>Estoque &amp; Compras</h3>
+            <p>
+              Controle de estoque em tempo real, alertas de mínimo, ajustes com
+              histórico, pedidos de compra com recebimento parcial e rastreio de
+              fornecedores.
+            </p>
+            <span class="feature-tag feature-tag-new">Novo</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-indigo">📈</div>
+            <h3>DRE, BI &amp; Relatórios</h3>
+            <p>
+              Business Intelligence nativo com 7 módulos. DRE automático, KPIs
+              em tempo real, dashboards de vendas, financeiro, processos, CRM,
+              estoque e compras.
+            </p>
+            <span class="feature-tag feature-tag-new">Novo</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-yellow">🌐</div>
+            <h3>Portal Público do Cliente</h3>
+            <p>
+              Seus clientes acompanham o andamento dos processos por um link
+              seguro — sem precisar instalar nada. Transparência total.
+            </p>
+            <span class="feature-tag feature-tag-core">Incluso</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-purple">🎨</div>
+            <h3>Multi-Domínio &amp; Whitelabel</h3>
+            <p>
+              Cada empresa tem seu subdomínio ou domínio próprio com cores,
+              marca e identidade visual. Blog e landing pages personalizados.
+            </p>
+            <span class="feature-tag feature-tag-core">Incluso</span>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon fi-purple">🤖</div>
+            <h3>IA &amp; Automação</h3>
+            <p>
+              Agentes inteligentes por tela, insights automáticos, OCR para
+              documentos, e automações conectadas ao workflow engine.
+            </p>
+            <span class="feature-tag feature-tag-core">Incluso</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  MODULES                                                       -->
+    <!-- ============================================================ -->
+    <section id="modulos">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-badge">🧩 Tudo Incluso</div>
+          <h2 class="section-title">15 módulos, zero adicional</h2>
+          <p class="section-desc">
+            Todos os módulos vêm inclusos em qualquer plano — até no grátis. Sem
+            upsell, sem paywall. Use o que precisar, quando precisar.
+          </p>
+        </div>
+
+        <div class="modules-grid">
+          <div class="module-card">
+            <div class="module-icon">📋</div>
+            <h4>Core</h4>
+            <p>
+              CrudScreen, Workflows, Kanban, Usuários, Notificações, Calendário
+            </p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">💰</div>
+            <h4>Financeiro</h4>
+            <p>Faturas, pagamentos, recibos, contas a pagar/receber, DRE</p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">💳</div>
+            <h4>Cobrança</h4>
+            <p>
+              Gestão de inadimplência, cobrança automática com workflow completo
+            </p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🎯</div>
+            <h4>CRM &amp; Leads</h4>
+            <p>
+              Pipeline, leads, orçamentos online, dashboard de ROI, campanhas
+            </p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🛒</div>
+            <h4>PDV &amp; Vendas</h4>
+            <p>
+              Ponto de venda, carrinho, descontos, múltiplas formas de pagamento
+            </p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">📦</div>
+            <h4>Produtos</h4>
+            <p>
+              Catálogo de produtos e serviços, composições, SKU, precificação
+            </p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🏭</div>
+            <h4>Estoque</h4>
+            <p>Gestão de estoque, ajustes, movimentações, alertas de mínimo</p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🛍️</div>
+            <h4>Compras</h4>
+            <p>
+              Pedidos de compra, recebimento parcial, controle de fornecedores
+            </p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🚚</div>
+            <h4>Entrega</h4>
+            <p>Kanban de separação, controle de entrega, fulfillment</p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">📄</div>
+            <h4>Documentos</h4>
+            <p>Templates, PDF, assinaturas digitais ICP-Brasil, OCR</p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🤝</div>
+            <h4>Parceiros</h4>
+            <p>Rede de parceiros com agenda, ganhos e avaliações</p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🤖</div>
+            <h4>IA &amp; Automação</h4>
+            <p>Agentes inteligentes, insights automáticos, OCR</p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">📈</div>
+            <h4>BI &amp; Analytics</h4>
+            <p>7 módulos de dashboards nativos com KPIs em tempo real</p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🌐</div>
+            <h4>Portal &amp; Blog</h4>
+            <p>Portal público do cliente, blog whitelabel, landing pages</p>
+          </div>
+          <div class="module-card">
+            <div class="module-icon">🏛️</div>
+            <h4>ONR &amp; Cartório</h4>
+            <p>Protocolo ONR, certidões, integração cartorária</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  PRICING                                                       -->
+    <!-- ============================================================ -->
+    <section id="planos">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-badge">💎 Planos</div>
+          <h2 class="section-title">
+            Todos os módulos inclusos. Pague pela escala.
+          </h2>
+          <p class="section-desc">
+            Sem fidelidade, sem surpresas. Todos os módulos estão no plano
+            grátis. Você só paga mais quando cresce — pelo número de
+            <strong>clientes ativos</strong> (com interação nos últimos 90
+            dias).
+          </p>
+        </div>
+
+        <div class="pricing-grid">
+          <!-- GRÁTIS -->
+          <div class="pricing-card">
+            <div class="pricing-name">Grátis</div>
+            <div class="pricing-desc">Para testar e começar</div>
+            <div class="pricing-price">
+              <span class="pricing-currency">R$</span>
+              <span class="pricing-amount">0</span>
+              <span class="pricing-period">/mês</span>
+            </div>
+            <div class="pricing-limit">
+              Até <strong>20</strong> clientes ativos
+            </div>
+            <ul class="pricing-features">
+              <li>Todos os 15 módulos inclusos</li>
+              <li>Até 3 usuários</li>
+              <li>PDV, Estoque, Workflows, Kanban</li>
+              <li>Financeiro, CRM, Documentos</li>
+              <li>IA, BI, Parceiros</li>
+              <li>Subdomínio gratuito</li>
+              <li class="disabled">Domínio personalizado</li>
+              <li class="disabled">Suporte prioritário</li>
+            </ul>
+            <a
+              href="https://app.radul.com.br/register"
+              class="btn btn-secondary js-signup-link"
+              >Criar Conta Grátis</a
+            >
+          </div>
+
+          <!-- STARTER -->
+          <div class="pricing-card">
+            <div class="pricing-name">Starter</div>
+            <div class="pricing-desc">Para pequenas empresas</div>
+            <div class="pricing-price">
+              <span class="pricing-currency">R$</span>
+              <span class="pricing-amount">99</span>
+              <span class="pricing-period">/mês</span>
+            </div>
+            <div class="pricing-limit">
+              Até <strong>100</strong> clientes ativos
+            </div>
+            <ul class="pricing-features">
+              <li>Todos os módulos inclusos</li>
+              <li><strong>Usuários ilimitados</strong></li>
+              <li>Template Pack vertical</li>
+              <li>Subdomínio gratuito</li>
+              <li>Suporte por email</li>
+              <li class="disabled">Domínio personalizado</li>
+              <li class="disabled">Suporte prioritário</li>
+            </ul>
+            <a
+              href="https://app.radul.com.br/register?plan=starter"
+              class="btn btn-primary js-signup-link"
+              data-plan="starter"
+              >Começar Agora</a
+            >
+          </div>
+
+          <!-- GROWTH (featured) -->
+          <div class="pricing-card featured">
+            <div class="pricing-popular">⭐ Mais Popular</div>
+            <div class="pricing-name">Growth</div>
+            <div class="pricing-desc">Para empresas em crescimento</div>
+            <div class="pricing-price">
+              <span class="pricing-currency">R$</span>
+              <span class="pricing-amount">249</span>
+              <span class="pricing-period">/mês</span>
+            </div>
+            <div class="pricing-limit">
+              Até <strong>500</strong> clientes ativos
+            </div>
+            <ul class="pricing-features">
+              <li>Todos os módulos inclusos</li>
+              <li><strong>Usuários ilimitados</strong></li>
+              <li>Template Pack vertical</li>
+              <li>Domínio personalizado</li>
+              <li>Suporte prioritário</li>
+              <li>Whitelabel (sua marca)</li>
+              <li>API de integrações</li>
+            </ul>
+            <a
+              href="https://app.radul.com.br/register?plan=growth"
+              class="btn btn-accent js-signup-link"
+              data-plan="growth"
+              >Escolher Growth</a
+            >
+          </div>
+
+          <!-- SCALE -->
+          <div class="pricing-card">
+            <div class="pricing-name">Scale</div>
+            <div class="pricing-desc">Para operações robustas</div>
+            <div class="pricing-price">
+              <span class="pricing-currency">R$</span>
+              <span class="pricing-amount">499</span>
+              <span class="pricing-period">/mês</span>
+            </div>
+            <div class="pricing-limit">
+              Até <strong>2.000</strong> clientes ativos
+            </div>
+            <ul class="pricing-features">
+              <li>Todos os módulos inclusos</li>
+              <li><strong>Usuários ilimitados</strong></li>
+              <li>Tudo do Growth</li>
+              <li>Ambiente dedicado</li>
+              <li>SLA garantido</li>
+              <li>Account manager dedicado</li>
+              <li>Treinamento online</li>
+            </ul>
+            <a
+              href="https://app.radul.com.br/register?plan=scale"
+              class="btn btn-primary js-signup-link"
+              data-plan="scale"
+              >Escolher Scale</a
+            >
+          </div>
+
+          <!-- ENTERPRISE -->
+          <div class="pricing-card">
+            <div class="pricing-name">Enterprise</div>
+            <div class="pricing-desc">Para grandes operações</div>
+            <div class="pricing-price">
+              <span class="pricing-amount pricing-amount-enterprise"
+                >Sob consulta</span
+              >
+            </div>
+            <div class="pricing-limit">
+              Clientes ativos <strong>ilimitados</strong>
+            </div>
+            <ul class="pricing-features">
+              <li>Todos os módulos inclusos</li>
+              <li><strong>Usuários ilimitados</strong></li>
+              <li>Tudo do Scale</li>
+              <li>Integrações customizadas</li>
+              <li>Multi-tenant avançado</li>
+              <li>Treinamento presencial</li>
+              <li>Contrato personalizado</li>
+            </ul>
+            <a
+              href="https://wa.me/5541999999999?text=Ol%C3%A1%2C%20quero%20saber%20mais%20sobre%20o%20plano%20Enterprise%20do%20Radul"
+              class="btn btn-secondary"
+              >Falar com Vendas</a
+            >
+          </div>
+        </div>
+
+        <!-- Active client note -->
+        <div class="pricing-note">
+          <div class="pricing-note-icon">💡</div>
+          <div>
+            <strong>O que é um cliente ativo?</strong>
+            <p>
+              Qualquer cliente que teve interação nos últimos 90 dias —
+              processos, faturas, mensagens, acessos ao portal ou movimentação
+              no sistema. Clientes inativos não contam para o limite do plano.
+            </p>
+          </div>
+        </div>
+
+        <!-- Auto-adjustment note -->
+        <div class="pricing-auto">
+          <h3>📊 Ajuste automático de plano</h3>
+          <p>
+            Na virada de cada mês, contamos seus clientes ativos. Se exceder o
+            plano atual, geramos automaticamente o PIX do plano adequado. Se
+            ficar abaixo por 2 meses consecutivos, fazemos downgrade automático
+            — você nunca paga mais do que precisa.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  VERTICALS                                                     -->
+    <!-- ============================================================ -->
+    <section id="verticais">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-badge">🏢 Verticais</div>
+          <h2 class="section-title">
+            Base universal + especialização do seu nicho
+          </h2>
+          <p class="section-desc">
+            O Pacote Padrão cobre qualquer negócio. As Especializações adicionam
+            workflows, formulários e terminologia do seu setor. Aplique a
+            qualquer momento, mesmo depois do cadastro.
+          </p>
+        </div>
+
+        <div class="verticals-grid">
+          <div class="vertical-card">
+            <div class="vertical-emoji">📦</div>
+            <h3>Padrão (Base)</h3>
+            <p>
+              Pack base para qualquer negócio. Operações, financeiro, comercial,
+              cobrança e suporte — 9 tipos de serviço e 3 workflows prontos.
+            </p>
+            <div class="vertical-tags">
+              <span class="vertical-tag">Base</span>
+              <span class="vertical-tag">9 serviços</span>
+              <span class="vertical-tag">3 workflows</span>
+            </div>
+          </div>
+          <div class="vertical-card">
+            <div class="vertical-emoji">⚖️</div>
+            <h3>Jurídico</h3>
+            <p>
+              Processos judiciais, petições, audiências, prazos processuais,
+              imobiliário (registro, escritura, ONR) e societário.
+            </p>
+            <div class="vertical-tags">
+              <span class="vertical-tag">Processos</span>
+              <span class="vertical-tag">ONR</span>
+              <span class="vertical-tag">5 workflows</span>
+            </div>
+          </div>
+          <div class="vertical-card">
+            <div class="vertical-emoji">🛒</div>
+            <h3>Comércio &amp; Varejo</h3>
+            <p>
+              PDV, catálogo, estoque, fornecedores, pedidos de compra, entregas,
+              devoluções e inventário.
+            </p>
+            <div class="vertical-tags">
+              <span class="vertical-tag">PDV</span>
+              <span class="vertical-tag">Estoque</span>
+              <span class="vertical-tag">7 workflows</span>
+            </div>
+          </div>
+          <div class="vertical-card">
+            <div class="vertical-emoji">📈</div>
+            <h3>Consultoria &amp; Projetos</h3>
+            <p>
+              Projetos com milestones e sprints, assessoria, treinamentos, time
+              tracking e relatórios de horas.
+            </p>
+            <div class="vertical-tags">
+              <span class="vertical-tag">Projetos</span>
+              <span class="vertical-tag">Sprints</span>
+              <span class="vertical-tag">5 workflows</span>
+            </div>
+          </div>
+          <div class="vertical-card">
+            <div class="vertical-emoji">❤️</div>
+            <h3>Saúde &amp; Bem-estar</h3>
+            <p>
+              Agendamentos, prontuário, evolução clínica, pacotes de sessões,
+              procedimentos e convênios.
+            </p>
+            <div class="vertical-tags">
+              <span class="vertical-tag">Consultas</span>
+              <span class="vertical-tag">Prontuário</span>
+              <span class="vertical-tag">6 workflows</span>
+            </div>
+          </div>
+          <div class="vertical-card">
+            <div class="vertical-emoji">🔗</div>
+            <h3>Revenda &amp; Tecnologia</h3>
+            <p>
+              MSPs e revendedores white-label. Onboarding de sub-clientes,
+              suporte N1/N2, monitoramento e contas.
+            </p>
+            <div class="vertical-tags">
+              <span class="vertical-tag">White-label</span>
+              <span class="vertical-tag">Suporte</span>
+              <span class="vertical-tag">8 workflows</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  HOW IT WORKS                                                  -->
+    <!-- ============================================================ -->
+    <section id="como-funciona">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-badge">🎯 Simples</div>
+          <h2 class="section-title">Comece em 4 passos</h2>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <h3>Crie sua conta</h3>
+            <p>
+              Cadastro rápido, sem cartão de crédito. Comece no plano grátis com
+              todos os módulos.
+            </p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <h3>Escolha sua especialização</h3>
+            <p>
+              Aplique a especialização do seu setor ou use só o Padrão. Muda
+              quando quiser.
+            </p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <h3>Configure sua equipe</h3>
+            <p>
+              Convide usuários, defina permissões e personalize seus workflows.
+            </p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">4</div>
+            <h3>Opere!</h3>
+            <p>
+              Gerencie tudo num só lugar. O plano acompanha automaticamente o
+              crescimento dos seus clientes ativos.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  FAQ                                                           -->
+    <!-- ============================================================ -->
+    <section id="faq">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-badge">❓ FAQ</div>
+          <h2 class="section-title">Perguntas frequentes</h2>
+        </div>
+
+        <div class="faq-grid">
+          <details class="faq-item">
+            <summary>
+              Todos os módulos são realmente inclusos no plano grátis?
+            </summary>
+            <p>
+              Sim. Todos os 15 módulos — PDV, Estoque, Financeiro, CRM,
+              Workflows, BI, IA, Documentos, Portal etc. — estão disponíveis em
+              todos os planos, inclusive no grátis. Sem paywall de
+              funcionalidade.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>O que é um "cliente ativo"?</summary>
+            <p>
+              Um cliente ativo é qualquer cadastro de cliente que teve interação
+              no sistema nos últimos 90 dias. Isso inclui: processos
+              criados/atualizados, faturas, pagamentos, mensagens, acessos ao
+              portal público, ou qualquer movimentação vinculada ao cliente.
+              Clientes cadastrados mas sem atividade recente não contam para o
+              limite do plano.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>O plano muda automaticamente?</summary>
+            <p>
+              Sim. Na virada de cada mês, contamos seus clientes ativos. Se
+              precisar de mais capacidade, geramos o PIX do plano adequado
+              automaticamente. Se seus clientes ativos caírem abaixo do limite
+              por 2 meses consecutivos, fazemos downgrade automático — você
+              nunca paga mais do que precisa.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>Quantos usuários posso ter?</summary>
+            <p>
+              No plano Grátis, até 3 usuários. Em todos os planos pagos
+              (Starter, Growth, Scale e Enterprise), os usuários são
+              <strong>ilimitados</strong>.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>Posso usar meu próprio domínio?</summary>
+            <p>
+              Sim. A partir do plano Growth, você configura seu domínio
+              personalizado (ex: app.suaempresa.com.br) com marca, cores e
+              identidade visual próprias. Whitelabel completo, incluindo blog e
+              landing pages.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>Como funciona o pagamento?</summary>
+            <p>
+              Via PIX. Sem cartão de crédito, sem mensalidade automática
+              surpresa. Geramos o PIX do valor do plano e você paga quando
+              quiser. Se o plano mudar, geramos um novo PIX com o valor
+              atualizado.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>Tem contrato de fidelidade?</summary>
+            <p>
+              Não. Cancele quando quiser. Sem multa, sem burocracia. Se parar de
+              pagar, volta automaticamente para o plano grátis.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>O que acontece com meus dados se fizer downgrade?</summary>
+            <p>
+              Nada. Seus dados ficam preservados. Apenas novas operações acima
+              do limite serão bloqueadas (com aviso) até você fazer upgrade ou
+              reduzir os clientes ativos.
+            </p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  CTA                                                           -->
+    <!-- ============================================================ -->
+    <section class="cta-section">
+      <div class="container">
+        <h2>Pronto para simplificar sua operação?</h2>
+        <p>
+          Crie sua conta grátis agora e descubra como o Radul pode transformar
+          seu negócio. Todos os módulos inclusos, setup em 5 minutos.
+        </p>
+        <a
+          href="https://app.radul.com.br/register"
+          class="btn btn-primary btn-lg js-signup-link"
+          >Começar Grátis — Sem Cartão →</a
+        >
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!--  FOOTER                                                        -->
+    <!-- ============================================================ -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-inner">
+          <div class="footer-brand">
+            <div class="nav-logo">radul<span>.</span></div>
+            <p>
+              Plataforma modular de operações para empresas de serviço. 15+
+              módulos inclusos em todos os planos. Feito no Brasil pela Radulf
+              LTDA.
+            </p>
+            <p class="footer-cnpj">CNPJ: 54.152.041/0001-22</p>
+          </div>
+          <div class="footer-col">
+            <h4>Produto</h4>
+            <a href="#funcionalidades">Funcionalidades</a>
+            <a href="#modulos">Módulos</a>
+            <a href="#planos">Planos e Preços</a>
+            <a href="#verticais">Verticais</a>
+            <a href="#faq">FAQ</a>
+          </div>
+          <div class="footer-col">
+            <h4>Empresa</h4>
+            <a href="/blog/radul" id="js-blog-footer-link">Blog</a>
+            <a href="https://wa.me/5541999999999">Contato</a>
+            <a href="https://wa.me/5541999999999">Suporte</a>
+          </div>
+          <div class="footer-col">
+            <h4>Legal</h4>
+            <a href="termos-de-uso.html">Termos de Uso</a>
+            <a href="politica-de-privacidade.html">Política de Privacidade</a>
+            <a href="politica-de-privacidade.html#lgpd">LGPD</a>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© 2025 Radulf LTDA. Todos os direitos reservados.</span>
+          <span>Feito com ❤️ em Curitiba, PR</span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- ---- Scripts ---- -->
+    <script>
+      /* ---- Mobile menu toggle ---- */
+      function toggleMenu() {
+        const links = document.querySelector(".nav-links");
+        const isVisible = links.style.display === "flex";
+        links.style.display = isVisible ? "none" : "flex";
+        if (!isVisible) {
+          links.style.position = "absolute";
+          links.style.top = "72px";
+          links.style.left = "0";
+          links.style.right = "0";
+          links.style.flexDirection = "column";
+          links.style.background = "#fff";
+          links.style.padding = "16px 24px";
+          links.style.borderBottom = "1px solid #e2e8f0";
+          links.style.gap = "16px";
+          links.style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)";
+        }
+      }
+
+      /* ---- Smooth scroll ---- */
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener("click", function (e) {
+          const target = document.querySelector(this.getAttribute("href"));
+          if (target) {
+            e.preventDefault();
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+            const links = document.querySelector(".nav-links");
+            if (window.innerWidth < 768) links.style.display = "none";
+          }
+        });
+      });
+
+      /* ---- Nav shadow on scroll ---- */
+      window.addEventListener("scroll", () => {
+        const nav = document.querySelector(".nav");
+        if (window.scrollY > 50) {
+          nav.style.boxShadow = "0 4px 6px -1px rgba(0,0,0,0.1)";
+        } else {
+          nav.style.boxShadow = "none";
+        }
+      });
+
+      /* ---- FAQ accordion ---- */
+      document.querySelectorAll(".faq-item").forEach((item) => {
+        item.addEventListener("toggle", function () {
+          if (this.open) {
+            document.querySelectorAll(".faq-item").forEach((other) => {
+              if (other !== item) other.removeAttribute("open");
+            });
+          }
+        });
+      });
+
+      /* ---- Dynamic link resolution ---- */
+      function getRootDomain(host) {
+        var labels = host.split(".").filter(Boolean);
+        if (labels.length <= 1) return host;
+        var secondLevelBrTlds = [
+          "com.br",
+          "net.br",
+          "org.br",
+          "gov.br",
+          "edu.br",
+          "app.br",
+        ];
+        var lastTwo = labels.slice(-2).join(".");
+        if (secondLevelBrTlds.includes(lastTwo) && labels.length >= 3) {
+          return labels.slice(-3).join(".");
+        }
+        return labels.slice(-2).join(".");
+      }
+
+      function resolveAppBaseUrl() {
+        var protocol =
+          window.location.protocol === "http:" ? "http:" : "https:";
+        var host = window.location.hostname.toLowerCase();
+        var isLocalHost = host === "localhost" || host === "127.0.0.1";
+        var rootDomain = getRootDomain(host);
+        var appHost = "app." + rootDomain;
+        var isDomainSubHost =
+          host.endsWith("." + rootDomain) &&
+          host !== rootDomain &&
+          host !== "www." + rootDomain;
+        if (isLocalHost) return window.location.origin;
+        if (host === appHost || isDomainSubHost) return protocol + "//" + host;
+        return protocol + "//" + appHost;
+      }
+
+      function appendAttributionParams(url, extraParams) {
+        var source = new URL(window.location.href);
+        var target = new URL(url);
+        var keysToForward = [
+          "partner_id",
+          "ref",
+          "referral_code",
+          "tenant",
+          "tenant_slug",
+          "utm_source",
+          "utm_medium",
+          "utm_campaign",
+          "utm_content",
+          "utm_term",
+          "gclid",
+          "fbclid",
+        ];
+        keysToForward.forEach(function (key) {
+          var value = source.searchParams.get(key);
+          if (value && !target.searchParams.has(key))
+            target.searchParams.set(key, value);
+        });
+        if (extraParams && typeof extraParams === "object") {
+          Object.keys(extraParams).forEach(function (key) {
+            var value = extraParams[key];
+            if (value) target.searchParams.set(key, value);
+          });
+        }
+        return target.toString();
+      }
+
+      function configureInstitutionalRedirectLinks() {
+        var baseUrl = resolveAppBaseUrl();
+        var enterLink = document.getElementById("js-enter-link");
+        if (enterLink)
+          enterLink.setAttribute(
+            "href",
+            appendAttributionParams(baseUrl + "/login"),
+          );
+        var blogLink = document.getElementById("js-blog-link");
+        if (blogLink) blogLink.setAttribute("href", baseUrl + "/blog/radul");
+        var blogFooterLink = document.getElementById("js-blog-footer-link");
+        if (blogFooterLink)
+          blogFooterLink.setAttribute("href", baseUrl + "/blog/radul");
+        document
+          .querySelectorAll(".js-signup-link")
+          .forEach(function (element) {
+            var plan = element.getAttribute("data-plan");
+            var href = appendAttributionParams(baseUrl + "/register", {
+              source: "site_institucional",
+              plan: plan,
+            });
+            element.setAttribute("href", href);
+          });
+      }
+
+      configureInstitutionalRedirectLinks();
+    </script>
+  </body>
+</html>

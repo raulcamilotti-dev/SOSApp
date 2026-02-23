@@ -1,0 +1,21 @@
+{
+  "name": "sos-api-crud",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "types": "wrangler types"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "@types/pg": "^8.16.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.67.0"
+  },
+  "dependencies": {
+    "pg": "^8.18.0"
+  }
+}

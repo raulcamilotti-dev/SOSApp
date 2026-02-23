@@ -1,0 +1,19 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit",
+    "source.sortMembers": "explicit"
+  },
+  "terminal.integrated.sendKeybindingsToShell": true,
+  "chat.tools.terminal.autoApprove": {
+    "&": true,
+    "npx tsc": true
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "search.exclude": {
+    "**/node_modules": true
+  },
+  "files.exclude": {
+    "**/node_modules/**/tsconfig.json": true
+  }
+}

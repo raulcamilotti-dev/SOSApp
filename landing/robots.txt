@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://radul.com.br/sitemap.xml
+
+# Crawl-delay suggestion (optional, respected by some bots)
+Crawl-delay: 1
+
+# Block app subdomains (handled separately)
+User-agent: *
+Disallow: /api/
+Disallow: /webhook/
