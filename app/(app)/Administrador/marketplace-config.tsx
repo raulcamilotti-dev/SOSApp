@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Linking,
     Platform,
     RefreshControl,
     ScrollView,
@@ -250,7 +251,12 @@ export default function MarketplaceConfigScreen() {
   /* ── Store URL ── */
   const storeUrl = useMemo(() => {
     if (!tenantSlug) return null;
-    return `https://${tenantSlug}.radul.com.br/loja`;
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const origin = window.location.origin;
+      return `${origin}/loja/${tenantSlug}`;
+    }
+    // Production fallback
+    return `https://app.radul.com.br/loja/${tenantSlug}`;
   }, [tenantSlug]);
 
   /* ── Render helpers ── */
@@ -393,27 +399,26 @@ export default function MarketplaceConfigScreen() {
           />
         </View>
 
-        {/* Store URL preview */}
+        {/* Store URL preview + open button */}
         {storeUrl && enabled ? (
-          <View
+          <TouchableOpacity
+            onPress={() => Linking.openURL(storeUrl)}
+            activeOpacity={0.7}
             style={{
-              backgroundColor: tintColor + "10",
+              backgroundColor: tintColor,
               borderRadius: 8,
               padding: 12,
               flexDirection: "row",
               alignItems: "center",
+              justifyContent: "center",
               gap: 8,
             }}
           >
-            <Ionicons name="link-outline" size={16} color={tintColor} />
-            <Text
-              style={{ fontSize: 12, color: tintColor, flex: 1 }}
-              numberOfLines={1}
-              selectable
-            >
-              {storeUrl}
+            <Ionicons name="open-outline" size={16} color="#fff" />
+            <Text style={{ fontSize: 14, color: "#fff", fontWeight: "600" }}>
+              Abrir loja
             </Text>
-          </View>
+          </TouchableOpacity>
         ) : null}
       </View>
 
