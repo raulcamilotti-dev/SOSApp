@@ -7,7 +7,7 @@
  *   Campaign → Campaign Metrics (daily snapshots)
  *            → Leads (via lead.campaign_id)
  *            → Customers / Revenue (via converted leads)
- *
+ * 
  * Data sources:
  *   - Manual input: tenant creates campaigns, optionally logs daily metrics
  *   - UTM matching: public forms parse ?utm_campaign and auto-link leads
