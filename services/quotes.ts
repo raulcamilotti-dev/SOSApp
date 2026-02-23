@@ -175,10 +175,10 @@ export async function createQuote(
 
   // Calculate totals
   const subtotal = params.items.reduce(
-    (sum, item) => sum + item.quantity * item.unit_price,
+    (sum, item) => sum + Number(item.quantity) * Number(item.unit_price),
     0,
   );
-  const discount = params.discount ?? 0;
+  const discount = Number(params.discount ?? 0) || 0;
   const total = Math.max(0, subtotal - discount);
 
   // Create quote header

@@ -199,6 +199,7 @@ export default function QuoteRequestPage() {
         quoteTemplateId: product.quote_template_id,
         customerNotes: customerNotes.trim() || undefined,
         userId: user.id,
+        serviceTypeId: product.service_type_id ?? undefined,
       });
       setResult({
         publicUrl: res.publicUrl,

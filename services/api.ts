@@ -17,6 +17,7 @@ const API_BASE =
 
 const api = axios.create({
   baseURL: API_BASE,
+  timeout: 30000, // 30 second timeout to prevent infinite hangs
   headers: {
     "X-Api-Key": N8N_API_KEY,
   },
@@ -274,5 +275,5 @@ export function setAuthToken(token: string | null) {
   }
 }
 
-export { N8N_API_KEY, api };
+export { api, N8N_API_KEY };
 

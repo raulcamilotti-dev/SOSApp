@@ -29,6 +29,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Image,
     Platform,
     ScrollView,
@@ -228,8 +229,14 @@ export default function PublicProductDetail() {
       setAddedFeedback(true);
       setTimeout(() => setAddedFeedback(false), 2000);
       setQuantity(1);
-    } catch {
-      // Error is handled inside the hook
+    } catch (error) {
+      // Show error to user
+      Alert.alert(
+        "Erro ao adicionar",
+        cart.error ||
+          "Não foi possível adicionar o item ao carrinho. Tente novamente.",
+        [{ text: "OK" }],
+      );
     } finally {
       setAddingToCart(false);
     }

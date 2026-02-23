@@ -209,13 +209,14 @@ export async function addToCart(params: AddToCartParams): Promise<CartItem> {
     );
   }
 
-  // 3. Check stock availability
+  // 3. Get existing cart items (single query for both stock check and duplicate check)
+  const existingItems = await getCartItems(cart.id);
+  const existingItem = existingItems.find(
+    (item) => item.service_id === serviceId,
+  );
+
+  // 4. Check stock availability
   if (product.track_stock) {
-    // Get current cart quantity for this product (existing items)
-    const existingItems = await getCartItems(cart.id);
-    const existingItem = existingItems.find(
-      (item) => item.service_id === serviceId,
-    );
     const currentCartQty = existingItem ? existingItem.quantity : 0;
     const totalRequested = currentCartQty + quantity;
 
@@ -229,17 +230,14 @@ export async function addToCart(params: AddToCartParams): Promise<CartItem> {
     }
   }
 
-  // 4. Check if item already exists in cart → update quantity
-  const existingItems = await getCartItems(cart.id);
-  const existing = existingItems.find((item) => item.service_id === serviceId);
-
-  if (existing) {
-    const newQty = existing.quantity + quantity;
+  // 5. Check if item already exists in cart → update quantity
+  if (existingItem) {
+    const newQty = existingItem.quantity + quantity;
     const res = await api.post(CRUD_ENDPOINT, {
       action: "update",
       table: "shopping_cart_items",
       payload: {
-        id: existing.id,
+        id: existingItem.id,
         quantity: newQty,
         reserved_at: new Date().toISOString(),
       },
@@ -249,7 +247,7 @@ export async function addToCart(params: AddToCartParams): Promise<CartItem> {
     return normalizeCartItem(row);
   }
 
-  // 5. Create new cart item with price snapshot
+  // 6. Create new cart item with price snapshot
   const effectivePrice = product.online_price ?? product.sell_price;
 
   const res = await api.post(CRUD_ENDPOINT, {
@@ -268,7 +266,7 @@ export async function addToCart(params: AddToCartParams): Promise<CartItem> {
   const data = res.data;
   const row = Array.isArray(data) ? data[0] : data;
 
-  // 6. Extend cart expiry
+  // 7. Extend cart expiry
   await extendCartExpiry(cart.id);
 
   return normalizeCartItem(row);
@@ -291,39 +289,7 @@ export async function updateCartItemQuantity(
     return null;
   }
 
-  // Get existing item to find the cart and product
-  const itemRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "shopping_cart_items",
-    ...buildSearchParams([{ field: "id", value: cartItemId }]),
-  });
-  const items = normalizeCrudList<Record<string, unknown>>(itemRes.data);
-  if (items.length === 0) throw new Error("Item não encontrado no carrinho");
-
-  const existingItem = items[0];
-  const serviceId = String(existingItem.service_id ?? "");
-
-  // Get cart to find tenant
-  const cartRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "shopping_carts",
-    ...buildSearchParams([
-      { field: "id", value: String(existingItem.cart_id ?? "") },
-    ]),
-  });
-  const carts = normalizeCrudList<Record<string, unknown>>(cartRes.data);
-  if (carts.length === 0) throw new Error("Carrinho não encontrado");
-  const tenantId = String(carts[0].tenant_id ?? "");
-
-  // Validate stock for new quantity
-  const product = await getMarketplaceProductById(tenantId, serviceId);
-  if (product?.track_stock && product.stock_quantity < quantity) {
-    throw new Error(
-      `Estoque insuficiente. Disponível: ${product.stock_quantity}`,
-    );
-  }
-
-  // Update item
+  // Update item directly (stock validation happens in getCartWithItems)
   const res = await api.post(CRUD_ENDPOINT, {
     action: "update",
     table: "shopping_cart_items",
@@ -479,26 +445,50 @@ export async function refreshCartPrices(params: {
   cartId: string;
 }): Promise<void> {
   const items = await getCartItems(params.cartId);
+  if (items.length === 0) return;
 
-  for (const item of items) {
-    const product = await getMarketplaceProductById(
-      params.tenantId,
-      item.service_id,
-    );
-    if (!product) continue;
+  // Batch-fetch products (reuse same pattern as getCartWithItems)
+  const serviceIds = [...new Set(items.map((item) => item.service_id))];
+  const productMap = new Map<string, Record<string, unknown>>();
 
-    const currentPrice = product.online_price ?? product.sell_price;
-    if (Math.abs(item.unit_price - currentPrice) > 0.01) {
-      await api.post(CRUD_ENDPOINT, {
-        action: "update",
-        table: "shopping_cart_items",
-        payload: {
-          id: item.id,
-          unit_price: currentPrice,
-        },
-      });
-    }
+  const CHUNK_SIZE = 50;
+  for (let i = 0; i < serviceIds.length; i += CHUNK_SIZE) {
+    const chunk = serviceIds.slice(i, i + CHUNK_SIZE);
+    const res = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "services",
+      ...buildSearchParams(
+        [
+          { field: "id", value: chunk.join(","), operator: "in" },
+          { field: "tenant_id", value: params.tenantId },
+        ],
+        { autoExcludeDeleted: true },
+      ),
+    });
+    const products = normalizeCrudList<Record<string, unknown>>(res.data);
+    products.forEach((p) => productMap.set(String(p.id), p));
   }
+
+  // Batch update prices (parallel)
+  const updates = items
+    .map((item) => {
+      const product = productMap.get(item.service_id);
+      if (!product) return null;
+      const currentPrice = Number(
+        product.online_price ?? product.sell_price ?? 0,
+      );
+      if (Math.abs(item.unit_price - currentPrice) > 0.01) {
+        return api.post(CRUD_ENDPOINT, {
+          action: "update",
+          table: "shopping_cart_items",
+          payload: { id: item.id, unit_price: currentPrice },
+        });
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  await Promise.all(updates);
 }
 
 /* ------------------------------------------------------------------ */
@@ -638,13 +628,13 @@ async function getCartItems(cartId: string): Promise<CartItem[]> {
     table: "shopping_cart_items",
     ...buildSearchParams([{ field: "cart_id", value: cartId }], {
       sortColumn: "created_at ASC",
-      autoExcludeDeleted: true,
+      // Note: shopping_cart_items has no deleted_at column — do NOT use autoExcludeDeleted
     }),
   });
 
-  return normalizeCrudList<Record<string, unknown>>(res.data)
-    .filter((row) => !row.deleted_at)
-    .map(normalizeCartItem);
+  return normalizeCrudList<Record<string, unknown>>(res.data).map(
+    normalizeCartItem,
+  );
 }
 
 function normalizeCart(row: Record<string, unknown>): ShoppingCart {

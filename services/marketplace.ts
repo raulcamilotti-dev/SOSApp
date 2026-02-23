@@ -11,12 +11,50 @@
 
 import { api } from "./api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    type CrudFilter,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  type CrudFilter,
 } from "./crud";
 import type { QuoteItemInput } from "./quotes";
+
+/* ───────────────────────────────────────────────────────────────── */
+/* Performance Logging Utility                                        */
+/* ───────────────────────────────────────────────────────────────── */
+
+const PERF_DEBUG = __DEV__; // Enable only in dev mode
+
+type PerfContext = {
+  startTime: number;
+  lastMark?: number;
+  logs: { timestamp: number; message: string }[];
+};
+
+function createPerfContext(): PerfContext {
+  return {
+    startTime: performance.now(),
+    logs: [],
+  };
+}
+
+function markPerfStep(ctx: PerfContext, stepName: string, details?: string) {
+  const now = performance.now();
+  const elapsed = now - ctx.startTime;
+  const sinceLast = ctx.lastMark ? now - ctx.lastMark : elapsed;
+
+  const message = `[${elapsed.toFixed(2)}ms, +${sinceLast.toFixed(2)}ms] ${stepName}${details ? ` — ${details}` : ""}`;
+  ctx.logs.push({ timestamp: now, message });
+  ctx.lastMark = now;
+
+  if (PERF_DEBUG) {
+    console.log(`[MARKETPLACE_PERF] ${message}`);
+  }
+}
+
+function getPerfReport(ctx: PerfContext, functionName: string): string {
+  const totalMs = performance.now() - ctx.startTime;
+  return `[${functionName}] Total: ${totalMs.toFixed(2)}ms\n${ctx.logs.map((l) => `  • ${l.message}`).join("\n")}`;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -56,6 +94,8 @@ export interface MarketplaceProduct {
   pricing_type: "fixed" | "quote";
   /** Linked quote template ID (used when pricing_type = 'quote') */
   quote_template_id?: string | null;
+  /** FK to service_types — required when creating service_orders */
+  service_type_id?: string | null;
 }
 
 /** Marketplace configuration stored in tenants.config.marketplace */
@@ -252,6 +292,7 @@ function mapProduct(
     quote_template_id: item.quote_template_id
       ? String(item.quote_template_id)
       : null,
+    service_type_id: item.service_type_id ? String(item.service_type_id) : null,
   };
 }
 
@@ -268,106 +309,176 @@ export async function listMarketplaceProducts(params: {
   pageSize?: number;
   itemKind?: "product" | "service";
 }): Promise<MarketplaceSearchResult> {
-  const {
-    tenantId,
-    categoryId,
-    search,
-    sortBy = "name",
-    page = 1,
-    pageSize = 20,
-  } = params;
+  const perf = createPerfContext();
 
-  const filters: CrudFilter[] = [
-    { field: "tenant_id", value: tenantId },
-    { field: "is_published", value: "true", operator: "equal" },
-  ];
+  try {
+    const {
+      tenantId,
+      categoryId,
+      search,
+      sortBy = "name",
+      page = 1,
+      pageSize = 20,
+    } = params;
 
-  if (categoryId) {
-    filters.push({ field: "category_id", value: categoryId });
-  }
+    markPerfStep(
+      perf,
+      "START listMarketplaceProducts",
+      `tenantId=${tenantId}, page=${page}, pageSize=${pageSize}`,
+    );
 
-  if (params.itemKind) {
-    filters.push({ field: "item_kind", value: params.itemKind });
-  }
+    const filters: CrudFilter[] = [
+      { field: "tenant_id", value: tenantId },
+      { field: "is_published", value: "true", operator: "equal" },
+    ];
 
-  if (search?.trim()) {
-    filters.push({
-      field: "name",
-      value: `%${search.trim()}%`,
-      operator: "ilike",
-    });
-  }
-
-  let sortColumn = "sort_order ASC, name ASC";
-  switch (sortBy) {
-    case "price_asc":
-      sortColumn = "sell_price ASC";
-      break;
-    case "price_desc":
-      sortColumn = "sell_price DESC";
-      break;
-    case "newest":
-      sortColumn = "created_at DESC";
-      break;
-    case "name":
-    default:
-      sortColumn = "name ASC";
-      break;
-  }
-
-  const offset = (page - 1) * pageSize;
-
-  const res = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "services",
-    ...buildSearchParams(filters, {
-      sortColumn,
-      limit: pageSize + 1, // fetch 1 extra to check hasMore
-      offset,
-      autoExcludeDeleted: true,
-    }),
-  });
-
-  const rawItems = normalizeCrudList<Record<string, unknown>>(res.data);
-  const hasMore = rawItems.length > pageSize;
-  const items = hasMore ? rawItems.slice(0, pageSize) : rawItems;
-
-  // Batch-resolve categories
-  const categoryIds = [
-    ...new Set(items.map((i) => String(i.category_id ?? "")).filter(Boolean)),
-  ];
-  const categoryMap = new Map<string, Record<string, unknown>>();
-
-  if (categoryIds.length > 0) {
-    try {
-      const catRes = await api.post(CRUD_ENDPOINT, {
-        action: "list",
-        table: "service_categories",
-        ...buildSearchParams(
-          [{ field: "id", value: categoryIds.join(","), operator: "in" }],
-          { autoExcludeDeleted: true },
-        ),
-      });
-      const cats = normalizeCrudList<Record<string, unknown>>(catRes.data);
-      cats.forEach((cat) => categoryMap.set(String(cat.id), cat));
-    } catch {
-      // Categories are optional — degrade gracefully
+    if (categoryId) {
+      filters.push({ field: "category_id", value: categoryId });
     }
+
+    if (params.itemKind) {
+      filters.push({ field: "item_kind", value: params.itemKind });
+    }
+
+    if (search?.trim()) {
+      filters.push({
+        field: "name",
+        value: `%${search.trim()}%`,
+        operator: "ilike",
+      });
+    }
+
+    markPerfStep(
+      perf,
+      "Filters built",
+      `count=${filters.length}, search=${search ? "yes" : "no"}`,
+    );
+
+    let sortColumn = "sort_order ASC, name ASC";
+    switch (sortBy) {
+      case "price_asc":
+        sortColumn = "sell_price ASC";
+        break;
+      case "price_desc":
+        sortColumn = "sell_price DESC";
+        break;
+      case "newest":
+        sortColumn = "created_at DESC";
+        break;
+      case "name":
+      default:
+        sortColumn = "name ASC";
+        break;
+    }
+
+    markPerfStep(perf, "Sort column determined", `sortBy=${sortBy}`);
+
+    const offset = (page - 1) * pageSize;
+
+    markPerfStep(perf, "Pagination calculated", `offset=${offset}`);
+
+    const res = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "services",
+      ...buildSearchParams(filters, {
+        sortColumn,
+        limit: pageSize + 1, // fetch 1 extra to check hasMore
+        offset,
+        autoExcludeDeleted: true,
+      }),
+    });
+
+    markPerfStep(
+      perf,
+      "Products API call complete",
+      `raw_count=${Array.isArray(res.data) ? res.data.length : 0}`,
+    );
+
+    const rawItems = normalizeCrudList<Record<string, unknown>>(res.data);
+    const hasMore = rawItems.length > pageSize;
+    const items = hasMore ? rawItems.slice(0, pageSize) : rawItems;
+
+    markPerfStep(
+      perf,
+      "Products normalized",
+      `items=${items.length}, hasMore=${hasMore}`,
+    );
+
+    // Batch-resolve categories
+    const categoryIds = [
+      ...new Set(items.map((i) => String(i.category_id ?? "")).filter(Boolean)),
+    ];
+
+    markPerfStep(
+      perf,
+      "Category IDs extracted",
+      `unique_categories=${categoryIds.length}`,
+    );
+
+    const categoryMap = new Map<string, Record<string, unknown>>();
+
+    if (categoryIds.length > 0) {
+      try {
+        const catRes = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "service_categories",
+          ...buildSearchParams(
+            [{ field: "id", value: categoryIds.join(","), operator: "in" }],
+            { autoExcludeDeleted: true },
+          ),
+        });
+
+        markPerfStep(
+          perf,
+          "Categories API call complete",
+          `fetched=${Array.isArray(catRes.data) ? catRes.data.length : 0}`,
+        );
+
+        const cats = normalizeCrudList<Record<string, unknown>>(catRes.data);
+        cats.forEach((cat) => categoryMap.set(String(cat.id), cat));
+
+        markPerfStep(
+          perf,
+          "Category map built",
+          `total_categories=${categoryMap.size}`,
+        );
+      } catch (catErr) {
+        markPerfStep(
+          perf,
+          "Category fetch failed (degrading gracefully)",
+          String(catErr),
+        );
+        // Categories are optional — degrade gracefully
+      }
+    }
+
+    const products = items.map((item) => {
+      const catId = String(item.category_id ?? "");
+      const cat = catId ? (categoryMap.get(catId) ?? null) : null;
+      return mapProduct(item, cat);
+    });
+
+    markPerfStep(perf, "Products mapped", `final_count=${products.length}`);
+
+    if (PERF_DEBUG) {
+      console.log(`\n${getPerfReport(perf, "listMarketplaceProducts")}\n`);
+    }
+
+    return {
+      products,
+      total: -1, // We don't have total count with this pagination approach
+      page,
+      pageSize,
+      hasMore,
+    };
+  } catch (error) {
+    if (PERF_DEBUG) {
+      console.error(
+        `\n${getPerfReport(perf, "listMarketplaceProducts")}\nERROR: ${error}\n`,
+      );
+    }
+    throw error;
   }
-
-  const products = items.map((item) => {
-    const catId = String(item.category_id ?? "");
-    const cat = catId ? (categoryMap.get(catId) ?? null) : null;
-    return mapProduct(item, cat);
-  });
-
-  return {
-    products,
-    total: -1, // We don't have total count with this pagination approach
-    page,
-    pageSize,
-    hasMore,
-  };
 }
 
 /**
@@ -377,7 +488,15 @@ export async function getMarketplaceProductBySlug(
   tenantId: string,
   productSlug: string,
 ): Promise<MarketplaceProduct | null> {
+  const perf = createPerfContext();
+
   try {
+    markPerfStep(
+      perf,
+      "START getMarketplaceProductBySlug",
+      `slug=${productSlug}`,
+    );
+
     const res = await api.post(CRUD_ENDPOINT, {
       action: "list",
       table: "services",
@@ -391,12 +510,20 @@ export async function getMarketplaceProductBySlug(
       ),
     });
     const items = normalizeCrudList<Record<string, unknown>>(res.data);
-    if (items.length === 0) return null;
+    markPerfStep(perf, "Fetched product by slug", `found=${items.length > 0}`);
+
+    if (items.length === 0) {
+      markPerfStep(perf, "Product not found");
+      return null;
+    }
 
     const item = items[0];
+
     // Resolve category
     let cat: Record<string, unknown> | null = null;
     if (item.category_id) {
+      markPerfStep(perf, "Fetching category", `categoryId=${item.category_id}`);
+
       try {
         const catRes = await api.post(CRUD_ENDPOINT, {
           action: "list",
@@ -407,13 +534,31 @@ export async function getMarketplaceProductBySlug(
         });
         const cats = normalizeCrudList<Record<string, unknown>>(catRes.data);
         cat = cats[0] ?? null;
-      } catch {
+        markPerfStep(perf, "Category resolved", `found=${cat !== null}`);
+      } catch (catError) {
+        if (PERF_DEBUG)
+          console.log(
+            `[getMarketplaceProductBySlug] Category fetch failed:`,
+            catError,
+          );
         // Ignore
       }
     }
 
-    return mapProduct(item, cat);
-  } catch {
+    const result = mapProduct(item, cat);
+    markPerfStep(perf, "Finished mapping product");
+
+    if (PERF_DEBUG) {
+      console.log(`\n${getPerfReport(perf, "getMarketplaceProductBySlug")}\n`);
+    }
+
+    return result;
+  } catch (error) {
+    if (PERF_DEBUG) {
+      console.error(
+        `\n${getPerfReport(perf, "getMarketplaceProductBySlug")}\nERROR: ${error}\n`,
+      );
+    }
     return null;
   }
 }
@@ -452,8 +597,16 @@ export async function getMarketplaceProductById(
 export async function listMarketplaceCategories(
   tenantId: string,
 ): Promise<MarketplaceCategory[]> {
+  const perf = createPerfContext();
+
   try {
-    // Get all categories for the tenant
+    // ✅ Step 1: Get all categories for the tenant
+    markPerfStep(
+      perf,
+      "START listMarketplaceCategories",
+      `tenantId=${tenantId}`,
+    );
+
     const catRes = await api.post(CRUD_ENDPOINT, {
       action: "list",
       table: "service_categories",
@@ -466,46 +619,74 @@ export async function listMarketplaceCategories(
       ),
     });
     const categories = normalizeCrudList<Record<string, unknown>>(catRes.data);
+    markPerfStep(perf, "Fetched categories", `count=${categories.length}`);
 
-    // Count published products per category
-    const result: MarketplaceCategory[] = [];
-    for (const cat of categories) {
-      const catId = String(cat.id);
-      try {
-        const countRes = await api.post(CRUD_ENDPOINT, {
-          action: "count",
-          table: "services",
-          ...buildSearchParams(
-            [
-              { field: "tenant_id", value: tenantId },
-              { field: "category_id", value: catId },
-              { field: "is_published", value: "true", operator: "equal" },
-            ],
-            { autoExcludeDeleted: true },
-          ),
-        });
-        const countData = normalizeCrudList<Record<string, unknown>>(
-          countRes.data,
-        );
-        const count = Number(countData[0]?.count ?? 0);
-        if (count > 0) {
-          result.push({
-            id: catId,
-            name: String(cat.name ?? ""),
-            slug: cat.slug ? String(cat.slug) : null,
-            description: cat.description ? String(cat.description) : null,
-            color: cat.color ? String(cat.color) : null,
-            icon: cat.icon ? String(cat.icon) : null,
-            product_count: count,
-          });
-        }
-      } catch {
-        // skip category
+    if (categories.length === 0) {
+      markPerfStep(perf, "No categories found, returning empty");
+      return [];
+    }
+
+    // ✅ Step 2: Get ALL product counts in ONE aggregation query (GROUP BY category_id)
+    // Instead of 1 + N sequential COUNT queries, this does 1 aggregation query
+    markPerfStep(perf, "Making aggregate query for product counts");
+
+    const countRes = await api.post(CRUD_ENDPOINT, {
+      action: "aggregate",
+      table: "services",
+      aggregates: [{ function: "COUNT", field: "id", alias: "product_count" }],
+      group_by: "category_id",
+      ...buildSearchParams(
+        [
+          { field: "tenant_id", value: tenantId },
+          { field: "is_published", value: "true", operator: "equal" },
+        ],
+        { autoExcludeDeleted: true },
+      ),
+    });
+    markPerfStep(perf, "Aggregate query complete");
+
+    // ✅ Step 3: Build map of category_id → count for O(1) lookup
+    const countMap = new Map<string, number>();
+    const countData = normalizeCrudList<Record<string, unknown>>(countRes.data);
+    countData.forEach((row) => {
+      const catId = String(row.category_id ?? "");
+      const count = Number(row.product_count ?? 0);
+      if (catId && count > 0) {
+        countMap.set(catId, count);
       }
+    });
+    markPerfStep(perf, "Built count map", `entries=${countMap.size}`);
+
+    // ✅ Step 4: Reconstruct result with product counts from map
+    const result: MarketplaceCategory[] = [];
+    categories.forEach((cat) => {
+      const catId = String(cat.id);
+      const count = countMap.get(catId) ?? 0;
+      if (count > 0) {
+        result.push({
+          id: catId,
+          name: String(cat.name ?? ""),
+          slug: cat.slug ? String(cat.slug) : null,
+          description: cat.description ? String(cat.description) : null,
+          color: cat.color ? String(cat.color) : null,
+          icon: cat.icon ? String(cat.icon) : null,
+          product_count: count,
+        });
+      }
+    });
+    markPerfStep(perf, "Reconstructed result", `categories=${result.length}`);
+
+    if (PERF_DEBUG) {
+      console.log(`\n${getPerfReport(perf, "listMarketplaceCategories")}\n`);
     }
 
     return result;
-  } catch {
+  } catch (error) {
+    if (PERF_DEBUG) {
+      console.error(
+        `\n${getPerfReport(perf, "listMarketplaceCategories")}\nERROR: ${error}\n`,
+      );
+    }
     return [];
   }
 }
@@ -516,34 +697,73 @@ export async function listMarketplaceCategories(
 export async function getProductCompositionChildren(
   productId: string,
 ): Promise<{ id: string; name: string; quantity: number; price: number }[]> {
+  const perf = createPerfContext();
+
   try {
+    markPerfStep(
+      perf,
+      "START getProductCompositionChildren",
+      `productId=${productId}`,
+    );
+
     const res = await api.post(CRUD_ENDPOINT, {
       action: "list",
       table: "service_compositions",
       ...buildSearchParams([{ field: "parent_service_id", value: productId }]),
     });
     const compositions = normalizeCrudList<Record<string, unknown>>(res.data);
+    markPerfStep(perf, "Fetched compositions", `count=${compositions.length}`);
 
-    const children: {
-      id: string;
-      name: string;
-      quantity: number;
-      price: number;
-    }[] = [];
-    for (const comp of compositions) {
-      const childId = String(comp.child_service_id ?? "");
-      if (!childId) continue;
-      try {
-        const childRes = await api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "services",
-          ...buildSearchParams([{ field: "id", value: childId }]),
-        });
-        const childItems = normalizeCrudList<Record<string, unknown>>(
-          childRes.data,
-        );
-        if (childItems.length > 0) {
-          const child = childItems[0];
+    // Collect all unique child IDs (avoid N+1)
+    const childIds = Array.from(
+      new Set(
+        compositions
+          .map((comp) => String(comp.child_service_id ?? ""))
+          .filter((id) => id.trim()),
+      ),
+    );
+    markPerfStep(perf, "Deduped child IDs", `unique=${childIds.length}`);
+
+    if (childIds.length === 0) {
+      markPerfStep(perf, "No children found");
+      return [];
+    }
+
+    // Batch fetch all children in 1 request via "in" operator
+    try {
+      markPerfStep(perf, "Making batch fetch for children");
+
+      const childRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "services",
+        ...buildSearchParams([
+          { field: "id", value: childIds.join(","), operator: "in" },
+        ]),
+      });
+      const childServices = normalizeCrudList<Record<string, unknown>>(
+        childRes.data,
+      );
+      markPerfStep(
+        perf,
+        "Batch fetch complete",
+        `fetched=${childServices.length}`,
+      );
+
+      // Build a map for quick lookup
+      const serviceMap = new Map(childServices.map((s) => [String(s.id), s]));
+      markPerfStep(perf, "Built service map", `entries=${serviceMap.size}`);
+
+      // Reconstruct results in original composition order, matching quantity from composition
+      const children: {
+        id: string;
+        name: string;
+        quantity: number;
+        price: number;
+      }[] = [];
+      for (const comp of compositions) {
+        const childId = String(comp.child_service_id ?? "");
+        const child = serviceMap.get(childId);
+        if (child) {
           const onlinePrice =
             child.online_price != null ? Number(child.online_price) : null;
           children.push({
@@ -553,13 +773,30 @@ export async function getProductCompositionChildren(
             price: onlinePrice ?? Number(child.sell_price ?? 0),
           });
         }
-      } catch {
-        // skip
       }
-    }
+      markPerfStep(perf, "Reconstructed children", `result=${children.length}`);
 
-    return children;
-  } catch {
+      if (PERF_DEBUG) {
+        console.log(
+          `\n${getPerfReport(perf, "getProductCompositionChildren")}\n`,
+        );
+      }
+
+      return children;
+    } catch (innerError) {
+      if (PERF_DEBUG) {
+        console.error(
+          `[getProductCompositionChildren batch error] ${innerError}`,
+        );
+      }
+      return [];
+    }
+  } catch (error) {
+    if (PERF_DEBUG) {
+      console.error(
+        `\n${getPerfReport(perf, "getProductCompositionChildren")}\nERROR: ${error}\n`,
+      );
+    }
     return [];
   }
 }
@@ -730,6 +967,8 @@ export interface MarketplaceQuoteRequest {
   customerNotes?: string;
   /** User ID of the requesting customer */
   userId: string;
+  /** FK to service_types — required for creating the service_order */
+  serviceTypeId?: string | null;
 }
 
 export interface MarketplaceQuoteResult {
@@ -758,10 +997,38 @@ export async function requestMarketplaceQuote(
   const { getQuoteTemplateById, applyTemplateToQuote } =
     await import("./quote-templates");
 
-  // 1. Create a service order
+  // 1. Resolve service_type_id — required NOT NULL column.
+  // Use the value from params if provided; otherwise, look it up from the service record.
+  let serviceTypeId = params.serviceTypeId;
+  if (!serviceTypeId) {
+    try {
+      const svcRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "services",
+        ...buildSearchParams([{ field: "id", value: params.serviceId }], {
+          limit: 1,
+          fields: ["id", "service_type_id"],
+        }),
+      });
+      const svcs = normalizeCrudList<{ id: string; service_type_id?: string }>(
+        svcRes.data,
+      );
+      serviceTypeId = svcs[0]?.service_type_id ?? null;
+    } catch {
+      // Lookup failed — will fall through to the guard below
+    }
+  }
+  if (!serviceTypeId) {
+    throw new Error(
+      "Não foi possível determinar o tipo de serviço (service_type_id).",
+    );
+  }
+
+  // 2. Create a service order
   const so = await createServiceOrder({
     tenant_id: params.tenantId,
     service_id: params.serviceId,
+    service_type_id: serviceTypeId,
     title: `Orçamento — ${params.serviceName}`,
     description: params.customerNotes || null,
     process_status: "active",
