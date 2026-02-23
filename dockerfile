@@ -1,27 +1,10 @@
-# Stage 1: Build
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package.json package-lock.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Build the web app
-RUN npm run build
-
-# Stage 2: Serve with Nginx
+# Production image: serve static files with Nginx
 FROM nginx:alpine
 
-# Copy built files from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy pre-built static files
+COPY dist /usr/share/nginx/html
 
-# Copy Nginx config
+# Copy Nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
