@@ -14,6 +14,7 @@
  * - Stock indicator
  */
 
+import { useAuth } from "@/core/auth/AuthContext";
 import { useMarketplaceTenant } from "@/hooks/use-marketplace-tenant";
 import { useShoppingCart } from "@/hooks/use-shopping-cart";
 import type { MarketplaceProduct } from "@/services/marketplace";
@@ -58,7 +59,7 @@ const CARD_SHADOW = Platform.select({
   },
 });
 
-type Phase = "loading" | "content" | "empty" | "error" | "disabled";
+type Phase = "loading" | "content" | "error" | "disabled";
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -106,7 +107,12 @@ export default function PublicStoreListing() {
   );
   const cartUrl = `${storeBase}/cart`;
 
-  const { itemCount } = useShoppingCart(tenant?.tenant_id ?? null);
+  const {
+    itemCount,
+    addItem,
+    operating: cartOperating,
+  } = useShoppingCart(tenant?.tenant_id ?? null);
+  const { user } = useAuth();
 
   const [searchText, setSearchText] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -121,23 +127,60 @@ export default function PublicStoreListing() {
     if (loading) return "loading";
     if (error) return "error";
     if (!isEnabled) return "disabled";
-    if (products.length === 0) return "empty";
     return "content";
-  }, [loading, error, isEnabled, products.length]);
+  }, [loading, error, isEnabled]);
 
-  /* ── Responsive grid ── */
+  /** True when products list is empty (for inline no-results) */
+  const isEmpty = phase === "content" && products.length === 0;
+
+  /** Desktop uses Netflix-style horizontal carousels per category */
+  const isDesktop = Platform.OS === "web" && width >= 900;
+
+  /* ── Responsive grid (used on mobile / small screens only) ── */
   const columns = useMemo(() => {
-    if (width >= 1200) return 4;
-    if (width >= 900) return 3;
-    if (width >= 600) return 2;
+    if (width >= 1200) return 5;
+    if (width >= 900) return 4;
+    if (width >= 600) return 3;
     return 2;
   }, [width]);
 
   const cardWidth = useMemo(() => {
+    const maxContainer = Math.min(width, 1400);
     const padding = 20;
     const gap = 12;
-    return (width - padding * 2 - gap * (columns - 1)) / columns;
+    return (maxContainer - padding * 2 - gap * (columns - 1)) / columns;
   }, [width, columns]);
+
+  /** Card width for Netflix-style horizontal carousel (desktop) */
+  const netflixCardWidth = useMemo(() => {
+    if (width >= 1200) return 200;
+    if (width >= 900) return 180;
+    return 160;
+  }, [width]);
+
+  /** Group products by category for Netflix-style layout */
+  const productsByCategory = useMemo(() => {
+    if (!isDesktop || products.length === 0) return [];
+    const map = new Map<
+      string,
+      { name: string; items: MarketplaceProduct[] }
+    >();
+    // "Todos" category with all items
+    const uncategorized: MarketplaceProduct[] = [];
+    for (const p of products) {
+      const catName = p.category_name || "Outros";
+      const catId = p.category_id || "__other";
+      if (!map.has(catId)) {
+        map.set(catId, { name: catName, items: [] });
+      }
+      map.get(catId)!.items.push(p);
+      if (!p.category_name) uncategorized.push(p);
+    }
+    const rows = Array.from(map.values());
+    // Sort: categories with more items first
+    rows.sort((a, b) => b.items.length - a.items.length);
+    return rows;
+  }, [isDesktop, products]);
 
   /* ── Actions ── */
   const handleSearch = useCallback(
@@ -192,7 +235,7 @@ export default function PublicStoreListing() {
               {brandName.charAt(0).toUpperCase()}
             </Text>
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={st.headerTitle} numberOfLines={1}>
               {brandName}
             </Text>
@@ -204,17 +247,43 @@ export default function PublicStoreListing() {
           </View>
         </View>
 
-        {/* Cart icon */}
-        <TouchableOpacity onPress={openCart} style={st.cartButton}>
-          <Ionicons name="cart-outline" size={24} color="#fff" />
-          {itemCount > 0 && (
-            <View style={st.cartBadge}>
-              <Text style={st.cartBadgeText}>
-                {itemCount > 99 ? "99+" : String(itemCount)}
+        {/* Right actions */}
+        <View style={st.headerRight}>
+          {/* Login / Account button */}
+          {user ? (
+            <TouchableOpacity
+              onPress={() => navigateTo("/")}
+              style={st.headerActionBtn}
+            >
+              <Ionicons name="person-circle-outline" size={22} color="#fff" />
+              <Text style={st.headerActionText} numberOfLines={1}>
+                {user.fullname?.split(" ")[0] || "Conta"}
               </Text>
-            </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => navigateTo("/login")}
+              style={st.loginButton}
+            >
+              <Ionicons name="log-in-outline" size={18} color={primaryColor} />
+              <Text style={[st.loginButtonText, { color: primaryColor }]}>
+                Entrar
+              </Text>
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+
+          {/* Cart icon */}
+          <TouchableOpacity onPress={openCart} style={st.cartButton}>
+            <Ionicons name="cart-outline" size={24} color="#fff" />
+            {itemCount > 0 && (
+              <View style={st.cartBadge}>
+                <Text style={st.cartBadgeText}>
+                  {itemCount > 99 ? "99+" : String(itemCount)}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -317,25 +386,34 @@ export default function PublicStoreListing() {
   };
 
   /* ═══ Render: Product Card ═══ */
-  const renderProductCard = (product: MarketplaceProduct) => {
+  const renderProductCard = (
+    product: MarketplaceProduct,
+    overrideWidth?: number,
+  ) => {
     const hasDiscount =
       product.online_price !== null &&
       product.online_price < product.sell_price;
     const outOfStock = product.track_stock && product.stock_quantity <= 0;
+    const w = overrideWidth ?? cardWidth;
 
     return (
       <TouchableOpacity
         key={product.id}
         style={[
           st.productCard,
-          { width: cardWidth },
+          { width: w },
           outOfStock && st.productCardOutOfStock,
         ]}
         onPress={() => openProduct(product)}
         activeOpacity={0.8}
       >
         {/* Image */}
-        <View style={st.productImageContainer}>
+        <View
+          style={[
+            st.productImageContainer,
+            isDesktop && { aspectRatio: 4 / 5 },
+          ]}
+        >
           {product.image_url ? (
             <Image
               source={{ uri: product.image_url }}
@@ -410,12 +488,38 @@ export default function PublicStoreListing() {
               </Text>
             </View>
           )}
+          {/* Add to cart button */}
+          <TouchableOpacity
+            style={[
+              st.addToCartBtn,
+              {
+                backgroundColor: outOfStock ? TEXT_MUTED : primaryColor,
+              },
+            ]}
+            disabled={outOfStock || cartOperating}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              if (!outOfStock) addItem(product.id, 1);
+            }}
+            activeOpacity={0.7}
+          >
+            {cartOperating ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="cart-outline" size={14} color="#fff" />
+                <Text style={st.addToCartText}>
+                  {outOfStock ? "Esgotado" : "Adicionar"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
   };
 
-  /* ═══ Render: Product Grid ═══ */
+  /* ═══ Render: Product Grid (mobile / fallback) ═══ */
   const renderProductGrid = () => {
     if (loadingProducts) {
       return (
@@ -452,6 +556,72 @@ export default function PublicStoreListing() {
         ))}
       </View>
     );
+  };
+
+  /* ═══ Render: Netflix-style catalog (desktop) ═══ */
+  const renderNetflixCatalog = () => {
+    if (loadingProducts) {
+      return (
+        <View style={st.centered}>
+          <ActivityIndicator size="small" color={primaryColor} />
+        </View>
+      );
+    }
+
+    return (
+      <View style={st.netflixContainer}>
+        <Text style={st.resultCount}>
+          {products.length} {products.length === 1 ? "produto" : "produtos"}
+          {searchText ? ` para "${searchText}"` : ""}
+        </Text>
+        {productsByCategory.map((section) => (
+          <View key={section.name} style={st.netflixSection}>
+            <Text style={st.netflixSectionTitle}>{section.name}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={st.netflixRowContent}
+            >
+              {section.items.map((product) =>
+                renderProductCard(product, netflixCardWidth),
+              )}
+            </ScrollView>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  /* ═══ Render: Product Catalog (auto-selects grid vs Netflix) ═══ */
+  const renderCatalog = () => {
+    if (isEmpty) {
+      return (
+        <View style={st.inlineEmpty}>
+          <Ionicons name="bag-outline" size={36} color={TEXT_MUTED} />
+          <Text style={st.inlineEmptyTitle}>Nenhum produto encontrado</Text>
+          <Text style={st.inlineEmptyMsg}>
+            {searchText
+              ? `Nenhum resultado para "${searchText}". Tente outro termo.`
+              : "Esta loja ainda não possui produtos publicados."}
+          </Text>
+          {searchText ? (
+            <TouchableOpacity
+              style={[st.inlineEmptyBtn, { backgroundColor: primaryColor }]}
+              onPress={() => handleSearch("")}
+            >
+              <Text style={st.inlineEmptyBtnText}>Limpar busca</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      );
+    }
+
+    // Desktop without active search/filter → Netflix layout
+    if (isDesktop && !searchText && !activeCategoryId) {
+      return renderNetflixCatalog();
+    }
+
+    return renderProductGrid();
   };
 
   /* ═══ Render: State Screens ═══ */
@@ -528,34 +698,12 @@ export default function PublicStoreListing() {
             "Esta loja não está disponível no momento.",
           )}
 
-        {phase === "empty" && (
-          <View style={st.stateContainer}>
-            <View style={st.stateCard}>
-              <Ionicons name="bag-outline" size={48} color={TEXT_MUTED} />
-              <Text style={st.stateTitle}>Nenhum produto</Text>
-              <Text style={st.stateMessage}>
-                {searchText
-                  ? `Nenhum resultado para "${searchText}".`
-                  : "Esta loja ainda não possui produtos publicados."}
-              </Text>
-              {searchText ? (
-                <TouchableOpacity
-                  style={[st.retryButton, { backgroundColor: primaryColor }]}
-                  onPress={() => handleSearch("")}
-                >
-                  <Text style={st.retryButtonText}>Limpar busca</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        )}
-
         {phase === "content" && (
           <>
             {renderBanner()}
             {renderSearch()}
             {renderCategoryChips()}
-            {renderProductGrid()}
+            {renderCatalog()}
             {renderFooter()}
           </>
         )}
@@ -879,6 +1027,114 @@ const st = StyleSheet.create({
   retryButtonText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "600",
+  },
+
+  /* Header right actions */
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  headerActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  headerActionText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+    maxWidth: 100,
+  },
+  loginButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+  },
+  loginButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  /* Add to cart button */
+  addToCartBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    borderRadius: 8,
+    paddingVertical: 8,
+    marginTop: 8,
+    marginHorizontal: 10,
+    marginBottom: 10,
+  },
+  addToCartText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  /* Netflix catalog layout */
+  netflixContainer: {
+    paddingTop: 8,
+    maxWidth: 1200,
+    alignSelf: "center" as const,
+    width: "100%",
+  },
+  netflixSection: {
+    marginBottom: 24,
+  },
+  netflixSectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: TEXT_PRIMARY,
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  netflixRowContent: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+
+  /* Inline empty state (no-results inside content) */
+  inlineEmpty: {
+    alignItems: "center",
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  inlineEmptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: TEXT_PRIMARY,
+    textAlign: "center",
+    marginTop: 14,
+  },
+  inlineEmptyMsg: {
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 19,
+  },
+  inlineEmptyBtn: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  inlineEmptyBtnText: {
+    color: "#fff",
+    fontSize: 13,
     fontWeight: "600",
   },
 
