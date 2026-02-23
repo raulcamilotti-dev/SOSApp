@@ -313,6 +313,19 @@ export default function PublicProductDetail() {
   /* ═══ Render: Price section ═══ */
   const renderPrice = () => {
     if (!product) return null;
+
+    // Quote-type products: show "Sob consulta" instead of price
+    if (product.pricing_type === "quote") {
+      return (
+        <View style={st.priceSection}>
+          <Text style={[st.priceCurrent, { color: primaryDark, fontSize: 20 }]}>
+            Sob consulta
+          </Text>
+          <Text style={st.priceUnit}>Solicite um orçamento personalizado</Text>
+        </View>
+      );
+    }
+
     const discount = computeDiscount(product.sell_price, product.online_price);
     const hasDiscount = discount != null && discount > 0;
 
@@ -343,6 +356,8 @@ export default function PublicProductDetail() {
   /* ═══ Render: Stock indicator ═══ */
   const renderStock = () => {
     if (!product) return null;
+    // Hide stock indicator for quote-type products
+    if (product.pricing_type === "quote") return null;
     const status = getStockStatus(product);
     return (
       <View style={st.stockRow}>
@@ -357,6 +372,39 @@ export default function PublicProductDetail() {
   /* ═══ Render: Quantity selector + Add to cart ═══ */
   const renderAddToCart = () => {
     if (!product) return null;
+
+    // Quote-type products: show single "Solicitar Orçamento" button
+    if (product.pricing_type === "quote") {
+      return (
+        <View style={[st.addToCartSection, CARD_SHADOW]}>
+          <Text
+            style={{
+              fontSize: 13,
+              color: TEXT_SECONDARY,
+              textAlign: "center",
+              marginBottom: 12,
+              lineHeight: 18,
+            }}
+          >
+            Este serviço requer um orçamento personalizado. Solicite agora e
+            retornaremos com os detalhes.
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              // Navigate to quote request — login required, handled via auth redirect
+              const quoteUrl = `${storeBase}/${product.slug}/orcamento`;
+              navigateTo(quoteUrl);
+            }}
+            style={[st.addButton, { backgroundColor: primaryColor }]}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="document-text-outline" size={20} color="#fff" />
+            <Text style={st.addButtonText}>Solicitar Orçamento</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     const stock = getStockStatus(product);
 
     return (

@@ -85,6 +85,10 @@ export interface CreateOnlineOrderParams {
   /** Discount code (future — not implemented in MVP) */
   discountCode?: string;
   notes?: string;
+  /** Scheduling data for service items (optional — only when cart has services) */
+  scheduledDate?: string;
+  scheduledTimeStart?: string;
+  scheduledTimeEnd?: string;
 }
 
 export interface OnlineOrderResult {
@@ -610,6 +614,37 @@ export async function createOnlineOrder(
         has_pending_services: hasPendingServices,
       },
     });
+  }
+
+  // ── Step 8b: Create service_appointments if scheduling data provided ──
+  if (
+    params.scheduledDate &&
+    params.scheduledTimeStart &&
+    params.scheduledTimeEnd &&
+    partnerId
+  ) {
+    try {
+      await api.post(CRUD_ENDPOINT, {
+        action: "create",
+        table: "service_appointments",
+        payload: {
+          tenant_id: tenantId,
+          sale_id: sale.id,
+          partner_id: partnerId,
+          customer_id: customer.id,
+          scheduled_date: params.scheduledDate,
+          scheduled_time_start: params.scheduledTimeStart,
+          scheduled_time_end: params.scheduledTimeEnd,
+          status: "scheduled",
+          notes: `Agendamento pedido online #${sale.id.slice(0, 8)}`,
+          created_at: toIsoNow(),
+          updated_at: toIsoNow(),
+        },
+      });
+    } catch (appointmentErr) {
+      // Non-critical — order still proceeds, appointment can be created manually
+      console.warn("Failed to create service_appointment:", appointmentErr);
+    }
   }
 
   // ── Step 9: Deduct stock for products ──

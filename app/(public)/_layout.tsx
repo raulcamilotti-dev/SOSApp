@@ -12,6 +12,7 @@ export default function PublicLayout() {
       <Stack.Screen name="lp/[tenantSlug]/[slug]" />
       <Stack.Screen name="loja/[tenantSlug]/index" />
       <Stack.Screen name="loja/[tenantSlug]/[productSlug]" />
+      <Stack.Screen name="loja/[tenantSlug]/[productSlug]/orcamento" />
       <Stack.Screen name="loja/[tenantSlug]/cart" />
       <Stack.Screen name="loja/[tenantSlug]/checkout" />
       {/* Hostname-mode store routes (no tenantSlug in URL) */}
@@ -19,6 +20,7 @@ export default function PublicLayout() {
       <Stack.Screen name="loja/cart" />
       <Stack.Screen name="loja/checkout" />
       <Stack.Screen name="loja/p/[productSlug]" />
+      <Stack.Screen name="loja/p/[productSlug]/orcamento" />
     </Stack>
   );
 }

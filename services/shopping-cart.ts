@@ -54,6 +54,12 @@ export interface CartItem {
   price_changed?: boolean;
   /** True if stock is insufficient for the requested quantity */
   stock_insufficient?: boolean;
+  /** Whether this item is a product or a service */
+  item_kind?: "product" | "service";
+  /** Whether this service item requires scheduling */
+  requires_scheduling?: boolean;
+  /** Duration in minutes for service items */
+  duration_minutes?: number | null;
 }
 
 export interface CartWithItems {
@@ -195,6 +201,13 @@ export async function addToCart(params: AddToCartParams): Promise<CartItem> {
   // 2. Validate product exists and is published
   const product = await getMarketplaceProductById(tenantId, serviceId);
   if (!product) throw new Error("Produto não encontrado ou indisponível");
+
+  // 2b. Block quote-type products from being added to cart
+  if (product.pricing_type === "quote") {
+    throw new Error(
+      "Este serviço requer orçamento e não pode ser adicionado ao carrinho",
+    );
+  }
 
   // 3. Check stock availability
   if (product.track_stock) {
@@ -432,6 +445,12 @@ export async function getCartWithItems(params: {
       track_stock: trackStock,
       price_changed: priceChanged,
       stock_insufficient: stockInsufficient,
+      item_kind:
+        (product.item_kind as "product" | "service" | undefined) || "product",
+      requires_scheduling: Boolean(product.requires_scheduling),
+      duration_minutes: product.duration_minutes
+        ? Number(product.duration_minutes)
+        : null,
     };
   });
 
@@ -619,12 +638,13 @@ async function getCartItems(cartId: string): Promise<CartItem[]> {
     table: "shopping_cart_items",
     ...buildSearchParams([{ field: "cart_id", value: cartId }], {
       sortColumn: "created_at ASC",
+      autoExcludeDeleted: true,
     }),
   });
 
-  return normalizeCrudList<Record<string, unknown>>(res.data).map(
-    normalizeCartItem,
-  );
+  return normalizeCrudList<Record<string, unknown>>(res.data)
+    .filter((row) => !row.deleted_at)
+    .map(normalizeCartItem);
 }
 
 function normalizeCart(row: Record<string, unknown>): ShoppingCart {

@@ -887,12 +887,15 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  // Date picker state (mobile)
+  // Date picker state (mobile) — shared between main form and quick create
   const [datePickerField, setDatePickerField] = useState<string | null>(null);
   const [datePickerMode, setDatePickerMode] = useState<"date" | "datetime">(
     "date",
   );
   const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
+  const [datePickerTarget, setDatePickerTarget] = useState<"form" | "quick">(
+    "form",
+  );
 
   // Ref to track which reference cache keys have been attempted (prevents duplicate batch fetches)
   const attemptedRefsRef = useRef<Set<string>>(new Set());
@@ -1667,7 +1670,11 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
       try {
         const info = await getTableInfo(field.referenceTable);
-        const nextFields = convertTableInfoToFields(info);
+        // Filter out system/auto-fill fields that the user should not fill manually
+        const QUICK_CREATE_AUTO_KEYS = new Set(["tenant_id", "created_by"]);
+        const nextFields = convertTableInfoToFields(info).filter(
+          (f) => !QUICK_CREATE_AUTO_KEYS.has(f.key),
+        );
         setQuickCreateFields(nextFields);
         const nextState: Record<string, string> = {};
         nextFields.forEach((f) => {
@@ -1750,38 +1757,46 @@ export function CrudScreen<T extends Record<string, unknown>>({
         }
       } else if (field.type === "boolean") {
         payload[field.key] = trimmedValue ? isTruthyString(trimmedValue) : null;
+      } else if (field.type === "currency") {
+        if (!trimmedValue) {
+          payload[field.key] = null;
+        } else {
+          const numericStr = parseCurrencyInput(trimmedValue);
+          const num = parseFloat(numericStr);
+          payload[field.key] = isNaN(num) ? null : num;
+        }
+      } else if (field.type === "number") {
+        if (!trimmedValue) {
+          payload[field.key] = null;
+        } else {
+          const num = parseFloat(trimmedValue.replace(",", "."));
+          payload[field.key] = isNaN(num) ? null : num;
+        }
+      } else if (field.type === "date") {
+        if (!trimmedValue) {
+          payload[field.key] = null;
+        } else {
+          const parsed = parseDate(trimmedValue);
+          payload[field.key] = parsed ? dateToISODate(parsed) : trimmedValue;
+        }
+      } else if (field.type === "datetime") {
+        if (!trimmedValue) {
+          payload[field.key] = null;
+        } else {
+          const parsed = parseDate(trimmedValue);
+          payload[field.key] = parsed ? dateToISOString(parsed) : trimmedValue;
+        }
       } else {
         payload[field.key] = trimmedValue ? trimmedValue : null;
       }
     }
 
-    const quickFieldKeys = new Set(
-      quickPayloadFields.map((field) => field.key),
-    );
-    if (
-      quickFieldKeys.has("created_at") &&
-      (payload.created_at === null ||
-        payload.created_at === undefined ||
-        payload.created_at === "")
-    ) {
-      payload.created_at = toIsoNow();
-    }
-    if (
-      quickFieldKeys.has("updated_at") &&
-      (payload.updated_at === null ||
-        payload.updated_at === undefined ||
-        payload.updated_at === "")
-    ) {
-      payload.updated_at = toIsoNow();
-    }
-    if (
-      quickFieldKeys.has("created_by") &&
-      (payload.created_by === null ||
-        payload.created_by === undefined ||
-        payload.created_by === "")
-    ) {
-      payload.created_by = user?.id ?? null;
-    }
+    // Auto-fill system fields that were hidden from the form
+    // The api.ts schema interceptor strips columns that don't exist on the table
+    if (!payload.tenant_id) payload.tenant_id = user?.tenant_id ?? null;
+    if (!payload.created_at) payload.created_at = toIsoNow();
+    if (!payload.updated_at) payload.updated_at = toIsoNow();
+    if (!payload.created_by) payload.created_by = user?.id ?? null;
 
     try {
       setQuickCreateSaving(true);
@@ -1853,6 +1868,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
     quickCreateStack,
     quickCreateState,
     user?.id,
+    user?.tenant_id,
   ]);
 
   const handleSave = useCallback(async () => {
@@ -3096,6 +3112,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
                             <TouchableOpacity
                               onPress={() => {
                                 if (field.readOnly) return;
+                                setDatePickerTarget("form");
                                 setDatePickerField(field.key);
                                 setDatePickerMode(
                                   field.type === "date" ? "date" : "datetime",
@@ -3463,10 +3480,17 @@ export function CrudScreen<T extends Record<string, unknown>>({
                           datePickerMode === "date"
                             ? dateToISODate(datePickerValue)
                             : dateToISOString(datePickerValue);
-                        setFormState((prev) => ({
-                          ...prev,
-                          [datePickerField]: val,
-                        }));
+                        if (datePickerTarget === "quick") {
+                          setQuickCreateState((prev) => ({
+                            ...prev,
+                            [datePickerField]: val,
+                          }));
+                        } else {
+                          setFormState((prev) => ({
+                            ...prev,
+                            [datePickerField]: val,
+                          }));
+                        }
                       }
                       setDatePickerField(null);
                     }}
@@ -3537,28 +3561,26 @@ export function CrudScreen<T extends Record<string, unknown>>({
                 {quickCreateFields.map((field) => {
                   const resolvedField = normalizeCrudField(field);
 
-                  return (
-                    <View key={resolvedField.key} style={{ marginBottom: 12 }}>
-                      <ThemedText
-                        style={{ fontSize: 12, color: mutedTextColor }}
-                      >
-                        {resolvedField.label}
-                      </ThemedText>
+                  const qcInputStyle = {
+                    borderWidth: 1,
+                    borderColor,
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    backgroundColor: inputBackground,
+                    color: textColor,
+                    marginTop: 6,
+                  } as const;
 
-                      {resolvedField.type === "reference" ? (
+                  const renderQcFieldInput = () => {
+                    // Reference
+                    if (resolvedField.type === "reference") {
+                      return (
                         <TouchableOpacity
                           onPress={() =>
                             openReferenceModal(resolvedField, "quick")
                           }
-                          style={{
-                            borderWidth: 1,
-                            borderColor,
-                            borderRadius: 8,
-                            paddingHorizontal: 12,
-                            paddingVertical: 12,
-                            backgroundColor: inputBackground,
-                            marginTop: 6,
-                          }}
+                          style={{ ...qcInputStyle, paddingVertical: 12 }}
                         >
                           <ThemedText style={{ color: textColor }}>
                             {quickCreateReferenceLabels[field.key] ||
@@ -3575,77 +3597,357 @@ export function CrudScreen<T extends Record<string, unknown>>({
                               "Selecionar"}
                           </ThemedText>
                         </TouchableOpacity>
-                      ) : resolvedField.type === "boolean" ? (
+                      );
+                    }
+
+                    // Boolean
+                    if (resolvedField.type === "boolean") {
+                      const labels = getBooleanOptionLabels(resolvedField);
+                      return (
                         <View
                           style={{ flexDirection: "row", gap: 8, marginTop: 6 }}
                         >
-                          {(() => {
-                            const labels =
-                              getBooleanOptionLabels(resolvedField);
-                            return (
-                              <>
-                                <TouchableOpacity
-                                  onPress={() =>
-                                    setQuickCreateState((prev) => ({
-                                      ...prev,
-                                      [resolvedField.key]: "true",
-                                    }))
-                                  }
-                                  style={{
-                                    borderWidth: 1,
-                                    borderColor,
-                                    borderRadius: 8,
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 10,
-                                    backgroundColor:
-                                      quickCreateState[resolvedField.key] ===
-                                      "true"
-                                        ? tintColor + "1A"
-                                        : inputBackground,
-                                  }}
-                                >
-                                  <ThemedText style={{ color: textColor }}>
-                                    {labels.trueLabel}
-                                  </ThemedText>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  onPress={() =>
-                                    setQuickCreateState((prev) => ({
-                                      ...prev,
-                                      [resolvedField.key]: "false",
-                                    }))
-                                  }
-                                  style={{
-                                    borderWidth: 1,
-                                    borderColor,
-                                    borderRadius: 8,
-                                    paddingHorizontal: 12,
-                                    paddingVertical: 10,
-                                    backgroundColor:
-                                      quickCreateState[resolvedField.key] ===
-                                      "false"
-                                        ? tintColor + "1A"
-                                        : inputBackground,
-                                  }}
-                                >
-                                  <ThemedText style={{ color: textColor }}>
-                                    {labels.falseLabel}
-                                  </ThemedText>
-                                </TouchableOpacity>
-                              </>
-                            );
-                          })()}
+                          <TouchableOpacity
+                            onPress={() =>
+                              !resolvedField.readOnly &&
+                              setQuickCreateState((prev) => ({
+                                ...prev,
+                                [resolvedField.key]: "true",
+                              }))
+                            }
+                            style={{
+                              ...qcInputStyle,
+                              marginTop: 0,
+                              backgroundColor:
+                                quickCreateState[resolvedField.key] === "true"
+                                  ? tintColor + "1A"
+                                  : inputBackground,
+                              opacity: resolvedField.readOnly ? 0.6 : 1,
+                            }}
+                          >
+                            <ThemedText style={{ color: textColor }}>
+                              {labels.trueLabel}
+                            </ThemedText>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() =>
+                              !resolvedField.readOnly &&
+                              setQuickCreateState((prev) => ({
+                                ...prev,
+                                [resolvedField.key]: "false",
+                              }))
+                            }
+                            style={{
+                              ...qcInputStyle,
+                              marginTop: 0,
+                              backgroundColor:
+                                quickCreateState[resolvedField.key] === "false"
+                                  ? tintColor + "1A"
+                                  : inputBackground,
+                              opacity: resolvedField.readOnly ? 0.6 : 1,
+                            }}
+                          >
+                            <ThemedText style={{ color: textColor }}>
+                              {labels.falseLabel}
+                            </ThemedText>
+                          </TouchableOpacity>
                         </View>
-                      ) : (
+                      );
+                    }
+
+                    // Select
+                    if (
+                      resolvedField.type === "select" &&
+                      resolvedField.options?.length
+                    ) {
+                      return (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: 8,
+                            marginTop: 6,
+                          }}
+                        >
+                          {resolvedField.options.map((option) => {
+                            const selected =
+                              String(
+                                quickCreateState[resolvedField.key] ?? "",
+                              ) === option.value;
+                            return (
+                              <TouchableOpacity
+                                key={`qc-${resolvedField.key}-${option.value}`}
+                                onPress={() =>
+                                  !resolvedField.readOnly &&
+                                  setQuickCreateState((prev) => ({
+                                    ...prev,
+                                    [resolvedField.key]: option.value,
+                                  }))
+                                }
+                                style={{
+                                  ...qcInputStyle,
+                                  marginTop: 0,
+                                  backgroundColor: selected
+                                    ? tintColor + "1A"
+                                    : inputBackground,
+                                  opacity: resolvedField.readOnly ? 0.6 : 1,
+                                }}
+                              >
+                                <ThemedText style={{ color: textColor }}>
+                                  {option.label}
+                                </ThemedText>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      );
+                    }
+
+                    // Date / Datetime
+                    if (
+                      resolvedField.type === "date" ||
+                      resolvedField.type === "datetime"
+                    ) {
+                      const currentValue =
+                        quickCreateState[resolvedField.key] ?? "";
+                      const displayValue =
+                        resolvedField.type === "date"
+                          ? formatDateBR(currentValue)
+                          : formatDateTimeBR(currentValue);
+                      const showDisplay = currentValue && displayValue !== "-";
+
+                      if (Platform.OS === "web") {
+                        const nativeInputValue = currentValue
+                          ? resolvedField.type === "date"
+                            ? (() => {
+                                const d = parseDate(currentValue);
+                                return d ? dateToISODate(d) : currentValue;
+                              })()
+                            : (() => {
+                                const d = parseDate(currentValue);
+                                return d
+                                  ? d.toISOString().slice(0, 16)
+                                  : currentValue;
+                              })()
+                          : "";
+
+                        return (
+                          <View style={{ marginTop: 6 }}>
+                            <View
+                              style={{
+                                position: "relative",
+                                flexDirection: "row",
+                                alignItems: "center",
+                              }}
+                            >
+                              <View
+                                style={{
+                                  ...qcInputStyle,
+                                  marginTop: 0,
+                                  flex: 1,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  paddingVertical: 12,
+                                }}
+                              >
+                                <ThemedText
+                                  style={{
+                                    fontSize: 14,
+                                    color: showDisplay
+                                      ? textColor
+                                      : mutedTextColor,
+                                  }}
+                                >
+                                  {showDisplay
+                                    ? displayValue
+                                    : (resolvedField.placeholder ??
+                                      resolvedField.label)}
+                                </ThemedText>
+                                <ThemedText
+                                  style={{
+                                    fontSize: 16,
+                                    color: mutedTextColor,
+                                    marginLeft: 8,
+                                  }}
+                                >
+                                  📅
+                                </ThemedText>
+                              </View>
+                              {!resolvedField.readOnly &&
+                                createElement("input", {
+                                  type:
+                                    resolvedField.type === "date"
+                                      ? "date"
+                                      : "datetime-local",
+                                  value: nativeInputValue,
+                                  onChange: (e: any) => {
+                                    const val = e.target?.value ?? "";
+                                    setQuickCreateState(
+                                      (prev: Record<string, string>) => ({
+                                        ...prev,
+                                        [resolvedField.key]: val,
+                                      }),
+                                    );
+                                  },
+                                  style: {
+                                    position: "absolute" as const,
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    width: "100%",
+                                    height: "100%",
+                                    opacity: 0.011,
+                                    cursor: "pointer",
+                                    border: "none",
+                                    background: "transparent",
+                                    fontSize: 16,
+                                  },
+                                })}
+                            </View>
+                          </View>
+                        );
+                      }
+
+                      // Mobile: opens shared date picker with quick target
+                      return (
+                        <View style={{ marginTop: 6 }}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (resolvedField.readOnly) return;
+                              setDatePickerTarget("quick");
+                              setDatePickerField(resolvedField.key);
+                              setDatePickerMode(
+                                resolvedField.type === "date"
+                                  ? "date"
+                                  : "datetime",
+                              );
+                              const parsed = parseDate(currentValue);
+                              setDatePickerValue(parsed ?? new Date());
+                            }}
+                            style={{
+                              ...qcInputStyle,
+                              paddingVertical: 12,
+                              marginTop: 0,
+                              opacity: resolvedField.readOnly ? 0.6 : 1,
+                            }}
+                          >
+                            <ThemedText
+                              style={{
+                                color: showDisplay ? textColor : mutedTextColor,
+                              }}
+                            >
+                              {showDisplay
+                                ? displayValue
+                                : (resolvedField.placeholder ??
+                                  resolvedField.label)}
+                            </ThemedText>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    }
+
+                    // Currency
+                    if (resolvedField.type === "currency") {
+                      const rawVal = quickCreateState[resolvedField.key] ?? "";
+                      return (
+                        <View style={{ marginTop: 6 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                            }}
+                          >
+                            <ThemedText
+                              style={{
+                                color: mutedTextColor,
+                                marginRight: 4,
+                                fontSize: 14,
+                              }}
+                            >
+                              R$
+                            </ThemedText>
+                            <TextInput
+                              value={rawVal}
+                              onChangeText={(text) => {
+                                const cleaned = text.replace(/[^\d.,]/g, "");
+                                setQuickCreateState((prev) => ({
+                                  ...prev,
+                                  [resolvedField.key]: cleaned,
+                                }));
+                              }}
+                              placeholder="0,00"
+                              placeholderTextColor={mutedTextColor}
+                              keyboardType="decimal-pad"
+                              editable={!resolvedField.readOnly}
+                              style={{
+                                ...qcInputStyle,
+                                flex: 1,
+                                marginTop: 0,
+                              }}
+                            />
+                          </View>
+                          {rawVal ? (
+                            <ThemedText
+                              style={{
+                                fontSize: 11,
+                                color: mutedTextColor,
+                                marginTop: 4,
+                              }}
+                            >
+                              {formatCurrencyBR(parseCurrencyInput(rawVal))}
+                            </ThemedText>
+                          ) : null}
+                        </View>
+                      );
+                    }
+
+                    // Masked (CPF, CNPJ, CEP, phone)
+                    if (
+                      resolvedField.type === "masked" &&
+                      resolvedField.maskType
+                    ) {
+                      const rawDigits = (
+                        quickCreateState[resolvedField.key] ?? ""
+                      ).replace(/\D/g, "");
+                      const maxLen = maskMaxDigits(resolvedField.maskType);
+                      return (
+                        <TextInput
+                          value={applyMask(rawDigits, resolvedField.maskType)}
+                          onChangeText={(text) => {
+                            const digits = text
+                              .replace(/\D/g, "")
+                              .slice(0, maxLen);
+                            setQuickCreateState((prev) => ({
+                              ...prev,
+                              [resolvedField.key]: digits,
+                            }));
+                          }}
+                          placeholder={
+                            resolvedField.placeholder ?? resolvedField.label
+                          }
+                          placeholderTextColor={mutedTextColor}
+                          keyboardType="number-pad"
+                          maxLength={
+                            applyMask(
+                              "9".repeat(maxLen),
+                              resolvedField.maskType,
+                            ).length
+                          }
+                          editable={!resolvedField.readOnly}
+                          style={qcInputStyle}
+                        />
+                      );
+                    }
+
+                    // Number
+                    if (resolvedField.type === "number") {
+                      return (
                         <TextInput
                           value={quickCreateState[resolvedField.key] ?? ""}
                           onChangeText={(text) => {
-                            let cleaned = text;
-                            if (resolvedField.type === "currency") {
-                              cleaned = text.replace(/[^\d.,]/g, "");
-                            } else if (resolvedField.type === "number") {
-                              cleaned = text.replace(/[^\d.,-]/g, "");
-                            }
+                            const cleaned = text.replace(/[^\d.,-]/g, "");
                             setQuickCreateState((prev) => ({
                               ...prev,
                               [resolvedField.key]: cleaned,
@@ -3655,45 +3957,97 @@ export function CrudScreen<T extends Record<string, unknown>>({
                             resolvedField.placeholder ?? resolvedField.label
                           }
                           placeholderTextColor={mutedTextColor}
-                          multiline={
-                            resolvedField.type === "multiline" ||
-                            resolvedField.type === "json"
-                          }
-                          keyboardType={
-                            resolvedField.type === "currency" ||
-                            resolvedField.type === "number"
-                              ? "decimal-pad"
-                              : resolvedField.type === "email"
-                                ? "email-address"
-                                : resolvedField.type === "phone"
-                                  ? "phone-pad"
-                                  : resolvedField.type === "url"
-                                    ? "url"
-                                    : "default"
-                          }
+                          keyboardType="decimal-pad"
                           editable={!resolvedField.readOnly}
-                          style={{
-                            borderWidth: 1,
-                            borderColor,
-                            borderRadius: 8,
-                            paddingHorizontal: 12,
-                            paddingVertical: 10,
-                            minHeight:
-                              resolvedField.type === "multiline" ||
-                              resolvedField.type === "json"
-                                ? 90
-                                : undefined,
-                            backgroundColor: inputBackground,
-                            color: textColor,
-                            marginTop: 6,
-                            textAlignVertical:
-                              resolvedField.type === "multiline" ||
-                              resolvedField.type === "json"
-                                ? "top"
-                                : "auto",
-                          }}
+                          style={qcInputStyle}
                         />
-                      )}
+                      );
+                    }
+
+                    // JSON
+                    if (resolvedField.type === "json") {
+                      return (
+                        <JsonEditor
+                          value={quickCreateState[resolvedField.key] ?? ""}
+                          onChange={(text) =>
+                            setQuickCreateState((prev) => ({
+                              ...prev,
+                              [resolvedField.key]: text,
+                            }))
+                          }
+                          placeholder={
+                            resolvedField.placeholder ?? resolvedField.label
+                          }
+                          readOnly={resolvedField.readOnly}
+                          textColor={textColor}
+                          mutedColor={mutedTextColor}
+                          borderColor={borderColor}
+                          bgColor={cardColor}
+                          inputBgColor={inputBackground}
+                          tintColor={tintColor}
+                        />
+                      );
+                    }
+
+                    // Default: text, multiline, email, phone, url
+                    const keyboardType =
+                      resolvedField.type === "email"
+                        ? ("email-address" as const)
+                        : resolvedField.type === "phone"
+                          ? ("phone-pad" as const)
+                          : resolvedField.type === "url"
+                            ? ("url" as const)
+                            : ("default" as const);
+
+                    return (
+                      <TextInput
+                        value={quickCreateState[resolvedField.key] ?? ""}
+                        onChangeText={(text) =>
+                          setQuickCreateState((prev) => ({
+                            ...prev,
+                            [resolvedField.key]: text,
+                          }))
+                        }
+                        placeholder={
+                          resolvedField.placeholder ?? resolvedField.label
+                        }
+                        placeholderTextColor={mutedTextColor}
+                        multiline={resolvedField.type === "multiline"}
+                        keyboardType={keyboardType}
+                        autoCapitalize={
+                          resolvedField.type === "email" ||
+                          resolvedField.type === "url"
+                            ? "none"
+                            : undefined
+                        }
+                        autoComplete={
+                          resolvedField.type === "email"
+                            ? "email"
+                            : resolvedField.type === "phone"
+                              ? "tel"
+                              : undefined
+                        }
+                        editable={!resolvedField.readOnly}
+                        style={{
+                          ...qcInputStyle,
+                          minHeight:
+                            resolvedField.type === "multiline" ? 90 : undefined,
+                          textAlignVertical:
+                            resolvedField.type === "multiline" ? "top" : "auto",
+                        }}
+                      />
+                    );
+                  };
+
+                  return (
+                    <View key={resolvedField.key} style={{ marginBottom: 12 }}>
+                      <ThemedText
+                        style={{ fontSize: 12, color: mutedTextColor }}
+                      >
+                        {resolvedField.label}
+                        {resolvedField.required ? " *" : ""}
+                      </ThemedText>
+                      {renderQcFieldInput()}
                     </View>
                   );
                 })}

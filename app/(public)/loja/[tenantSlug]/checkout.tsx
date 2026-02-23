@@ -1,12 +1,14 @@
 /**
  * PUBLIC CHECKOUT — /loja/:tenantSlug/checkout
  *
- * Multi-step checkout flow for the tenant's online marketplace:
- *   Step 1 — Shipping address (CEP auto-fill + manual fields)
- *   Step 2 — Shipping method selection (Correios rates)
- *   Step 3 — Customer identification (pre-fill from auth user)
- *   Step 4 — Order review & confirmation
- *   Step 5 — PIX payment (QR code + copy-paste)
+ * Multi-step checkout flow for the tenant's online marketplace.
+ * Steps are DYNAMIC based on cart composition:
+ *   - Endereço (always)
+ *   - Frete (only if cart has physical products)
+ *   - Agendamento (only if cart has services that require scheduling)
+ *   - Dados (always — customer identification)
+ *   - Revisão (always — review & confirm)
+ *   - PIX (after order confirmation)
  *
  * Authentication is REQUIRED.  If the user is not logged in,
  * a gate screen is shown with a login redirect.
@@ -20,6 +22,11 @@ import {
     createOnlineOrder,
     type OnlineOrderResult,
 } from "@/services/marketplace-checkout";
+import {
+    getAvailableSlots,
+    type DaySlots,
+    type TimeSlot,
+} from "@/services/marketplace-scheduling";
 import {
     aggregatePackageDimensions,
     calculateShippingRates,
@@ -72,7 +79,16 @@ const CARD_SHADOW = Platform.select({
   },
 });
 
-type CheckoutStep = 1 | 2 | 3 | 4 | 5;
+/** Step identifiers — built dynamically based on cart contents */
+type StepId =
+  | "endereco"
+  | "frete"
+  | "agendamento"
+  | "dados"
+  | "revisao"
+  | "pix";
+
+type StepDef = { id: StepId; label: string };
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -145,14 +161,90 @@ export default function CheckoutScreen() {
   const isEmpty = cart.isReady && cart.items.length === 0;
   const isLoggedIn = !!user?.id;
 
+  /* ── Cart composition: products vs services ── */
+  const hasProducts = useMemo(
+    () =>
+      cart.items.some(
+        (i: CartItem) => (i.item_kind || "product") === "product",
+      ),
+    [cart.items],
+  );
+  const hasServices = useMemo(
+    () =>
+      cart.items.some(
+        (i: CartItem) => i.item_kind === "service" && i.requires_scheduling,
+      ),
+    [cart.items],
+  );
+
+  /** Product-only items — used for shipping dimension calculation */
+  const productItems = useMemo(
+    () =>
+      cart.items.filter(
+        (i: CartItem) => (i.item_kind || "product") === "product",
+      ),
+    [cart.items],
+  );
+  /** Service items that require scheduling */
+  const serviceItems = useMemo(
+    () =>
+      cart.items.filter(
+        (i: CartItem) => i.item_kind === "service" && i.requires_scheduling,
+      ),
+    [cart.items],
+  );
+
+  /* ── Dynamic step list ── */
+  const steps: StepDef[] = useMemo(() => {
+    const list: StepDef[] = [{ id: "endereco", label: "Endereço" }];
+    if (hasProducts) list.push({ id: "frete", label: "Frete" });
+    if (hasServices) list.push({ id: "agendamento", label: "Agendamento" });
+    list.push({ id: "dados", label: "Dados" });
+    list.push({ id: "revisao", label: "Revisão" });
+    return list;
+  }, [hasProducts, hasServices]);
+
+  const totalVisibleSteps = steps.length;
+
   /* ── Step state ── */
-  const [step, setStep] = useState<CheckoutStep>(1);
+  const [currentStepId, setCurrentStepId] = useState<StepId>("endereco");
   const [submitting, setSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderResult, setOrderResult] = useState<OnlineOrderResult | null>(
     null,
   );
   const [pixCopied, setPixCopied] = useState(false);
+
+  /** Index of the active step in the dynamic steps array (-1 if pix) */
+  const currentStepIndex = useMemo(
+    () => steps.findIndex((s) => s.id === currentStepId),
+    [steps, currentStepId],
+  );
+
+  /** Navigate to the next logical step */
+  const goNext = useCallback(() => {
+    const idx = steps.findIndex((s) => s.id === currentStepId);
+    if (idx < steps.length - 1) {
+      setCurrentStepId(steps[idx + 1].id);
+    }
+  }, [steps, currentStepId]);
+
+  /** Navigate to the previous logical step */
+  const goPrev = useCallback(() => {
+    const idx = steps.findIndex((s) => s.id === currentStepId);
+    if (idx > 0) {
+      setCurrentStepId(steps[idx - 1].id);
+    }
+  }, [steps, currentStepId]);
+
+  /** Label for the "Continue" button based on the next step */
+  const nextStepLabel = useMemo(() => {
+    const idx = steps.findIndex((s) => s.id === currentStepId);
+    if (idx < steps.length - 1) {
+      return `Continuar para ${steps[idx + 1].label}`;
+    }
+    return "Continuar";
+  }, [steps, currentStepId]);
 
   /* ── Address form ── */
   const [street, setStreet] = useState("");
@@ -178,6 +270,13 @@ export default function CheckoutScreen() {
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState<string | null>(null);
   const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null);
+
+  /* ── Scheduling state ── */
+  const [availableSlots, setAvailableSlots] = useState<DaySlots[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
 
   /* ── Customer info ── */
   const [custName, setCustName] = useState("");
@@ -210,20 +309,22 @@ export default function CheckoutScreen() {
   }, [cart.subtotal, config?.free_shipping_above]);
 
   const effectiveShippingCost = useMemo(() => {
+    if (!hasProducts) return 0;
     if (freeShippingApplies) return 0;
     return selectedRate?.value ?? 0;
-  }, [freeShippingApplies, selectedRate?.value]);
+  }, [hasProducts, freeShippingApplies, selectedRate?.value]);
 
   const orderTotal = useMemo(
     () => cart.subtotal + effectiveShippingCost,
     [cart.subtotal, effectiveShippingCost],
   );
 
-  /* ── Shipping calculation ── */
+  /* ── Shipping calculation (products only) ── */
   const handleCalculateShipping = useCallback(async () => {
     const cepDigits = cepAutoFill.cep.replace(/\D/g, "");
     if (cepDigits.length !== 8) return;
     if (!tenantId) return;
+    if (productItems.length === 0) return; // No physical products
 
     setShippingLoading(true);
     setShippingError(null);
@@ -231,7 +332,7 @@ export default function CheckoutScreen() {
 
     try {
       const dimensions = aggregatePackageDimensions(
-        cart.items.map((item: CartItem) => ({
+        productItems.map((item: CartItem) => ({
           quantity: item.quantity,
         })),
       );
@@ -260,7 +361,7 @@ export default function CheckoutScreen() {
     } finally {
       setShippingLoading(false);
     }
-  }, [cepAutoFill.cep, tenantId, cart.items, config?.correios_cep_origin]);
+  }, [cepAutoFill.cep, tenantId, productItems, config?.correios_cep_origin]);
 
   /* ── Validation per step ── */
   const canProceedStep1 = useMemo(() => {
@@ -287,6 +388,38 @@ export default function CheckoutScreen() {
       custPhone.replace(/\D/g, "").length >= 10
     );
   }, [custName, custCpf, custEmail, custPhone]);
+
+  const canProceedAgendamento = useMemo(() => {
+    if (!hasServices) return true; // no services → skip
+    return !!selectedDate && selectedSlot !== null;
+  }, [hasServices, selectedDate, selectedSlot]);
+
+  /* ── Load scheduling slots when entering agendamento step ── */
+  useEffect(() => {
+    if (currentStepId !== "agendamento" || !hasServices) return;
+    // Find the first service item's partner
+    const firstService = serviceItems[0];
+    const partnerId = (firstService as any)?.partner_id as string | undefined;
+    const durationMin =
+      (firstService as any)?.duration_minutes ??
+      serviceItems.reduce(
+        (sum, s) => sum + ((s as any)?.duration_minutes ?? 60),
+        0,
+      );
+    if (!tenantId) return;
+    setSlotsLoading(true);
+    setSlotsError(null);
+    getAvailableSlots(tenantId, partnerId ?? null, durationMin)
+      .then((slots) => {
+        setAvailableSlots(slots);
+        // Auto-select first date if none selected
+        if (!selectedDate && slots.length > 0) {
+          setSelectedDate(slots[0].date);
+        }
+      })
+      .catch(() => setSlotsError("Falha ao carregar horários disponíveis."))
+      .finally(() => setSlotsLoading(false));
+  }, [currentStepId, hasServices, serviceItems, tenantId, selectedDate]);
 
   /* ── Submit order ── */
   const handleSubmitOrder = useCallback(async () => {
@@ -320,10 +453,17 @@ export default function CheckoutScreen() {
         shippingCost: effectiveShippingCost,
         partnerId: marketplace.partnerId ?? undefined,
         notes: undefined,
+        scheduledDate: hasServices ? (selectedDate ?? undefined) : undefined,
+        scheduledTimeStart: hasServices
+          ? (selectedSlot?.start ?? undefined)
+          : undefined,
+        scheduledTimeEnd: hasServices
+          ? (selectedSlot?.end ?? undefined)
+          : undefined,
       });
 
       setOrderResult(result);
-      setStep(5);
+      setCurrentStepId("pix");
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : "Falha ao processar pedido.";
@@ -349,6 +489,9 @@ export default function CheckoutScreen() {
     hasPortaria,
     effectiveShippingCost,
     marketplace.partnerId,
+    hasServices,
+    selectedDate,
+    selectedSlot,
   ]);
 
   /* ── Copy PIX ── */
@@ -381,9 +524,11 @@ export default function CheckoutScreen() {
           <Text style={styles.headerTitle}>Checkout</Text>
           <Text style={styles.headerSubtitle}>{brandName}</Text>
         </View>
-        {step < 5 && (
+        {currentStepId !== "pix" && (
           <View style={styles.headerRight}>
-            <Text style={styles.headerBadgeText}>Etapa {step}/4</Text>
+            <Text style={styles.headerBadgeText}>
+              Etapa {currentStepIndex + 1}/{totalVisibleSteps}
+            </Text>
           </View>
         )}
       </View>
@@ -391,57 +536,48 @@ export default function CheckoutScreen() {
   );
 
   /* ── Step indicator ── */
-  const renderStepIndicator = () => {
-    const steps = [
-      { num: 1 as CheckoutStep, label: "Endereço" },
-      { num: 2 as CheckoutStep, label: "Frete" },
-      { num: 3 as CheckoutStep, label: "Dados" },
-      { num: 4 as CheckoutStep, label: "Revisão" },
-    ];
-
-    return (
-      <View style={styles.stepIndicator}>
-        {steps.map((s, i) => {
-          const isActive = step === s.num;
-          const isDone = step > s.num;
-          return (
-            <View key={s.num} style={styles.stepItem}>
-              <View
-                style={[
-                  styles.stepCircle,
-                  isDone && { backgroundColor: SUCCESS_COLOR },
-                  isActive && { backgroundColor: primaryColor },
-                  !isDone && !isActive && { backgroundColor: BORDER_COLOR },
-                ]}
-              >
-                {isDone ? (
-                  <Ionicons name="checkmark" size={14} color="#ffffff" />
-                ) : (
-                  <Text style={styles.stepCircleText}>{s.num}</Text>
-                )}
-              </View>
-              <Text
-                style={[
-                  styles.stepLabel,
-                  (isActive || isDone) && { color: TEXT_PRIMARY },
-                ]}
-              >
-                {s.label}
-              </Text>
-              {i < steps.length - 1 && (
-                <View
-                  style={[
-                    styles.stepLine,
-                    isDone && { backgroundColor: SUCCESS_COLOR },
-                  ]}
-                />
+  const renderStepIndicator = () => (
+    <View style={styles.stepIndicator}>
+      {steps.map((s, i) => {
+        const isActive = i === currentStepIndex;
+        const isDone = i < currentStepIndex;
+        return (
+          <View key={s.id} style={styles.stepItem}>
+            <View
+              style={[
+                styles.stepCircle,
+                isDone && { backgroundColor: SUCCESS_COLOR },
+                isActive && { backgroundColor: primaryColor },
+                !isDone && !isActive && { backgroundColor: BORDER_COLOR },
+              ]}
+            >
+              {isDone ? (
+                <Ionicons name="checkmark" size={14} color="#ffffff" />
+              ) : (
+                <Text style={styles.stepCircleText}>{i + 1}</Text>
               )}
             </View>
-          );
-        })}
-      </View>
-    );
-  };
+            <Text
+              style={[
+                styles.stepLabel,
+                (isActive || isDone) && { color: TEXT_PRIMARY },
+              ]}
+            >
+              {s.label}
+            </Text>
+            {i < steps.length - 1 && (
+              <View
+                style={[
+                  styles.stepLine,
+                  isDone && { backgroundColor: SUCCESS_COLOR },
+                ]}
+              />
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
 
   /* ── Step 1: Shipping Address ── */
   const renderStep1 = () => (
@@ -565,8 +701,8 @@ export default function CheckoutScreen() {
       {/* Next button */}
       <TouchableOpacity
         onPress={() => {
-          setStep(2);
-          if (!shippingQuote) handleCalculateShipping();
+          if (hasProducts && !shippingQuote) handleCalculateShipping();
+          goNext();
         }}
         disabled={!canProceedStep1}
         style={[
@@ -576,7 +712,7 @@ export default function CheckoutScreen() {
           },
         ]}
       >
-        <Text style={styles.primaryBtnText}>Continuar para Frete</Text>
+        <Text style={styles.primaryBtnText}>{nextStepLabel}</Text>
         <Ionicons name="arrow-forward" size={18} color="#ffffff" />
       </TouchableOpacity>
     </View>
@@ -680,17 +816,14 @@ export default function CheckoutScreen() {
 
         {/* Nav buttons */}
         <View style={styles.navRow}>
-          <TouchableOpacity
-            onPress={() => setStep(1)}
-            style={styles.secondaryBtn}
-          >
+          <TouchableOpacity onPress={goPrev} style={styles.secondaryBtn}>
             <Ionicons name="arrow-back" size={16} color={primaryColor} />
             <Text style={[styles.secondaryBtnText, { color: primaryColor }]}>
               Voltar
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => setStep(3)}
+            onPress={goNext}
             disabled={!canProceedStep2}
             style={[
               styles.primaryBtn,
@@ -700,7 +833,168 @@ export default function CheckoutScreen() {
               },
             ]}
           >
-            <Text style={styles.primaryBtnText}>Continuar</Text>
+            <Text style={styles.primaryBtnText}>{nextStepLabel}</Text>
+            <Ionicons name="arrow-forward" size={18} color="#ffffff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  /* ── Step Agendamento: Scheduling for services ── */
+  const renderStepAgendamento = () => {
+    const todaySlots = availableSlots.find((d) => d.date === selectedDate);
+
+    return (
+      <View style={[styles.sectionCard, CARD_SHADOW]}>
+        <Text style={styles.sectionTitle}>
+          <Ionicons name="calendar-outline" size={18} color={primaryColor} />{" "}
+          Agendamento
+        </Text>
+        <Text style={[styles.fieldLabel, { marginBottom: 12 }]}>
+          Escolha a data e horário para execução do serviço
+        </Text>
+
+        {slotsLoading && (
+          <View style={{ alignItems: "center", paddingVertical: 24 }}>
+            <ActivityIndicator color={primaryColor} />
+            <Text style={[styles.fieldLabel, { marginTop: 8 }]}>
+              Carregando disponibilidade...
+            </Text>
+          </View>
+        )}
+
+        {slotsError && (
+          <Text style={[styles.fieldLabel, { color: ERROR_COLOR }]}>
+            {slotsError}
+          </Text>
+        )}
+
+        {!slotsLoading && !slotsError && availableSlots.length === 0 && (
+          <Text style={styles.fieldLabel}>
+            Nenhum horário disponível nos próximos dias.
+          </Text>
+        )}
+
+        {/* Date selector — horizontal scroll */}
+        {!slotsLoading && availableSlots.length > 0 && (
+          <>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 16 }}
+              contentContainerStyle={{ gap: 8 }}
+            >
+              {availableSlots.map((day) => {
+                const isSelected = day.date === selectedDate;
+                const dayNum = day.date.split("-")[2];
+                return (
+                  <TouchableOpacity
+                    key={day.date}
+                    onPress={() => {
+                      setSelectedDate(day.date);
+                      setSelectedSlot(null);
+                    }}
+                    style={[
+                      styles.schedDateChip,
+                      isSelected && {
+                        backgroundColor: primaryColor,
+                        borderColor: primaryColor,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.schedDateWeekday,
+                        isSelected && { color: "#fff" },
+                      ]}
+                    >
+                      {day.weekday}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.schedDateNum,
+                        isSelected && { color: "#fff" },
+                      ]}
+                    >
+                      {dayNum}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.schedDateSlots,
+                        isSelected && { color: "rgba(255,255,255,0.8)" },
+                      ]}
+                    >
+                      {day.slots.length} horário
+                      {day.slots.length !== 1 ? "s" : ""}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Time slots grid */}
+            {todaySlots && (
+              <>
+                <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>
+                  Horários para {todaySlots.dateLabel}
+                </Text>
+                <View style={styles.schedSlotsGrid}>
+                  {todaySlots.slots.map((slot, idx) => {
+                    const isSelected =
+                      selectedSlot?.start === slot.start &&
+                      selectedSlot?.end === slot.end;
+                    return (
+                      <TouchableOpacity
+                        key={idx}
+                        onPress={() => setSelectedSlot(slot)}
+                        style={[
+                          styles.schedSlotChip,
+                          isSelected && {
+                            backgroundColor: primaryColor,
+                            borderColor: primaryColor,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.schedSlotText,
+                            isSelected && { color: "#fff", fontWeight: "700" },
+                          ]}
+                        >
+                          {slot.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+          </>
+        )}
+
+        {/* Nav buttons */}
+        <View style={[styles.navRow, { marginTop: 16 }]}>
+          <TouchableOpacity onPress={goPrev} style={styles.secondaryBtn}>
+            <Ionicons name="arrow-back" size={16} color={primaryColor} />
+            <Text style={[styles.secondaryBtnText, { color: primaryColor }]}>
+              Voltar
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={goNext}
+            disabled={!canProceedAgendamento}
+            style={[
+              styles.primaryBtn,
+              {
+                flex: 1,
+                backgroundColor: canProceedAgendamento
+                  ? primaryColor
+                  : TEXT_MUTED,
+              },
+            ]}
+          >
+            <Text style={styles.primaryBtnText}>{nextStepLabel}</Text>
             <Ionicons name="arrow-forward" size={18} color="#ffffff" />
           </TouchableOpacity>
         </View>
@@ -759,17 +1053,14 @@ export default function CheckoutScreen() {
 
       {/* Nav buttons */}
       <View style={styles.navRow}>
-        <TouchableOpacity
-          onPress={() => setStep(2)}
-          style={styles.secondaryBtn}
-        >
+        <TouchableOpacity onPress={goPrev} style={styles.secondaryBtn}>
           <Ionicons name="arrow-back" size={16} color={primaryColor} />
           <Text style={[styles.secondaryBtnText, { color: primaryColor }]}>
             Voltar
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => setStep(4)}
+          onPress={goNext}
           disabled={!canProceedStep3}
           style={[
             styles.primaryBtn,
@@ -779,7 +1070,7 @@ export default function CheckoutScreen() {
             },
           ]}
         >
-          <Text style={styles.primaryBtnText}>Revisar Pedido</Text>
+          <Text style={styles.primaryBtnText}>{nextStepLabel}</Text>
           <Ionicons name="arrow-forward" size={18} color="#ffffff" />
         </TouchableOpacity>
       </View>
@@ -819,30 +1110,64 @@ export default function CheckoutScreen() {
         ))}
       </View>
 
-      {/* Shipping summary */}
-      <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 12 }]}>
-        <Text style={styles.sectionTitle}>Entrega</Text>
-        <Text style={styles.reviewAddressText}>
-          {street}, {number}
-          {complement ? ` — ${complement}` : ""}
-        </Text>
-        <Text style={styles.reviewAddressText}>
-          {neighborhood}, {city}/{addressState} — CEP{" "}
-          {formatCep(cepAutoFill.cep)}
-        </Text>
-        {freeShippingApplies ? (
-          <View style={[styles.freeShippingBadge, { marginTop: 8 }]}>
-            <Ionicons name="gift-outline" size={16} color={SUCCESS_COLOR} />
-            <Text style={[styles.freeShippingText, { color: SUCCESS_COLOR }]}>
-              Frete grátis
+      {/* Shipping summary (only when cart has physical products) */}
+      {hasProducts && (
+        <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 12 }]}>
+          <Text style={styles.sectionTitle}>Entrega</Text>
+          <Text style={styles.reviewAddressText}>
+            {street}, {number}
+            {complement ? ` — ${complement}` : ""}
+          </Text>
+          <Text style={styles.reviewAddressText}>
+            {neighborhood}, {city}/{addressState} — CEP{" "}
+            {formatCep(cepAutoFill.cep)}
+          </Text>
+          {freeShippingApplies ? (
+            <View style={[styles.freeShippingBadge, { marginTop: 8 }]}>
+              <Ionicons name="gift-outline" size={16} color={SUCCESS_COLOR} />
+              <Text style={[styles.freeShippingText, { color: SUCCESS_COLOR }]}>
+                Frete grátis
+              </Text>
+            </View>
+          ) : selectedRate ? (
+            <Text style={styles.reviewShippingRate}>
+              {formatShippingRate(selectedRate)}
+            </Text>
+          ) : null}
+        </View>
+      )}
+
+      {/* Scheduling summary (only when cart has services) */}
+      {hasServices && selectedDate && selectedSlot && (
+        <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 12 }]}>
+          <Text style={styles.sectionTitle}>Agendamento</Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
+            <Ionicons name="calendar-outline" size={18} color={primaryColor} />
+            <Text style={styles.reviewCustomerText}>
+              {availableSlots.find((d) => d.date === selectedDate)?.dateLabel ??
+                selectedDate}
             </Text>
           </View>
-        ) : selectedRate ? (
-          <Text style={styles.reviewShippingRate}>
-            {formatShippingRate(selectedRate)}
-          </Text>
-        ) : null}
-      </View>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
+            <Ionicons name="time-outline" size={18} color={primaryColor} />
+            <Text style={styles.reviewCustomerText}>{selectedSlot.label}</Text>
+          </View>
+        </View>
+      )}
 
       {/* Customer summary */}
       <View style={[styles.sectionCard, CARD_SHADOW, { marginTop: 12 }]}>
@@ -861,19 +1186,21 @@ export default function CheckoutScreen() {
             {formatCurrency(cart.subtotal)}
           </Text>
         </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Frete</Text>
-          <Text
-            style={[
-              styles.summaryValue,
-              freeShippingApplies && { color: SUCCESS_COLOR },
-            ]}
-          >
-            {freeShippingApplies
-              ? "Grátis"
-              : formatCurrency(effectiveShippingCost)}
-          </Text>
-        </View>
+        {hasProducts && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Frete</Text>
+            <Text
+              style={[
+                styles.summaryValue,
+                freeShippingApplies && { color: SUCCESS_COLOR },
+              ]}
+            >
+              {freeShippingApplies
+                ? "Grátis"
+                : formatCurrency(effectiveShippingCost)}
+            </Text>
+          </View>
+        )}
         <View style={[styles.summaryRow, styles.summaryTotal]}>
           <Text style={styles.summaryTotalLabel}>Total</Text>
           <Text style={[styles.summaryTotalValue, { color: primaryColor }]}>
@@ -900,7 +1227,7 @@ export default function CheckoutScreen() {
       {/* Nav buttons */}
       <View style={[styles.navRow, { marginTop: 16 }]}>
         <TouchableOpacity
-          onPress={() => setStep(3)}
+          onPress={goPrev}
           style={styles.secondaryBtn}
           disabled={submitting}
         >
@@ -1078,7 +1405,7 @@ export default function CheckoutScreen() {
     );
   }
 
-  if (isEmpty && step < 5) {
+  if (isEmpty && currentStepId !== "pix") {
     return (
       <View style={styles.container}>
         {renderHeader()}
@@ -1116,13 +1443,14 @@ export default function CheckoutScreen() {
           isWide && styles.scrollContentWide,
         ]}
       >
-        {step < 5 && renderStepIndicator()}
+        {currentStepId !== "pix" && renderStepIndicator()}
 
-        {step === 1 && renderStep1()}
-        {step === 2 && renderStep2()}
-        {step === 3 && renderStep3()}
-        {step === 4 && renderStep4()}
-        {step === 5 && renderStep5()}
+        {currentStepId === "endereco" && renderStep1()}
+        {currentStepId === "frete" && renderStep2()}
+        {currentStepId === "agendamento" && renderStepAgendamento()}
+        {currentStepId === "dados" && renderStep3()}
+        {currentStepId === "revisao" && renderStep4()}
+        {currentStepId === "pix" && renderStep5()}
       </ScrollView>
     </View>
   );
@@ -1537,5 +1865,52 @@ const styles = StyleSheet.create({
     color: TEXT_SECONDARY,
     marginTop: 8,
     textAlign: "center",
+  },
+
+  /* ── Scheduling (agendamento) styles ── */
+  schedDateChip: {
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    minWidth: 72,
+    backgroundColor: CARD_BG,
+  },
+  schedDateWeekday: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: TEXT_MUTED,
+    textTransform: "uppercase" as const,
+  },
+  schedDateNum: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: TEXT_PRIMARY,
+    marginTop: 2,
+  },
+  schedDateSlots: {
+    fontSize: 10,
+    color: TEXT_MUTED,
+    marginTop: 2,
+  },
+  schedSlotsGrid: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: 8,
+  },
+  schedSlotChip: {
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: CARD_BG,
+  },
+  schedSlotText: {
+    fontSize: 13,
+    color: TEXT_PRIMARY,
+    fontWeight: "500",
   },
 });

@@ -307,6 +307,27 @@ export default function ServicesScreen() {
 
     // ═══ Seção: Estoque (só produto) ═══
     {
+      key: "pricing_type",
+      label: "Modelo de Precificação",
+      type: "select",
+      options: [
+        { label: "💰 Preço Fixo", value: "fixed" },
+        { label: "📋 Sob Consulta (Orçamento)", value: "quote" },
+      ],
+      section: "Precificação",
+    },
+    {
+      key: "quote_template_id",
+      label: "Template de Orçamento",
+      type: "reference",
+      referenceTable: "quote_templates",
+      referenceLabelField: "name",
+      referenceSearchField: "name",
+      referenceIdField: "id",
+      showWhen: (s) => s.pricing_type === "quote",
+      section: "Precificação",
+    },
+    {
       key: "track_stock",
       label: "Controlar Estoque",
       type: "boolean",
@@ -427,6 +448,13 @@ export default function ServicesScreen() {
       getDetails={(item) => {
         const details = [
           { label: "Tipo", value: kindBadge(item.item_kind) },
+          {
+            label: "Precificação",
+            value:
+              item.pricing_type === "quote"
+                ? "📋 Sob Consulta"
+                : "💰 Preço Fixo",
+          },
           { label: "Preço", value: formatCurrency(item.sell_price) },
           { label: "Custo", value: formatCurrency(item.cost_price) },
           { label: "Ativo", value: item.is_active ? "Sim" : "Não" },

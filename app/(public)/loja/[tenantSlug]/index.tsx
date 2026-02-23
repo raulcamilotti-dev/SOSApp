@@ -439,7 +439,7 @@ export default function PublicStoreListing() {
             </View>
           )}
           {/* Badges */}
-          {hasDiscount && !outOfStock && (
+          {hasDiscount && !outOfStock && product.pricing_type !== "quote" && (
             <View style={st.discountBadge}>
               <Text style={st.discountBadgeText}>
                 -
@@ -468,52 +468,89 @@ export default function PublicStoreListing() {
           <Text style={st.productName} numberOfLines={2}>
             {product.name}
           </Text>
-          <View style={st.priceRow}>
-            {hasDiscount && (
-              <Text style={st.originalPrice}>
-                {formatCurrency(product.sell_price)}
-              </Text>
-            )}
-            <Text
-              style={[st.currentPrice, hasDiscount && { color: SUCCESS_COLOR }]}
-            >
-              {formatCurrency(product.price)}
-            </Text>
-          </View>
-          {product.is_composition && (
-            <View style={st.kitBadge}>
-              <Ionicons name="layers-outline" size={10} color={primaryColor} />
-              <Text style={[st.kitBadgeText, { color: primaryColor }]}>
-                Kit
-              </Text>
-            </View>
-          )}
-          {/* Add to cart button */}
-          <TouchableOpacity
-            style={[
-              st.addToCartBtn,
-              {
-                backgroundColor: outOfStock ? TEXT_MUTED : primaryColor,
-              },
-            ]}
-            disabled={outOfStock || cartOperating}
-            onPress={(e) => {
-              e.stopPropagation?.();
-              if (!outOfStock) addItem(product.id, 1);
-            }}
-            activeOpacity={0.7}
-          >
-            {cartOperating ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="cart-outline" size={14} color="#fff" />
-                <Text style={st.addToCartText}>
-                  {outOfStock ? "Esgotado" : "Adicionar"}
+          {product.pricing_type === "quote" ? (
+            <>
+              {/* Quote-based product: show "Sob consulta" instead of price */}
+              <View style={st.priceRow}>
+                <Text
+                  style={[
+                    st.currentPrice,
+                    { color: primaryColor, fontSize: 13 },
+                  ]}
+                >
+                  Sob consulta
                 </Text>
-              </>
-            )}
-          </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={[st.addToCartBtn, { backgroundColor: primaryColor }]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  openProduct(product);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="document-text-outline" size={14} color="#fff" />
+                <Text style={st.addToCartText}>Solicitar Orçamento</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {/* Fixed-price product: normal price + cart button */}
+              <View style={st.priceRow}>
+                {hasDiscount && (
+                  <Text style={st.originalPrice}>
+                    {formatCurrency(product.sell_price)}
+                  </Text>
+                )}
+                <Text
+                  style={[
+                    st.currentPrice,
+                    hasDiscount && { color: SUCCESS_COLOR },
+                  ]}
+                >
+                  {formatCurrency(product.price)}
+                </Text>
+              </View>
+              {product.is_composition && (
+                <View style={st.kitBadge}>
+                  <Ionicons
+                    name="layers-outline"
+                    size={10}
+                    color={primaryColor}
+                  />
+                  <Text style={[st.kitBadgeText, { color: primaryColor }]}>
+                    Kit
+                  </Text>
+                </View>
+              )}
+              {/* Add to cart button */}
+              <TouchableOpacity
+                style={[
+                  st.addToCartBtn,
+                  {
+                    backgroundColor: outOfStock ? TEXT_MUTED : primaryColor,
+                  },
+                ]}
+                disabled={outOfStock || cartOperating}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  if (!outOfStock) addItem(product.id, 1);
+                }}
+                activeOpacity={0.7}
+              >
+                {cartOperating ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="cart-outline" size={14} color="#fff" />
+                    <Text style={st.addToCartText}>
+                      {outOfStock ? "Esgotado" : "Adicionar"}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </TouchableOpacity>
     );

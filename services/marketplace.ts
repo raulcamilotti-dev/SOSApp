@@ -16,6 +16,7 @@ import {
     normalizeCrudList,
     type CrudFilter,
 } from "./crud";
+import type { QuoteItemInput } from "./quotes";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -51,6 +52,10 @@ export interface MarketplaceProduct {
   duration_minutes?: number | null;
   requires_scheduling?: boolean;
   sort_order: number;
+  /** Pricing model: 'fixed' = normal price, 'quote' = requires quote */
+  pricing_type: "fixed" | "quote";
+  /** Linked quote template ID (used when pricing_type = 'quote') */
+  quote_template_id?: string | null;
 }
 
 /** Marketplace configuration stored in tenants.config.marketplace */
@@ -243,6 +248,10 @@ function mapProduct(
       : null,
     requires_scheduling: Boolean(item.requires_scheduling),
     sort_order: Number(item.sort_order ?? 0),
+    pricing_type: String(item.pricing_type ?? "fixed") as "fixed" | "quote",
+    quote_template_id: item.quote_template_id
+      ? String(item.quote_template_id)
+      : null,
   };
 }
 
@@ -706,4 +715,129 @@ export async function updateProductMarketplaceFields(
       ...fields,
     },
   });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Marketplace Quote Request                                          */
+/* ------------------------------------------------------------------ */
+
+export interface MarketplaceQuoteRequest {
+  tenantId: string;
+  serviceId: string;
+  serviceName: string;
+  quoteTemplateId?: string | null;
+  /** Description / notes from the customer */
+  customerNotes?: string;
+  /** User ID of the requesting customer */
+  userId: string;
+}
+
+export interface MarketplaceQuoteResult {
+  serviceOrderId: string;
+  quoteId: string;
+  quoteToken: string;
+  /** Public URL for the quote */
+  publicUrl: string;
+}
+
+/**
+ * Request a quote for a marketplace product/service.
+ *
+ * Flow:
+ * 1. Creates a service_order (status: "active") linked to the service
+ * 2. If a quote_template is linked, applies it to pre-fill items
+ * 3. Creates a quote (status: "draft") with the template items (or empty)
+ * 4. Returns the quote token + public URL
+ */
+export async function requestMarketplaceQuote(
+  params: MarketplaceQuoteRequest,
+): Promise<MarketplaceQuoteResult> {
+  // Lazy imports to avoid circular deps
+  const { createServiceOrder } = await import("./service-orders");
+  const { createQuote } = await import("./quotes");
+  const { getQuoteTemplateById, applyTemplateToQuote } =
+    await import("./quote-templates");
+
+  // 1. Create a service order
+  const so = await createServiceOrder({
+    tenant_id: params.tenantId,
+    service_id: params.serviceId,
+    title: `Orçamento — ${params.serviceName}`,
+    description: params.customerNotes || null,
+    process_status: "active",
+    started_at: new Date().toISOString(),
+    created_by: params.userId,
+  });
+
+  // 2. Resolve template items (if any)
+  let items: QuoteItemInput[] = [];
+  let discount = 0;
+  let validDays = 30;
+  let notes: string | null = null;
+
+  if (params.quoteTemplateId) {
+    try {
+      const template = await getQuoteTemplateById(params.quoteTemplateId);
+      if (template) {
+        const applied = applyTemplateToQuote(template);
+        items = applied.items.map((it, idx) => ({
+          description: it.description,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          sort_order: it.sort_order ?? idx,
+        }));
+        discount = applied.discount;
+        validDays = applied.validDays;
+        notes = applied.notes;
+      }
+    } catch {
+      // Template fetch failed — continue with empty items
+    }
+  }
+
+  // If no template or template had no items, add a placeholder line
+  if (items.length === 0) {
+    items = [
+      {
+        description: params.serviceName,
+        quantity: 1,
+        unit_price: 0,
+        sort_order: 0,
+      },
+    ];
+  }
+
+  // Add customer notes to quote notes
+  if (params.customerNotes) {
+    notes = notes
+      ? `${notes}\n\nObservações do cliente: ${params.customerNotes}`
+      : `Observações do cliente: ${params.customerNotes}`;
+  }
+
+  // Calculate valid_until date
+  const validUntil = new Date();
+  validUntil.setDate(validUntil.getDate() + validDays);
+
+  // 3. Create the quote (use global api as authApi — it has interceptors)
+  const quote = await createQuote(api, {
+    tenantId: params.tenantId,
+    serviceOrderId: so.id,
+    templateId: params.quoteTemplateId || undefined,
+    title: `Orçamento — ${params.serviceName}`,
+    description: params.customerNotes || undefined,
+    items,
+    discount,
+    validUntil: validUntil.toISOString(),
+    notes: notes || undefined,
+    createdBy: params.userId,
+  });
+
+  const publicUrl = `https://app.sosescrituras.com.br/q/${quote.token}`;
+
+  return {
+    serviceOrderId: so.id,
+    quoteId: quote.id,
+    quoteToken: quote.token,
+    publicUrl,
+  };
 }

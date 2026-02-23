@@ -1,16 +1,41 @@
 /**
  * Shipping Service — Correios integration for rate calculation & tracking.
  *
- * MVP: Uses Correios public endpoints for rate estimation and tracking.
- * Future: Integrate with Melhor Envio or similar aggregator for multi-carrier.
+ * Uses the Correios contracted CWS REST API when EXPO_PUBLIC_CORREIOS_API_KEY
+ * is set. Falls back to the legacy public XML endpoint otherwise.
  *
  * The service is consumed by:
  * - Marketplace checkout (calculate shipping before order)
  * - Order management (track delivery status)
  * - Admin config (set origin CEP, free shipping threshold)
+ *
+ * Contracted API endpoint: https://api.correios.com.br/
+ * Documentation: https://cws.correios.com.br/
  */
 
 import { getMarketplaceConfig } from "./marketplace";
+
+/* ------------------------------------------------------------------ */
+/*  Correios API Configuration                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Correios contracted API key.
+ * Set via EXPO_PUBLIC_CORREIOS_API_KEY environment variable.
+ * When set, enables contracted rates (cheaper) and full tracking via
+ * the Correios CWS REST API instead of the legacy XML endpoint.
+ */
+export const CORREIOS_API_KEY = process.env.EXPO_PUBLIC_CORREIOS_API_KEY ?? "";
+
+/** Correios CWS REST API base URL */
+const CORREIOS_API_BASE = "https://api.correios.com.br";
+
+/** Correios CNPJ (required by contracted API — can be updated) */
+const CORREIOS_CARTAO_POSTAGEM = process.env.EXPO_PUBLIC_CORREIOS_CARTAO ?? "";
+
+/** Cache for auth token to avoid re-authenticating every request */
+let _correiosToken: string | null = null;
+let _correiosTokenExpires = 0;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -248,14 +273,208 @@ export async function calculateShippingRates(
   };
 }
 
+/* ---- Correios CWS REST API — Token authentication ---- */
+
 /**
- * Fetch a single Correios rate.
- *
- * Uses the public "CalcPrecoPrazo" SOAP/XML endpoint via URL params.
- * This is the uncontracted (público) rate. Contracted rates
- * require enterprise credentials and a different endpoint.
+ * Authenticate with the Correios CWS REST API.
+ * Returns a Bearer token valid for ~1 hour.
+ * Caches the token to avoid re-authenticating every request.
  */
-async function fetchCorreiosRate(params: {
+async function getCorreiosToken(): Promise<string> {
+  // Return cached token if still valid (5 min buffer)
+  if (_correiosToken && Date.now() < _correiosTokenExpires - 300_000) {
+    return _correiosToken;
+  }
+
+  const endpoint = CORREIOS_CARTAO_POSTAGEM
+    ? `${CORREIOS_API_BASE}/token/v1/autentica/cartaopostagem`
+    : `${CORREIOS_API_BASE}/token/v1/autentica`;
+
+  const body = CORREIOS_CARTAO_POSTAGEM
+    ? JSON.stringify({ numero: CORREIOS_CARTAO_POSTAGEM })
+    : undefined;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${btoa(`${CORREIOS_API_KEY}:`)}`,
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `Correios auth falhou (${response.status}): ${errorText}`.slice(0, 200),
+    );
+  }
+
+  const data = (await response.json()) as Record<string, unknown>;
+  const token = String(data?.token ?? "");
+  const expiresIn = Number(data?.expiraEm ?? 3600);
+
+  if (!token) {
+    throw new Error("Token Correios vazio na resposta");
+  }
+
+  _correiosToken = token;
+  // expiraEm is typically an ISO string or seconds — handle both
+  if (typeof data?.expiraEm === "string" && data.expiraEm.includes("T")) {
+    _correiosTokenExpires = new Date(data.expiraEm as string).getTime();
+  } else {
+    _correiosTokenExpires = Date.now() + expiresIn * 1000;
+  }
+
+  return token;
+}
+
+/** Invalidate cached token (forces re-authentication on next call) */
+function invalidateCorreiosToken(): void {
+  _correiosToken = null;
+  _correiosTokenExpires = 0;
+}
+
+/* ---- Correios CWS REST API — Contracted rate fetch ---- */
+
+/**
+ * Service code mapping for the CWS API.
+ * The contracted API uses different product codes in some cases.
+ */
+const CWS_PRODUCT_CODES: Record<string, string> = {
+  "04014": "04014", // SEDEX
+  "04510": "04510", // PAC
+  "04782": "04782", // SEDEX 12
+  "04790": "04790", // SEDEX 10
+};
+
+/**
+ * Fetch a single Correios rate using the contracted CWS REST API.
+ *
+ * Endpoint: POST /preco/v1/nacional
+ * Auth: Bearer token from /token/v1/autentica
+ */
+async function fetchCorreiosRateContracted(params: {
+  serviceCode: string;
+  originCep: string;
+  destinationCep: string;
+  weightKg: number;
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+}): Promise<ShippingRate> {
+  const {
+    serviceCode,
+    originCep,
+    destinationCep,
+    weightKg,
+    lengthCm,
+    widthCm,
+    heightCm,
+  } = params;
+
+  const token = await getCorreiosToken();
+  const productCode = CWS_PRODUCT_CODES[serviceCode] ?? serviceCode;
+
+  const requestBody = {
+    coProduto: productCode,
+    cepOrigem: originCep,
+    cepDestino: destinationCep,
+    psObjeto: String(Math.ceil(weightKg * 1000)), // weight in grams
+    tpObjeto: 2, // 1=envelope, 2=package, 3=cylinder
+    comprimento: Math.ceil(lengthCm),
+    largura: Math.ceil(widthCm),
+    altura: Math.ceil(heightCm),
+    vlDeclarado: 0,
+    cdMaoPropria: "N",
+    cdAvisoRecebimento: "N",
+  };
+
+  const response = await fetch(`${CORREIOS_API_BASE}/preco/v1/nacional`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  // If 401/403, invalidate token and retry once
+  if (response.status === 401 || response.status === 403) {
+    invalidateCorreiosToken();
+    const retryToken = await getCorreiosToken();
+    const retryResponse = await fetch(
+      `${CORREIOS_API_BASE}/preco/v1/nacional`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${retryToken}`,
+        },
+        body: JSON.stringify(requestBody),
+      },
+    );
+
+    if (!retryResponse.ok) {
+      throw new Error(`Correios CWS retornou status ${retryResponse.status}`);
+    }
+
+    const retryData = (await retryResponse.json()) as Record<string, unknown>;
+    return parseContractedRateResponse(retryData, serviceCode);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Correios CWS retornou status ${response.status}`);
+  }
+
+  const data = (await response.json()) as Record<string, unknown>;
+  return parseContractedRateResponse(data, serviceCode);
+}
+
+/** Parse the CWS /preco/v1/nacional JSON response into a ShippingRate */
+function parseContractedRateResponse(
+  data: Record<string, unknown>,
+  serviceCode: string,
+): ShippingRate {
+  // CWS response: { pcFinal, prazoEntrega, coProduto, txErro, ... }
+  const errorMsg = String(data?.txErro ?? "").trim();
+  const hasError = !!errorMsg && errorMsg !== "0";
+
+  if (hasError) {
+    return {
+      serviceCode,
+      serviceName: SERVICE_NAMES[serviceCode] ?? serviceCode,
+      value: 0,
+      estimatedDays: 0,
+      error: true,
+      errorMessage: errorMsg,
+    };
+  }
+
+  // pcFinal is the contracted price (string like "45.30" or number)
+  const rawPrice = data?.pcFinal ?? data?.pcBase ?? data?.vlTotalServicos ?? 0;
+  const value =
+    typeof rawPrice === "number"
+      ? rawPrice
+      : parseFloat(String(rawPrice).replace(",", "."));
+  const estimatedDays = parseInt(String(data?.prazoEntrega ?? 0), 10);
+
+  return {
+    serviceCode,
+    serviceName: SERVICE_NAMES[serviceCode] ?? serviceCode,
+    value: isNaN(value) ? 0 : value,
+    estimatedDays: isNaN(estimatedDays) ? 0 : estimatedDays,
+    error: false,
+  };
+}
+
+/* ---- Correios Legacy Public XML API — Fallback ---- */
+
+/**
+ * Fetch a single Correios rate using the legacy public XML endpoint.
+ * Used as fallback when CORREIOS_API_KEY is not set.
+ */
+async function fetchCorreiosRateLegacy(params: {
   serviceCode: string;
   originCep: string;
   destinationCep: string;
@@ -338,16 +557,49 @@ async function fetchCorreiosRate(params: {
   };
 }
 
+/* ---- Unified rate fetcher — dispatches to contracted or legacy ---- */
+
+/**
+ * Fetch a single Correios rate.
+ *
+ * When CORREIOS_API_KEY is set, uses the contracted CWS REST API
+ * (cheaper rates, better reliability). Falls back to the legacy
+ * public XML endpoint otherwise.
+ */
+async function fetchCorreiosRate(params: {
+  serviceCode: string;
+  originCep: string;
+  destinationCep: string;
+  weightKg: number;
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+}): Promise<ShippingRate> {
+  if (CORREIOS_API_KEY) {
+    try {
+      return await fetchCorreiosRateContracted(params);
+    } catch (contractedError) {
+      // If contracted API fails, fall back to legacy
+      if (__DEV__) {
+        console.warn(
+          "[Shipping] Contracted API failed, falling back to legacy:",
+          contractedError,
+        );
+      }
+      return fetchCorreiosRateLegacy(params);
+    }
+  }
+
+  return fetchCorreiosRateLegacy(params);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Correios API — Tracking                                            */
 /* ------------------------------------------------------------------ */
 
 /**
- * Track a shipment by tracking code using Correios public endpoints.
- *
- * Note: The Correios public tracking endpoint may require CORS proxy
- * or server-side call in production. This implementation works from
- * Node.js (N8N) or with a proxy.
+ * Track a shipment using the Correios contracted SRO API.
+ * Falls back to the proxyapp public endpoint when API key is not set.
  */
 export async function trackShipment(
   trackingCode: string,
@@ -364,8 +616,84 @@ export async function trackShipment(
     };
   }
 
+  // Use contracted API when available
+  if (CORREIOS_API_KEY) {
+    try {
+      return await trackShipmentContracted(code);
+    } catch (err) {
+      if (__DEV__) {
+        console.warn(
+          "[Shipping] Contracted tracking failed, falling back:",
+          err,
+        );
+      }
+      // Fall through to legacy
+    }
+  }
+
+  return trackShipmentLegacy(code);
+}
+
+/**
+ * Track via Correios contracted SRO REST API.
+ * Endpoint: GET /srorastro/v1/objetos/{code}
+ */
+async function trackShipmentContracted(code: string): Promise<TrackingResult> {
+  const token = await getCorreiosToken();
+
+  const response = await fetch(
+    `${CORREIOS_API_BASE}/srorastro/v1/objetos/${code}?resultado=T`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (response.status === 401 || response.status === 403) {
+    invalidateCorreiosToken();
+    throw new Error("Token expirado — retry");
+  }
+
+  if (!response.ok) {
+    throw new Error(`SRO retornou status ${response.status}`);
+  }
+
+  const data = (await response.json()) as Record<string, unknown>;
+  const objetos = (data?.objetos ?? []) as Record<string, unknown>[];
+  const objeto = objetos[0];
+
+  if (!objeto) {
+    return {
+      trackingCode: code,
+      events: [],
+      delivered: false,
+      lastStatus: "Objeto não encontrado",
+    };
+  }
+
+  const eventos = (objeto.eventos ?? []) as Record<string, unknown>[];
+  const events = parseCorreiosEvents(eventos);
+  const delivered = events.some(
+    (e) =>
+      e.status === "BDE" || e.description.toLowerCase().includes("entregue"),
+  );
+
+  return {
+    trackingCode: code,
+    events,
+    delivered,
+    lastStatus: events[0]?.description ?? "Sem informações",
+  };
+}
+
+/**
+ * Track via the public proxyapp endpoint (legacy fallback).
+ */
+async function trackShipmentLegacy(code: string): Promise<TrackingResult> {
   try {
-    // Use Link & Track public endpoint (may change)
     const url = `https://proxyapp.correios.com.br/v1/sro-rastro/${code}`;
 
     const response = await fetch(url, {
@@ -400,20 +728,7 @@ export async function trackShipment(
     }
 
     const eventos = (objeto.eventos ?? []) as Record<string, unknown>[];
-
-    const events: TrackingEvent[] = eventos.map((ev) => {
-      const unidade = ev.unidade as Record<string, unknown> | undefined;
-      return {
-        date: String(ev.dtHrCriado ?? "").slice(0, 10),
-        time: String(ev.dtHrCriado ?? "").slice(11, 16),
-        location: unidade
-          ? `${unidade.nome ?? ""} - ${unidade.endereco && typeof unidade.endereco === "object" ? ((unidade.endereco as Record<string, unknown>).cidade ?? "") : ""}`.trim()
-          : "",
-        status: String(ev.codigo ?? ""),
-        description: String(ev.descricao ?? ""),
-      };
-    });
-
+    const events = parseCorreiosEvents(eventos);
     const delivered = events.some(
       (e) =>
         e.status === "BDE" || e.description.toLowerCase().includes("entregue"),
@@ -434,6 +749,24 @@ export async function trackShipment(
       error: err instanceof Error ? err.message : "Falha na consulta",
     };
   }
+}
+
+/** Parse the Correios event array (shared between contracted and legacy) */
+function parseCorreiosEvents(
+  eventos: Record<string, unknown>[],
+): TrackingEvent[] {
+  return eventos.map((ev) => {
+    const unidade = ev.unidade as Record<string, unknown> | undefined;
+    return {
+      date: String(ev.dtHrCriado ?? "").slice(0, 10),
+      time: String(ev.dtHrCriado ?? "").slice(11, 16),
+      location: unidade
+        ? `${unidade.nome ?? ""} - ${unidade.endereco && typeof unidade.endereco === "object" ? ((unidade.endereco as Record<string, unknown>).cidade ?? "") : ""}`.trim()
+        : "",
+      status: String(ev.codigo ?? ""),
+      description: String(ev.descricao ?? ""),
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ */
