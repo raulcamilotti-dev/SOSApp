@@ -615,7 +615,11 @@ export async function rejectQuote(
 /* ------------------------------------------------------------------ */
 
 export function buildQuoteUrl(token: string): string {
-  return `https://app.sosescrituras.com.br/q/${token}`;
+  const baseUrl =
+    typeof window !== "undefined"
+      ? `${window.location.protocol}//${window.location.host}`
+      : "https://app.radul.com.br";
+  return `${baseUrl}/q/${token}`;
 }
 
 export function buildQuoteWhatsAppUrl(token: string, title: string): string {

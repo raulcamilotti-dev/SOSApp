@@ -1169,7 +1169,11 @@ export async function requestMarketplaceQuote(
     createdBy: params.userId,
   });
 
-  const publicUrl = `https://app.sosescrituras.com.br/q/${quote.token}`;
+  const baseUrl =
+    typeof window !== "undefined"
+      ? `${window.location.protocol}//${window.location.host}`
+      : "https://app.radul.com.br";
+  const publicUrl = `${baseUrl}/q/${quote.token}`;
 
   return {
     serviceOrderId: so.id,

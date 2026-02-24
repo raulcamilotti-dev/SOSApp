@@ -769,6 +769,15 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "copy-outline",
     route: "/Administrador/quote-templates",
   },
+  {
+    id: "quotes",
+    group: "Orçamentos",
+    module: "operacao",
+    title: "Orçamentos",
+    description: "Gerencie orçamentos enviados e acompanhe aprovações",
+    icon: "document-text-outline",
+    route: "/Administrador/orcamentos",
+  },
 
   // ---- Contratos ----
   {

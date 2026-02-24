@@ -553,7 +553,7 @@ export function buildPortalUrl(token: string): string {
   const baseUrl =
     typeof window !== "undefined"
       ? `${window.location.protocol}//${window.location.host}`
-      : "https://app.sosescrituras.com.br";
+      : "https://app.radul.com.br";
   return `${baseUrl}/p/${token}`;
 }
 
@@ -564,6 +564,6 @@ export function buildReviewUrl(token: string): string {
   const baseUrl =
     typeof window !== "undefined"
       ? `${window.location.protocol}//${window.location.host}`
-      : "https://app.sosescrituras.com.br";
+      : "https://app.radul.com.br";
   return `${baseUrl}/p/review/${token}`;
 }
