@@ -20,8 +20,13 @@ import { buildSearchParams, CRUD_ENDPOINT, normalizeCrudList } from "./crud";
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Direct axios instance — no auth token needed for public quote */
-const publicApi = axios.create({ timeout: 15000 });
+const N8N_API_KEY = process.env.EXPO_PUBLIC_N8N_API_KEY ?? "";
+
+/** Direct axios instance — no user auth token, but includes Worker API key */
+const publicApi = axios.create({
+  timeout: 15000,
+  headers: { "X-Api-Key": N8N_API_KEY },
+});
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

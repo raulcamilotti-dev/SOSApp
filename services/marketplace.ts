@@ -1052,10 +1052,12 @@ export interface MarketplaceQuoteResult {
  * Request a quote for a marketplace product/service.
  *
  * Flow:
- * 1. Creates a service_order (status: "active") linked to the service
- * 2. If a quote_template is linked, applies it to pre-fill items
- * 3. Creates a quote (status: "draft") with the template items (or empty)
- * 4. Returns the quote token + public URL
+ * 1. Find or create a customer for the requesting user
+ * 2. Resolve workflow (template_id + current_step_id) from service_type
+ * 3. Create a service_order with customer, workflow step, and status "active"
+ * 4. If a quote_template is linked, apply it to pre-fill items + resolve document_template_id
+ * 5. Create a quote (status: "draft") with the template items
+ * 6. Return the quote token + public URL
  */
 export async function requestMarketplaceQuote(
   params: MarketplaceQuoteRequest,
@@ -1066,8 +1068,7 @@ export async function requestMarketplaceQuote(
   const { getQuoteTemplateById, applyTemplateToQuote } =
     await import("./quote-templates");
 
-  // 1. Resolve service_type_id — required NOT NULL column.
-  // Use the value from params if provided; otherwise, look it up from the service record.
+  // ── 1. Resolve service_type_id ──
   let serviceTypeId = params.serviceTypeId;
   if (!serviceTypeId) {
     try {
@@ -1093,11 +1094,161 @@ export async function requestMarketplaceQuote(
     );
   }
 
-  // 2. Create a service order
+  // ── 2. Find or create customer from the requesting user ──
+  let customerId: string | null = null;
+  try {
+    // Fetch user data to get name/email/cpf/phone
+    const userRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "users",
+      ...buildSearchParams([{ field: "id", value: params.userId }], {
+        limit: 1,
+      }),
+    });
+    const users = normalizeCrudList<{
+      id: string;
+      fullname?: string;
+      name?: string;
+      email?: string;
+      cpf?: string;
+      phone?: string;
+      telefone?: string;
+    }>(userRes.data);
+    const userData = users[0];
+
+    if (userData) {
+      const cpf = (userData.cpf ?? "").replace(/\D/g, "");
+      const email = (userData.email ?? "").trim().toLowerCase();
+      const phone = ((userData.phone || userData.telefone) ?? "").replace(
+        /\D/g,
+        "",
+      );
+      const customerName =
+        userData.fullname || userData.name || email || "Cliente";
+
+      // Search existing customer by CPF → email → phone (same pattern as crm.ts)
+      let existingCustomer: { id: string } | null = null;
+
+      if (cpf.length >= 11) {
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "customers",
+          ...buildSearchParams([
+            { field: "tenant_id", value: params.tenantId },
+            { field: "cpf", value: cpf },
+          ]),
+        });
+        const matches = normalizeCrudList<{
+          id: string;
+          deleted_at?: string;
+        }>(res.data).filter((c) => !c.deleted_at);
+        if (matches.length > 0) existingCustomer = matches[0];
+      }
+
+      if (!existingCustomer && email) {
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "customers",
+          ...buildSearchParams([
+            { field: "tenant_id", value: params.tenantId },
+            { field: "email", value: email },
+          ]),
+        });
+        const matches = normalizeCrudList<{
+          id: string;
+          deleted_at?: string;
+        }>(res.data).filter((c) => !c.deleted_at);
+        if (matches.length > 0) existingCustomer = matches[0];
+      }
+
+      if (!existingCustomer && phone.length >= 10) {
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "customers",
+          ...buildSearchParams([
+            { field: "tenant_id", value: params.tenantId },
+            { field: "phone", value: phone },
+          ]),
+        });
+        const matches = normalizeCrudList<{
+          id: string;
+          deleted_at?: string;
+        }>(res.data).filter((c) => !c.deleted_at);
+        if (matches.length > 0) existingCustomer = matches[0];
+      }
+
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
+      } else {
+        // Create new customer
+        const createRes = await api.post(CRUD_ENDPOINT, {
+          action: "create",
+          table: "customers",
+          payload: {
+            tenant_id: params.tenantId,
+            name: customerName,
+            email: email || null,
+            cpf: cpf || null,
+            phone: phone || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        });
+        const created = normalizeCrudList<{ id: string }>(createRes.data);
+        if (created.length > 0) customerId = created[0].id;
+      }
+    }
+  } catch {
+    // Customer resolution failed — continue without customer_id (best-effort)
+  }
+
+  // ── 3. Resolve workflow: template_id + current_step_id from service_type ──
+  let workflowTemplateId: string | null = null;
+  let firstStepId: string | null = null;
+  try {
+    // Get service type to find default_template_id
+    const stRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "service_types",
+      ...buildSearchParams([{ field: "id", value: serviceTypeId }], {
+        limit: 1,
+      }),
+    });
+    const serviceTypes = normalizeCrudList<{
+      id: string;
+      default_template_id?: string;
+    }>(stRes.data);
+    workflowTemplateId = serviceTypes[0]?.default_template_id ?? null;
+
+    // Get first workflow step by step_order ASC (same pattern as collection.ts)
+    if (workflowTemplateId) {
+      const stepsRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "workflow_steps",
+        ...buildSearchParams(
+          [{ field: "template_id", value: workflowTemplateId }],
+          { sortColumn: "step_order ASC" },
+        ),
+      });
+      const steps = normalizeCrudList<{
+        id: string;
+        step_order: number;
+        deleted_at?: string;
+      }>(stepsRes.data).filter((s) => !s.deleted_at);
+      if (steps.length > 0) firstStepId = steps[0].id;
+    }
+  } catch {
+    // Workflow resolution failed — SO will still be created but won't show in Kanban
+  }
+
+  // ── 4. Create the service order (with customer + workflow step) ──
   const so = await createServiceOrder({
     tenant_id: params.tenantId,
     service_id: params.serviceId,
     service_type_id: serviceTypeId,
+    customer_id: customerId ?? undefined,
+    template_id: workflowTemplateId ?? undefined,
+    current_step_id: firstStepId ?? undefined,
     title: `Orçamento — ${params.serviceName}`,
     description: params.customerNotes || null,
     process_status: "active",
@@ -1105,11 +1256,12 @@ export async function requestMarketplaceQuote(
     created_by: params.userId,
   });
 
-  // 2. Resolve template items (if any)
+  // ── 5. Resolve quote template items + document_template_id ──
   let items: QuoteItemInput[] = [];
   let discount = 0;
   let validDays = 30;
   let notes: string | null = null;
+  let documentTemplateId: string | undefined;
 
   if (params.quoteTemplateId) {
     try {
@@ -1125,9 +1277,14 @@ export async function requestMarketplaceQuote(
         discount = applied.discount;
         validDays = applied.validDays;
         notes = applied.notes;
+
+        // Resolve document_template_id from quote_template → quotes.template_id
+        if (template.document_template_id) {
+          documentTemplateId = template.document_template_id;
+        }
       }
     } catch {
-      // Template fetch failed — continue with empty items (resolvedTemplateId stays undefined)
+      // Template fetch failed — continue with empty items
     }
   }
 
@@ -1154,9 +1311,7 @@ export async function requestMarketplaceQuote(
   const validUntil = new Date();
   validUntil.setDate(validUntil.getDate() + validDays);
 
-  // 3. Create the quote (use global api as authApi — it has interceptors)
-  // NOTE: Do NOT pass quoteTemplateId as templateId — quotes.template_id FK
-  // references document_templates, not quote_templates.
+  // ── 6. Create the quote ──
   const quote = await createQuote(api, {
     tenantId: params.tenantId,
     serviceOrderId: so.id,
@@ -1167,6 +1322,8 @@ export async function requestMarketplaceQuote(
     validUntil: validUntil.toISOString(),
     notes: notes || undefined,
     createdBy: params.userId,
+    // Pass document_template_id from quote_template → quotes.template_id FK
+    templateId: documentTemplateId,
   });
 
   const baseUrl =

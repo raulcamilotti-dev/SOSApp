@@ -41,6 +41,8 @@ export interface QuoteTemplate {
   default_discount: number;
   default_valid_days: number;
   default_notes?: string | null;
+  /** FK to document_templates — used for PDF/document rendering when creating a quote */
+  document_template_id?: string | null;
   is_package: boolean;
   package_name?: string | null;
   package_description?: string | null;
