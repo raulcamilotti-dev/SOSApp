@@ -4,7 +4,7 @@
 
 **Radul Platform** — Expo React Native app (iOS, Android, web). Configurable operations platform for any service business. 3-layer architecture: **Core Platform** (CrudScreen, Workflow Engine, Kanban, RBAC, Notifications, Calendar, api_crud) → **Optional Modules** (Financial, CRM, Partners, Documents, AI, BI, ONR, Time Tracking, Portal) → **Template Packs** (data-driven vertical config: Genérico, Advocacia, Cobrança, Cartório).
 
-**Key principle:** 88% of codebase is universal. Verticals are in Template Pack data, not code. Cartórios are NOT the target audience — they're service providers accessed via the ONR integration module.
+**Key principle:** 88% of codebase is universal. Verticals are in Template Pack data, not code.
 
 ### Design Rules
 
@@ -22,7 +22,7 @@
 | ---------------------------- | -------------------------- | ------------------------------------------------------------------------ |
 | **BUILD**                    | Competitive differentiator | Workflow Engine, CrudScreen, Kanban                                      |
 | **EMBED** (OSS self-hosted)  | Mature OSS exists          | N8N (backend), Documenso (signatures), Metabase (BI), Tesseract.js (OCR) |
-| **INTEGRATE** (external API) | Regulated/commoditized     | MercadoPago, ENotas, WhatsApp, BrasilAPI, Gov.br                         |
+| **INTEGRATE** (external API) | Regulated/commoditized     | WhatsApp, BrasilAPI, Gov.br                         |
 
 **Rule:** Every partner consumed via `services/partner.ts` wrapper. Never call partner API directly from components.
 

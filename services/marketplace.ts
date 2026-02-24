@@ -1110,13 +1110,11 @@ export async function requestMarketplaceQuote(
   let discount = 0;
   let validDays = 30;
   let notes: string | null = null;
-  let resolvedTemplateId: string | undefined;
 
   if (params.quoteTemplateId) {
     try {
       const template = await getQuoteTemplateById(params.quoteTemplateId);
       if (template) {
-        resolvedTemplateId = params.quoteTemplateId;
         const applied = applyTemplateToQuote(template);
         items = applied.items.map((it, idx) => ({
           description: it.description,
@@ -1157,10 +1155,11 @@ export async function requestMarketplaceQuote(
   validUntil.setDate(validUntil.getDate() + validDays);
 
   // 3. Create the quote (use global api as authApi — it has interceptors)
+  // NOTE: Do NOT pass quoteTemplateId as templateId — quotes.template_id FK
+  // references document_templates, not quote_templates.
   const quote = await createQuote(api, {
     tenantId: params.tenantId,
     serviceOrderId: so.id,
-    templateId: resolvedTemplateId,
     title: `Orçamento — ${params.serviceName}`,
     description: params.customerNotes || undefined,
     items,
