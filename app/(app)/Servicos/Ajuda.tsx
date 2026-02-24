@@ -4,7 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Linking,
     Platform,
     ScrollView,
     StyleSheet,
@@ -36,7 +35,7 @@ const FEATURES: FeatureSection[] = [
     icon: "document-text-outline",
     title: "Acompanhamento de Processos",
     description:
-      "Acompanhe em tempo real as atualizações publicadas pela equipe da SOS Escritura sobre cada processo de regularização.",
+      "Acompanhe em tempo real as atualizações publicadas pela equipe sobre cada processo de regularização.",
     steps: [
       "Abra o processo desejado na lista",
       "Veja todas as atualizações ordenadas por data",
@@ -64,7 +63,7 @@ const FEATURES: FeatureSection[] = [
     icon: "create-outline",
     title: "Assinaturas Digitais",
     description:
-      "Assine documentos digitalmente sem sair de casa. A SOS Escritura utiliza assinatura digital com validade jurídica para agilizar seus processos.",
+      "Assine documentos digitalmente sem sair de casa. Utilizamos assinatura digital com validade jurídica para agilizar seus processos.",
     steps: [
       'Acesse "Minhas Assinaturas" no menu de serviços',
       "Veja os documentos pendentes de assinatura",
@@ -151,7 +150,7 @@ const FEATURES: FeatureSection[] = [
     icon: "chatbubbles-outline",
     title: "Atendimento / Chat",
     description:
-      "Fale diretamente com a equipe da SOS Escritura pelo chat integrado. Tire dúvidas, envie informações e receba orientações em tempo real.",
+      "Fale diretamente com a equipe pelo chat integrado. Tire dúvidas, envie informações e receba orientações em tempo real.",
     steps: [
       "O chat fica disponível na área de atendimento",
       "Envie mensagens de texto para a equipe",
@@ -180,12 +179,12 @@ const FAQ: FaqItem[] = [
   {
     question: "Posso usar o app pelo computador?",
     answer:
-      "Sim! O SOS Escritura funciona tanto no celular (Android e iOS) quanto pelo navegador do computador, mantendo todas as funcionalidades.",
+      "Sim! A plataforma funciona tanto no celular (Android e iOS) quanto pelo navegador do computador, mantendo todas as funcionalidades.",
   },
   {
     question: "Como faço para cadastrar meu imóvel?",
     answer:
-      "O cadastro do imóvel é feito pela equipe da SOS Escritura no início do processo de regularização. Assim que cadastrado, o imóvel aparece automaticamente na sua conta.",
+      "O cadastro do imóvel é feito pela equipe no início do processo de regularização. Assim que cadastrado, o imóvel aparece automaticamente na sua conta.",
   },
   {
     question: "Posso acompanhar mais de um imóvel ao mesmo tempo?",
@@ -198,9 +197,9 @@ const FAQ: FaqItem[] = [
       'Se houver algum problema no envio, tente novamente usando o botão "Enviar novamente". Caso persista, entre em contato com a equipe pelo chat.',
   },
   {
-    question: "Como entro em contato com a equipe SOS Escritura?",
+    question: "Como entro em contato com a equipe?",
     answer:
-      "Você pode usar o chat integrado no app, enviar um e-mail para contato@sosescrituras.com.br ou ligar para nosso telefone de atendimento.",
+      "Você pode usar o chat integrado no app ou acessar a aba Contato na tela de Ajuda para ver os canais de atendimento disponíveis.",
   },
   {
     question: "Como funciona o reagendamento?",
@@ -214,26 +213,28 @@ const FAQ: FaqItem[] = [
   },
 ];
 
-const CONTACT_OPTIONS = [
-  {
-    icon: "mail-outline" as keyof typeof Ionicons.glyphMap,
-    label: "E-mail",
-    value: "contato@sosescrituras.com.br",
-    action: () => Linking.openURL("mailto:contato@sosescrituras.com.br"),
-  },
-  {
-    icon: "logo-whatsapp" as keyof typeof Ionicons.glyphMap,
-    label: "WhatsApp",
-    value: "(41) 99999-9999",
-    action: () => Linking.openURL("https://wa.me/5541999999999"),
-  },
-  {
-    icon: "globe-outline" as keyof typeof Ionicons.glyphMap,
-    label: "Site",
-    value: "www.sosescrituras.com.br",
-    action: () => Linking.openURL("https://www.sosescrituras.com.br"),
-  },
-];
+/* ─── Helpers ────────────────────────────────────────────────────────── */
+
+/** Format a raw phone number like "5541999999999" into "(41) 99999-9999" */
+const formatPhone = (raw: string): string => {
+  const digits = raw.replace(/\D/g, "");
+  // Remove country code 55 if present
+  const local = digits.startsWith("55") ? digits.slice(2) : digits;
+  if (local.length === 11) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+  }
+  if (local.length === 10) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+  }
+  return raw;
+};
+
+/** Build the wa.me link from a raw phone number */
+const whatsappUrl = (raw: string): string => {
+  const digits = raw.replace(/\D/g, "");
+  const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
+  return `https://wa.me/${withCountry}`;
+};
 
 /* ─── Components ─────────────────────────────────────────────────────── */
 
@@ -382,8 +383,21 @@ function FaqCard({
 
 /* ─── Main Screen ────────────────────────────────────────────────────── */
 
+/** Tenant row shape for contact / branding info */
+type TenantContactData = {
+  id: string;
+  company_name?: string;
+  whatsapp_number?: string;
+  slug?: string;
+  config?: {
+    brand?: { name?: string; primary_color?: string };
+    contact?: { email?: string; website?: string; phone?: string };
+  };
+};
+
 export default function AjudaScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const backgroundColor = useThemeColor({}, "background");
   const tintColor = useThemeColor({}, "tint");
   const cardBg = useThemeColor({}, "card");
@@ -394,6 +408,111 @@ export default function AjudaScreen() {
   const [activeTab, setActiveTab] = useState<
     "funcionalidades" | "faq" | "contato"
   >("funcionalidades");
+  const [tenantData, setTenantData] = useState<TenantContactData | null>(null);
+  const [tenantLoading, setTenantLoading] = useState(false);
+
+  /* ── Fetch tenant contact data ── */
+  useEffect(() => {
+    const tenantId = user?.tenant_id;
+    if (!tenantId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setTenantLoading(true);
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "tenants",
+          ...buildSearchParams([{ field: "id", value: tenantId }]),
+          fields: ["id", "company_name", "whatsapp_number", "slug", "config"],
+        });
+        if (cancelled) return;
+        const rows = normalizeCrudList<TenantContactData>(res.data);
+        if (rows.length > 0) setTenantData(rows[0]);
+      } catch {
+        // Silently fail — contacts will simply not be shown
+      } finally {
+        if (!cancelled) setTenantLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.tenant_id]);
+
+  /** Resolved brand / company name */
+  const tenantName = useMemo(() => {
+    if (!tenantData) return "";
+    return tenantData.config?.brand?.name || tenantData.company_name || "";
+  }, [tenantData]);
+
+  /** Dynamically built contact options based on tenant data */
+  const contactOptions = useMemo(() => {
+    if (!tenantData) return [];
+    const options: {
+      icon: keyof typeof Ionicons.glyphMap;
+      label: string;
+      value: string;
+      action: () => void;
+    }[] = [];
+
+    // Email
+    const email = tenantData.config?.contact?.email;
+    if (email) {
+      options.push({
+        icon: "mail-outline",
+        label: "E-mail",
+        value: email,
+        action: () => Linking.openURL(`mailto:${email}`),
+      });
+    }
+
+    // WhatsApp
+    const whatsapp = tenantData.whatsapp_number;
+    if (whatsapp) {
+      options.push({
+        icon: "logo-whatsapp",
+        label: "WhatsApp",
+        value: formatPhone(whatsapp),
+        action: () => Linking.openURL(whatsappUrl(whatsapp)),
+      });
+    }
+
+    // Phone (separate from WhatsApp)
+    const phone = tenantData.config?.contact?.phone;
+    if (phone && phone !== whatsapp) {
+      options.push({
+        icon: "call-outline",
+        label: "Telefone",
+        value: formatPhone(phone),
+        action: () => Linking.openURL(`tel:${phone.replace(/\D/g, "")}`),
+      });
+    }
+
+    // Website
+    const website = tenantData.config?.contact?.website;
+    if (website) {
+      const displayUrl = website.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const fullUrl = website.startsWith("http")
+        ? website
+        : `https://${website}`;
+      options.push({
+        icon: "globe-outline",
+        label: "Site",
+        value: displayUrl,
+        action: () => Linking.openURL(fullUrl),
+      });
+    } else if (tenantData.slug) {
+      const slugUrl = `https://${tenantData.slug}.radul.com.br`;
+      options.push({
+        icon: "globe-outline",
+        label: "Site",
+        value: `${tenantData.slug}.radul.com.br`,
+        action: () => Linking.openURL(slugUrl),
+      });
+    }
+
+    return options;
+  }, [tenantData]);
 
   const handleNavigate = (route: string) => {
     router.push(route as any);
@@ -415,8 +534,9 @@ export default function AjudaScreen() {
           Suporte & Ajuda
         </ThemedText>
         <ThemedText style={[styles.heroSubtitle, { color: mutedColor }]}>
-          Aprenda a usar todas as funcionalidades do SOS Escritura e tire suas
-          dúvidas
+          {tenantName
+            ? `Aprenda a usar todas as funcionalidades da ${tenantName} e tire suas dúvidas`
+            : "Aprenda a usar todas as funcionalidades e tire suas dúvidas"}
         </ThemedText>
       </View>
 
@@ -527,7 +647,28 @@ export default function AjudaScreen() {
               Estamos aqui para ajudar. Escolha o canal que preferir:
             </ThemedText>
 
-            {CONTACT_OPTIONS.map((option) => (
+            {tenantLoading && (
+              <ActivityIndicator
+                size="small"
+                color={tintColor}
+                style={{ marginVertical: 16 }}
+              />
+            )}
+
+            {!tenantLoading && contactOptions.length === 0 && (
+              <ThemedText
+                style={{
+                  color: mutedColor,
+                  textAlign: "center",
+                  marginVertical: 20,
+                  fontSize: 14,
+                }}
+              >
+                Nenhum canal de contato disponível no momento.
+              </ThemedText>
+            )}
+
+            {contactOptions.map((option) => (
               <TouchableOpacity
                 key={option.label}
                 onPress={option.action}
