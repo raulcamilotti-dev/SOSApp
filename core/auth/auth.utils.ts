@@ -85,12 +85,15 @@ export function isInternalUser(user?: User | null): boolean {
  * Radul super-admin tenant IDs and emails.
  * Used for platform-wide super admin access.
  */
-const RADUL_TENANT_IDS = new Set([
+export const RADUL_TENANT_IDS = new Set([
   "0bc867c7-082b-4d6f-a240-405f01b2941e", // Radul Super Admin
   "0999d528-0114-4399-a582-41d4ea96801f", // SOS Escritura (legacy)
 ]);
 
-const RADUL_EMAILS = new Set(["raul@radul.com.br", "raulcamilotti@gmail.com"]);
+export const RADUL_EMAILS = new Set([
+  "raul@radul.com.br",
+  "raulcamilotti@gmail.com",
+]);
 
 export function isRadulUser(user?: User | null): boolean {
   if (!user) return false;

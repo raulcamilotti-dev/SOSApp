@@ -2,15 +2,17 @@ import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
+import { RADUL_TENANT_IDS } from "@/core/auth/auth.utils";
 import { PERMISSIONS } from "@/core/auth/permissions";
 import { assignDefaultPermissionsToRole } from "@/core/auth/permissions.sync";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
-import { TouchableOpacity, View } from "react-native";
 import { CRUD_ENDPOINT } from "@/services/crud";
+import { DEFAULT_ROLE_NAMES } from "@/services/onboarding";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useMemo } from "react";
+import { Alert, TouchableOpacity, View } from "react-native";
 
 type Row = Record<string, unknown>;
 
@@ -142,17 +144,38 @@ export default function RolesScreen() {
   const tintColor = useThemeColor({}, "tint");
   const borderColor = useThemeColor({}, "border");
 
+  // Track loaded items so we can check names at delete time
+  const isRadulTenant = useMemo(
+    () => !!tenantIdParam && RADUL_TENANT_IDS.has(tenantIdParam),
+    [tenantIdParam],
+  );
+
+  // Map of role id → name (populated after load)
+  const roleNameCache = useMemo(() => new Map<string, string>(), []);
+
   const loadFilteredRows = useMemo(() => {
     return async (): Promise<Row[]> => {
       const rows = await listRows();
+      // Populate cache for delete guard
+      roleNameCache.clear();
+      for (const r of rows) {
+        roleNameCache.set(String(r.id ?? ""), String(r.name ?? ""));
+      }
       return rows.filter((item) => {
         if (tenantIdParam && String(item.tenant_id ?? "") !== tenantIdParam) {
+          return false;
+        }
+        // Hide "Super Admin" role from non-Radul tenants
+        const roleName = String(item.name ?? "")
+          .toLowerCase()
+          .trim();
+        if (roleName === "super admin" && !isRadulTenant) {
           return false;
         }
         return true;
       });
     };
-  }, [tenantIdParam]);
+  }, [tenantIdParam, isRadulTenant, roleNameCache]);
 
   const createWithContext = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {
@@ -173,6 +196,24 @@ export default function RolesScreen() {
       });
     };
   }, [tenantIdParam]);
+
+  const guardedDeleteRow = useCallback(
+    async (
+      payload: Partial<Row> & { id?: string | null },
+    ): Promise<unknown> => {
+      const roleId = String(payload.id ?? "");
+      const roleName = roleNameCache.get(roleId) ?? "";
+      if (DEFAULT_ROLE_NAMES.has(roleName.toLowerCase().trim())) {
+        Alert.alert(
+          "Role padrão",
+          `O role "${roleName}" é um role padrão do sistema e não pode ser excluído.`,
+        );
+        return Promise.resolve();
+      }
+      return deleteRow(payload);
+    },
+    [roleNameCache],
+  );
 
   const fields: CrudFieldConfig<Row>[] = [
     { key: "id", label: "Id", placeholder: "Id", visibleInForm: false },
@@ -215,7 +256,7 @@ export default function RolesScreen() {
         loadItems={loadFilteredRows}
         createItem={createWithContext}
         updateItem={updateWithContext}
-        deleteItem={deleteRow}
+        deleteItem={guardedDeleteRow}
         getDetails={(item) => [
           { label: "Tenant", value: String(item.tenant_id ?? "-") },
           { label: "Nome", value: String(item.name ?? "-") },

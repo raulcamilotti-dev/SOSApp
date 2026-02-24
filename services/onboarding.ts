@@ -5,17 +5,41 @@
 /*  pack, and configures everything for a self-service signup.         */
 /* ------------------------------------------------------------------ */
 
+import { RADUL_TENANT_IDS } from "@/core/auth/auth.utils";
+import { assignDefaultPermissionsToRole } from "@/core/auth/permissions.sync";
 import type { PackSummary } from "@/data/template-packs";
 import { getAllPackSummaries, getPackByKey } from "@/data/template-packs";
 import { api } from "./api";
 import { createSubdomainDNS } from "./cloudflare-dns";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    normalizeCrudOne,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  normalizeCrudOne,
 } from "./crud";
 import { applyTemplatePack } from "./template-packs";
+
+/* ================================================================== */
+/*  Default Roles — auto-created for every new tenant                 */
+/* ================================================================== */
+
+/** Standard roles provisioned for every tenant on creation. */
+export const DEFAULT_TENANT_ROLES = [
+  { name: "Administrador", permissionProfile: "admin" },
+  { name: "Cliente", permissionProfile: "client" },
+  { name: "Parceiro", permissionProfile: "operador_parceiro" },
+] as const;
+
+/** Role only visible/created for the Radul super-admin tenant. */
+export const SUPER_ADMIN_ROLE = {
+  name: "Super Admin",
+  permissionProfile: "admin",
+} as const;
+
+/** Set of default role names — used to identify non-deletable roles. */
+export const DEFAULT_ROLE_NAMES = new Set(
+  DEFAULT_TENANT_ROLES.map((r) => r.name.toLowerCase()),
+);
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -111,6 +135,103 @@ async function assignAdminFullPermission(roleId: string): Promise<void> {
   }
 }
 
+/* ================================================================== */
+/*  ensureDefaultRoles — auto-create standard roles for a new tenant  */
+/* ================================================================== */
+
+export interface DefaultRolesResult {
+  adminRoleId: string | null;
+  clienteRoleId: string | null;
+  parceiroRoleId: string | null;
+}
+
+/**
+ * Ensure that the 3 standard roles (Administrador, Cliente, Parceiro) exist
+ * for the given tenant. If the tenant belongs to Radul, also creates the
+ * "Super Admin" role.
+ *
+ * Roles that already exist (by exact name match) are left untouched.
+ * New roles get their default permissions assigned automatically via
+ * `assignDefaultPermissionsToRole`.
+ *
+ * Call this right after `createTenant()` and **before** `applyTemplatePack()`
+ * so template packs can reference existing roles without duplication.
+ */
+export async function ensureDefaultRoles(
+  tenantId: string,
+): Promise<DefaultRolesResult> {
+  const result: DefaultRolesResult = {
+    adminRoleId: null,
+    clienteRoleId: null,
+    parceiroRoleId: null,
+  };
+
+  const isRadul = RADUL_TENANT_IDS.has(tenantId);
+
+  // Determine which roles to provision
+  const rolesToProvision = [
+    ...DEFAULT_TENANT_ROLES,
+    ...(isRadul ? [SUPER_ADMIN_ROLE] : []),
+  ];
+
+  // Fetch existing roles for this tenant (to avoid duplicates)
+  let existingRoles: { id: string; name: string }[] = [];
+  try {
+    const res = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "roles",
+      ...buildSearchParams([{ field: "tenant_id", value: tenantId }]),
+    });
+    existingRoles = normalizeCrudList<{ id: string; name: string }>(res.data);
+  } catch {
+    existingRoles = [];
+  }
+
+  const existingMap = new Map(
+    existingRoles.map((r) => [r.name.toLowerCase().trim(), r.id]),
+  );
+
+  for (const roleDef of rolesToProvision) {
+    const nameKey = roleDef.name.toLowerCase().trim();
+    let roleId = existingMap.get(nameKey) ?? null;
+
+    // Create role if it doesn't exist
+    if (!roleId) {
+      try {
+        const createRes = await api.post(CRUD_ENDPOINT, {
+          action: "create",
+          table: "roles",
+          payload: {
+            tenant_id: tenantId,
+            name: roleDef.name,
+          },
+        });
+        const created = normalizeCrudOne<{ id: string }>(createRes.data);
+        roleId = created?.id ?? null;
+      } catch {
+        // Skip this role if creation fails
+        continue;
+      }
+    }
+
+    if (!roleId) continue;
+
+    // Assign default permissions based on the permission profile
+    try {
+      await assignDefaultPermissionsToRole(roleId, roleDef.permissionProfile);
+    } catch {
+      // Non-fatal — role exists, permissions can be assigned manually later
+    }
+
+    // Map to result object
+    if (nameKey === "administrador") result.adminRoleId = roleId;
+    else if (nameKey === "cliente") result.clienteRoleId = roleId;
+    else if (nameKey === "parceiro") result.parceiroRoleId = roleId;
+  }
+
+  return result;
+}
+
 /**
  * Generate a URL-safe slug from a string.
  * Removes accents, lowercases, replaces spaces/special chars with hyphens.
@@ -169,6 +290,7 @@ export async function createTenant(
       max_users: 2, // Free plan default — enforced by saas-billing
       extra_users_purchased: 0,
       price_per_extra_user: 29.9,
+      default_client_role: "Cliente", // Matches the pre-created "Cliente" role
       config: JSON.stringify(config),
     },
   });
@@ -236,9 +358,26 @@ export async function runOnboarding(
     }
   }
 
-  // Step 2 — Link user to tenant
+  // Step 1c — Create default roles (Administrador, Cliente, Parceiro)
+  onProgress?.("Criando roles padrão...", 0.18);
+  let defaultRoles: DefaultRolesResult = {
+    adminRoleId: null,
+    clienteRoleId: null,
+    parceiroRoleId: null,
+  };
+  try {
+    defaultRoles = await ensureDefaultRoles(tenantId);
+  } catch (roleErr) {
+    console.warn(
+      "[onboarding] ensureDefaultRoles failed (non-blocking):",
+      roleErr,
+    );
+    errors.push("Não foi possível criar roles padrão automaticamente.");
+  }
+
+  // Step 2 — Link user to tenant (with admin role if available)
   onProgress?.("Vinculando seu usuário...", 0.2);
-  await linkUserToTenant(userId, tenantId);
+  await linkUserToTenant(userId, tenantId, defaultRoles.adminRoleId);
 
   // Step 3 — Apply template pack
   let packApplied = false;
@@ -268,28 +407,17 @@ export async function runOnboarding(
     }
   }
 
-  // Step 4 — Ensure admin role exists and assign it to the creator
+  // Step 4 — Ensure admin role is assigned correctly
   onProgress?.("Finalizando permissões...", 0.9);
   try {
-    let adminRoleId = await findAdminRoleId(tenantId);
-
-    // If no admin role exists (e.g., no pack was applied), create one
+    // If ensureDefaultRoles didn't produce an admin role, try fallback
+    let adminRoleId = defaultRoles.adminRoleId;
     if (!adminRoleId) {
-      try {
-        const createRes = await api.post(CRUD_ENDPOINT, {
-          action: "create",
-          table: "roles",
-          payload: { tenant_id: tenantId, name: "Administrador" },
-        });
-        const created = normalizeCrudOne<{ id: string }>(createRes.data);
-        adminRoleId = created?.id ?? null;
-      } catch {
-        // If role creation fails, we'll still continue
-      }
+      adminRoleId = await findAdminRoleId(tenantId);
     }
 
     if (adminRoleId) {
-      // Update the user_tenants row with the admin role
+      // Update the user_tenants row with the admin role (if not already set)
       const utRes = await api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "user_tenants",
@@ -298,8 +426,10 @@ export async function runOnboarding(
           { field: "tenant_id", value: tenantId },
         ]),
       });
-      const utRows = normalizeCrudList<{ id: string }>(utRes.data);
-      if (utRows[0]?.id) {
+      const utRows = normalizeCrudList<{ id: string; role_id?: string }>(
+        utRes.data,
+      );
+      if (utRows[0]?.id && !utRows[0]?.role_id) {
         await api.post(CRUD_ENDPOINT, {
           action: "update",
           table: "user_tenants",

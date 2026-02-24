@@ -1110,11 +1110,13 @@ export async function requestMarketplaceQuote(
   let discount = 0;
   let validDays = 30;
   let notes: string | null = null;
+  let resolvedTemplateId: string | undefined;
 
   if (params.quoteTemplateId) {
     try {
       const template = await getQuoteTemplateById(params.quoteTemplateId);
       if (template) {
+        resolvedTemplateId = params.quoteTemplateId;
         const applied = applyTemplateToQuote(template);
         items = applied.items.map((it, idx) => ({
           description: it.description,
@@ -1127,7 +1129,7 @@ export async function requestMarketplaceQuote(
         notes = applied.notes;
       }
     } catch {
-      // Template fetch failed — continue with empty items
+      // Template fetch failed — continue with empty items (resolvedTemplateId stays undefined)
     }
   }
 
@@ -1158,7 +1160,7 @@ export async function requestMarketplaceQuote(
   const quote = await createQuote(api, {
     tenantId: params.tenantId,
     serviceOrderId: so.id,
-    templateId: params.quoteTemplateId || undefined,
+    templateId: resolvedTemplateId,
     title: `Orçamento — ${params.serviceName}`,
     description: params.customerNotes || undefined,
     items,
