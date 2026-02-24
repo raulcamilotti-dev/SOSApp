@@ -8,6 +8,7 @@
 import type { PackSummary } from "@/data/template-packs";
 import { getAllPackSummaries, getPackByKey } from "@/data/template-packs";
 import { api } from "./api";
+import { createSubdomainDNS } from "./cloudflare-dns";
 import {
     buildSearchParams,
     CRUD_ENDPOINT,
@@ -219,6 +220,21 @@ export async function runOnboarding(
   // Step 1 — Create tenant
   onProgress?.("Criando sua empresa...", 0.1);
   const tenantId = await createTenant(companyData);
+
+  // Step 1b — Create DNS subdomain (best-effort, never blocks onboarding)
+  const slug =
+    companyData.slug?.trim() || generateSlug(companyData.company_name);
+  if (slug) {
+    onProgress?.("Configurando subdomínio...", 0.15);
+    try {
+      await createSubdomainDNS(slug);
+    } catch (dnsErr) {
+      console.warn(
+        "[onboarding] DNS subdomain creation failed (non-blocking):",
+        dnsErr,
+      );
+    }
+  }
 
   // Step 2 — Link user to tenant
   onProgress?.("Vinculando seu usuário...", 0.2);

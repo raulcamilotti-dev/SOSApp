@@ -690,7 +690,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   /* ======================================================
-   * UPDATE USER (LOCAL)
+   * UPDATE USER (LOCAL + BACKEND via api_crud)
    * ====================================================== */
   async function updateUser(patch: Partial<User>): Promise<User> {
     const currentUser = user ?? (await getUser());
@@ -699,7 +699,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error("Usuário não encontrado");
     }
 
-    const nextUser = { ...currentUser, ...patch } as User;
+    const userId = patch.id ?? currentUser.id;
+    if (!userId) {
+      throw new Error("ID do usuário não encontrado");
+    }
+
+    // 1. Persist to backend via api_crud (source of truth)
+    try {
+      const payload: Record<string, unknown> = { id: userId };
+      // Only include fields that are actually being patched
+      for (const [key, value] of Object.entries(patch)) {
+        if (key === "id") continue; // already set above
+        payload[key] = value ?? null;
+      }
+      payload.updated_at = new Date().toISOString();
+
+      await api.post(CRUD_ENDPOINT, {
+        action: "update",
+        table: "users",
+        payload,
+      });
+    } catch (err) {
+      if (__DEV__) {
+        console.error("[updateUser] Falha ao persistir no backend:", err);
+      }
+      // Re-throw so callers know the backend update failed
+      throw err;
+    }
+
+    // 2. Update local state (for immediate UI responsiveness)
+    const nextUser = { ...currentUser, ...patch, id: userId } as User;
     setUser(nextUser);
     await saveUser(nextUser);
     return nextUser;

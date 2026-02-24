@@ -48,8 +48,8 @@ const MAX_FAVORITES = 6;
 
 export default function AdminHomeScreen() {
   const { user } = useAuth();
-  const { hasAnyPermission } = usePermissions();
-  const { isModuleEnabled, loading } = useTenantModules();
+  const { hasAnyPermission, loading: permissionsLoading } = usePermissions();
+  const { isModuleEnabled, loading: modulesLoading } = useTenantModules();
   const isRadul = isRadulUser(user);
   const router = useRouter();
 
@@ -75,10 +75,11 @@ export default function AdminHomeScreen() {
   }, [isRadul, hasAnyPermission]);
 
   useEffect(() => {
-    if (!loading && !canAccessAdmin) {
+    if (modulesLoading || permissionsLoading) return;
+    if (!canAccessAdmin) {
       router.replace("/(app)/Servicos/servicos" as any);
     }
-  }, [loading, canAccessAdmin, router]);
+  }, [modulesLoading, permissionsLoading, canAccessAdmin, router]);
 
   // ---- Load persisted favorites & hidden modules ----
   useEffect(() => {
@@ -224,7 +225,7 @@ export default function AdminHomeScreen() {
     return "Boa noite";
   }, []);
 
-  if (loading || !canAccessAdmin) return null;
+  if (modulesLoading || permissionsLoading || !canAccessAdmin) return null;
 
   return (
     <ScrollView

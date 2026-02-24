@@ -5,6 +5,9 @@
 export interface Env {
   DATABASE_URL: string; // set via `wrangler secret put DATABASE_URL`
   API_KEY: string; // set via `wrangler secret put API_KEY`
+  CLOUDFLARE_DNS_API_KEY: string; // Global API Key — set via `wrangler secret put CLOUDFLARE_DNS_API_KEY`
+  CLOUDFLARE_DNS_EMAIL: string; // Account email — set via `wrangler secret put CLOUDFLARE_DNS_EMAIL`
+  CLOUDFLARE_ZONE_ID: string; // set via `wrangler secret put CLOUDFLARE_ZONE_ID`
   ENVIRONMENT: string;
 }
 

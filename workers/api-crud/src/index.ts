@@ -237,6 +237,138 @@ async function handleHealth(env: Env): Promise<Response> {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/*  Route: POST /dns/create-subdomain                                  */
+/*  Creates {slug}.radul.com.br → A record pointing to server IP       */
+/* ------------------------------------------------------------------ */
+
+const DNS_TARGET_IP = "104.248.63.102";
+const DNS_ZONE_DOMAIN = "radul.com.br";
+
+async function handleDnsCreateSubdomain(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const slug = (body.slug as string | undefined)?.trim();
+  if (!slug) {
+    return errorResponse(400, "slug is required");
+  }
+
+  // Validate slug format (URL-safe, lowercase, no dots)
+  if (!/^[a-z0-9]([a-z0-9-]{0,58}[a-z0-9])?$/.test(slug)) {
+    return errorResponse(400, "Invalid slug format: " + slug);
+  }
+
+  // Prevent creating records for reserved subdomains
+  const RESERVED = new Set([
+    "app",
+    "api",
+    "www",
+    "mail",
+    "smtp",
+    "imap",
+    "pop",
+    "ftp",
+    "admin",
+    "ns1",
+    "ns2",
+    "cdn",
+    "static",
+    "assets",
+    "staging",
+    "dev",
+    "test",
+    "n8n",
+    "api-crud",
+  ]);
+  if (RESERVED.has(slug)) {
+    return errorResponse(400, "Reserved subdomain: " + slug);
+  }
+
+  const apiKey = env.CLOUDFLARE_DNS_API_KEY;
+  const email = env.CLOUDFLARE_DNS_EMAIL;
+  const zoneId = env.CLOUDFLARE_ZONE_ID;
+
+  if (!apiKey || !email || !zoneId) {
+    console.error(
+      "[dns] Missing CLOUDFLARE_DNS_API_KEY, CLOUDFLARE_DNS_EMAIL, or CLOUDFLARE_ZONE_ID",
+    );
+    return errorResponse(500, "DNS service not configured");
+  }
+
+  const recordName = `${slug}.${DNS_ZONE_DOMAIN}`;
+
+  try {
+    // 1. Check if the record already exists
+    const listUrl = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=A&name=${encodeURIComponent(recordName)}`;
+    const listRes = await fetch(listUrl, {
+      headers: {
+        "X-Auth-Key": apiKey,
+        "X-Auth-Email": email,
+        "Content-Type": "application/json",
+      },
+    });
+    const listData = (await listRes.json()) as {
+      success: boolean;
+      result: { id: string; name: string }[];
+    };
+
+    if (listData.success && listData.result?.length > 0) {
+      // Record already exists — return success (idempotent)
+      return corsResponse(200, {
+        success: true,
+        message: "DNS record already exists",
+        record_name: recordName,
+        existing: true,
+      });
+    }
+
+    // 2. Create the A record with proxy enabled
+    const createUrl = `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`;
+    const createRes = await fetch(createUrl, {
+      method: "POST",
+      headers: {
+        "X-Auth-Key": apiKey,
+        "X-Auth-Email": email,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "A",
+        name: slug, // Cloudflare auto-appends the zone domain
+        content: DNS_TARGET_IP,
+        ttl: 1, // 1 = automatic
+        proxied: true,
+      }),
+    });
+
+    const createData = (await createRes.json()) as {
+      success: boolean;
+      errors?: { message: string }[];
+      result?: { id: string; name: string };
+    };
+
+    if (!createData.success) {
+      const errMsg =
+        createData.errors?.map((e) => e.message).join(", ") ||
+        "Unknown Cloudflare error";
+      console.error("[dns] Cloudflare create error:", errMsg);
+      return errorResponse(400, "DNS creation failed: " + errMsg);
+    }
+
+    return corsResponse(200, {
+      success: true,
+      message: "DNS record created",
+      record_name: recordName,
+      record_id: createData.result?.id,
+      existing: false,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[dns] Error:", message);
+    return errorResponse(500, "DNS creation error: " + message);
+  }
+}
+
 /* ================================================================== */
 /*  Main fetch handler                                                 */
 /* ================================================================== */
@@ -295,6 +427,12 @@ export default {
         (path === "/tables" || path === "/webhook/tables")
       ) {
         return handleTables(env);
+      }
+
+      // Route: POST /dns/create-subdomain
+      if (request.method === "POST" && path === "/dns/create-subdomain") {
+        const body = (await request.json()) as Record<string, unknown>;
+        return handleDnsCreateSubdomain(body, env);
       }
 
       return errorResponse(404, "Not found: " + path);

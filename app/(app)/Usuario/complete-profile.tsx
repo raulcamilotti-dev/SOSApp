@@ -95,17 +95,7 @@ export default function CompleteProfile() {
       setSaving(true);
       setError("");
 
-      // Update user via api_crud (reliable — uses RETURNING *)
-      await api.post(CRUD_ENDPOINT, {
-        action: "update",
-        table: "users",
-        payload: {
-          id: userId,
-          cpf: nextCpf,
-          phone: nextPhone,
-        },
-      });
-
+      // Update user via api_crud (through updateUser which now persists to backend)
       await updateUser({
         cpf: nextCpf,
         phone: nextPhone,
