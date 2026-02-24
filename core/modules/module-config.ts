@@ -185,6 +185,7 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   ocr_results: MODULE_KEYS.DOCUMENTS,
   document_templates: MODULE_KEYS.DOCUMENTS,
   document_generator: MODULE_KEYS.DOCUMENTS,
+  generated_documents: MODULE_KEYS.DOCUMENTS,
 
   // ONR & Cartório module (requires documents)
   onr_protocolos: MODULE_KEYS.ONR_CARTORIO,
@@ -209,9 +210,9 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   faturas: MODULE_KEYS.FINANCIAL,
   pagamentos: MODULE_KEYS.FINANCIAL,
   dashboard_financeiro: MODULE_KEYS.FINANCIAL,
+  dre: MODULE_KEYS.FINANCIAL,
   contas_a_pagar: MODULE_KEYS.FINANCIAL,
   contas_a_receber: MODULE_KEYS.FINANCIAL,
-  ganhos_parceiros: MODULE_KEYS.FINANCIAL,
   inadimplentes: MODULE_KEYS.FINANCIAL,
   conciliador_bancario: MODULE_KEYS.FINANCIAL,
   fechamento_contabil: MODULE_KEYS.FINANCIAL,
@@ -224,15 +225,20 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   campaign_items: MODULE_KEYS.CRM,
   lead_forms: MODULE_KEYS.CRM,
   content_pages: MODULE_KEYS.CRM,
+  perfil_marketing: MODULE_KEYS.CRM,
 
   // Quotes (linked to core — available to all tenants)
   quote_templates: MODULE_KEYS.CORE,
+  quotes: MODULE_KEYS.CORE,
 
   // Contracts (linked to core — available to all tenants)
   contracts: MODULE_KEYS.CORE,
 
   // PDV & Sales module
+  pdv: MODULE_KEYS.PDV,
+  pre_venda: MODULE_KEYS.PDV,
   vendas: MODULE_KEYS.PDV,
+  minhas_vendas: MODULE_KEYS.PDV,
   regras_desconto: MODULE_KEYS.PDV,
   composicoes: MODULE_KEYS.PDV,
   separacao: MODULE_KEYS.PDV,
@@ -245,6 +251,7 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   // Purchases module
   solicitacoes_compras: MODULE_KEYS.PURCHASES,
   compras: MODULE_KEYS.PURCHASES,
+  fornecedores: MODULE_KEYS.PURCHASES,
 };
 
 /**

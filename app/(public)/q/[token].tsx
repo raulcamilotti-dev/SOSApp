@@ -35,6 +35,7 @@ const WARNING_COLOR = "#f59e0b";
 type Phase =
   | "loading"
   | "quote"
+  | "draft"
   | "approved"
   | "rejected"
   | "expired"
@@ -66,8 +67,8 @@ export default function PublicQuote() {
 
         const quoteData = await loadPublicQuote(token);
         if (!quoteData) {
-          setPhase("error");
-          setErrorMsg("Erro ao carregar orçamento.");
+          // Draft quotes return null — show friendly message
+          setPhase("draft");
           return;
         }
 
@@ -191,6 +192,18 @@ export default function PublicQuote() {
         </View>
       )}
 
+      {/* Draft — not yet sent to client */}
+      {phase === "draft" && (
+        <View style={s.card}>
+          <Ionicons name="time-outline" size={48} color={WARNING_COLOR} />
+          <Text style={s.resultTitle}>Orçamento em preparação</Text>
+          <Text style={s.resultText}>
+            Este orçamento ainda está sendo preparado e não está disponível para
+            visualização. Você será notificado quando ele for enviado.
+          </Text>
+        </View>
+      )}
+
       {/* Expired */}
       {phase === "expired" && data && (
         <View style={s.card}>
@@ -307,7 +320,9 @@ export default function PublicQuote() {
               )}
               <View style={[s.totalRow, s.grandTotalRow]}>
                 <Text style={s.grandTotalLabel}>Total</Text>
-                <Text style={s.grandTotalValue}>{fmt(data.total)}</Text>
+                <Text style={s.grandTotalValue}>
+                  {fmt(Math.max(0, data.subtotal - data.discount))}
+                </Text>
               </View>
             </View>
           </View>

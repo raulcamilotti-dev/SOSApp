@@ -75,6 +75,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "service_types",
       "avaliacoes",
       "quote_templates",
+      "quotes",
       "contracts",
     ],
   },

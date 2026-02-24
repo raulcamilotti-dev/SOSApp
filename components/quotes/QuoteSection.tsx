@@ -139,6 +139,13 @@ export function QuoteSection({
     loadQuotes();
   }, [loadQuotes]);
 
+  /* ── Auto-expand when quotes exist ─────────────────────── */
+  useEffect(() => {
+    if (!loading && quotes.length > 0) {
+      setExpanded(true);
+    }
+  }, [loading, quotes.length]);
+
   /* ── Load templates when modal opens ───────────────────── */
   const loadTemplates = useCallback(async () => {
     if (!tenantId) return;
@@ -449,7 +456,12 @@ export function QuoteSection({
                               <Text
                                 style={[st.quoteTotal, { color: tintColor }]}
                               >
-                                {fmt(q.total)}
+                                {fmt(
+                                  Math.max(
+                                    0,
+                                    Number(q.subtotal) - Number(q.discount),
+                                  ),
+                                )}
                               </Text>
                             </View>
                           </View>
@@ -507,6 +519,24 @@ export function QuoteSection({
 
                             {/* Totals */}
                             <View style={st.totalsBox}>
+                              <View style={st.totalRow}>
+                                <Text
+                                  style={[
+                                    st.totalLabel,
+                                    { color: mutedTextColor },
+                                  ]}
+                                >
+                                  Subtotal
+                                </Text>
+                                <Text
+                                  style={[
+                                    st.totalLabel,
+                                    { color: titleTextColor },
+                                  ]}
+                                >
+                                  {fmt(q.subtotal)}
+                                </Text>
+                              </View>
                               {Number(q.discount) > 0 && (
                                 <View style={st.totalRow}>
                                   <Text
@@ -527,7 +557,7 @@ export function QuoteSection({
                                   </Text>
                                 </View>
                               )}
-                              <View style={st.totalRow}>
+                              <View style={[st.totalRow, { marginTop: 4 }]}>
                                 <Text
                                   style={[
                                     st.grandTotalLabel,
@@ -542,7 +572,12 @@ export function QuoteSection({
                                     { color: tintColor },
                                   ]}
                                 >
-                                  {fmt(q.total)}
+                                  {fmt(
+                                    Math.max(
+                                      0,
+                                      Number(q.subtotal) - Number(q.discount),
+                                    ),
+                                  )}
                                 </Text>
                               </View>
                             </View>

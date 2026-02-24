@@ -457,6 +457,9 @@ export async function loadPublicQuote(
 
     const quote = quotes[0];
 
+    // Draft quotes should not be accessible publicly
+    if (quote.status === "draft") return null;
+
     // Mark as viewed if sent
     if (quote.status === "sent") {
       try {
