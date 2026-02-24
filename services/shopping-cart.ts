@@ -20,6 +20,10 @@ import { api } from "./api";
 import { buildSearchParams, CRUD_ENDPOINT, normalizeCrudList } from "./crud";
 import { getMarketplaceProductById } from "./marketplace";
 
+const API_DINAMICO =
+  (process.env.EXPO_PUBLIC_API_BASE_URL ??
+    "https://api-crud.sosescritura.com.br") + "/api_dinamico";
+
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
@@ -307,29 +311,22 @@ export async function updateCartItemQuantity(
 
 /**
  * Remove a single item from the cart.
+ * Uses real DELETE (not soft-delete) because shopping_cart_items has no deleted_at column.
  */
 export async function removeCartItem(cartItemId: string): Promise<void> {
-  await api.post(CRUD_ENDPOINT, {
-    action: "delete",
-    table: "shopping_cart_items",
-    payload: { id: cartItemId },
+  await api.post(API_DINAMICO, {
+    sql: `DELETE FROM shopping_cart_items WHERE id = '${cartItemId}'`,
   });
 }
 
 /**
  * Clear all items from a cart.
+ * Uses real DELETE (not soft-delete) because shopping_cart_items has no deleted_at column.
  */
 export async function clearCart(cartId: string): Promise<void> {
-  const items = await getCartItems(cartId);
-  await Promise.all(
-    items.map((item) =>
-      api.post(CRUD_ENDPOINT, {
-        action: "delete",
-        table: "shopping_cart_items",
-        payload: { id: item.id },
-      }),
-    ),
-  );
+  await api.post(API_DINAMICO, {
+    sql: `DELETE FROM shopping_cart_items WHERE cart_id = '${cartId}'`,
+  });
 }
 
 /* ------------------------------------------------------------------ */

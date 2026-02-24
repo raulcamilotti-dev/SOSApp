@@ -88,6 +88,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "pdv",
       "pre_venda",
       "vendas",
+      "minhas_vendas",
       "regras_desconto",
       "composicoes",
       "separacao",
@@ -100,7 +101,13 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
     description: "Estoque, movimentações e fornecedores",
     icon: "layers-outline",
     color: "#14b8a6",
-    pageIds: ["estoque", "movimentacoes_estoque", "fornecedores", "compras"],
+    pageIds: [
+      "estoque",
+      "movimentacoes_estoque",
+      "fornecedores",
+      "solicitacoes_compras",
+      "compras",
+    ],
   },
   {
     key: "financeiro",
@@ -161,7 +168,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
     description: "Gestão de parceiros e comissões",
     icon: "people-circle-outline",
     color: "#f59e0b",
-    pageIds: ["parceiros", "ganhos_parceiros"],
+    pageIds: ["parceiros", "ganhos_parceiros", "meus_trabalhos"],
   },
   {
     key: "automacao",

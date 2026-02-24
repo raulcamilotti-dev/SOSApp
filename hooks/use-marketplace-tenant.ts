@@ -12,16 +12,11 @@
  */
 
 import { buildTenantContextPayload } from "@/core/auth/tenant-context";
-import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-} from "@/services/crud";
-import {
-    getMarketplaceConfig,
+    bootstrapMarketplace,
     listMarketplaceCategories,
     listMarketplaceProducts,
+    type MarketplaceBootstrap,
     type MarketplaceCategory,
     type MarketplaceConfig,
     type MarketplaceProduct,
@@ -77,72 +72,6 @@ export interface MarketplaceTenantState {
   searchProducts: (query: string) => void;
   /** Filter products by category ID (null = all) */
   filterByCategory: (categoryId: string | null) => void;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Color helpers (same as use-tenant-branding.ts)                     */
-/* ------------------------------------------------------------------ */
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!match) return null;
-  return {
-    r: parseInt(match[1], 16),
-    g: parseInt(match[2], 16),
-    b: parseInt(match[3], 16),
-  };
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return (
-    "#" +
-    [r, g, b]
-      .map((c) => {
-        const v = Math.max(0, Math.min(255, Math.round(c))).toString(16);
-        return v.length === 1 ? "0" + v : v;
-      })
-      .join("")
-  );
-}
-
-function darken(hex: string, amount: number): string {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return hex;
-  return rgbToHex(
-    rgb.r * (1 - amount),
-    rgb.g * (1 - amount),
-    rgb.b * (1 - amount),
-  );
-}
-
-function lighten(hex: string, amount: number): string {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return hex;
-  return rgbToHex(
-    rgb.r + (255 - rgb.r) * amount,
-    rgb.g + (255 - rgb.g) * amount,
-    rgb.b + (255 - rgb.b) * amount,
-  );
-}
-
-function validHex(value: unknown): string | null {
-  if (!value || typeof value !== "string") return null;
-  return /^#[0-9a-fA-F]{6}$/.test(value.trim()) ? value.trim() : null;
-}
-
-function parseConfig(value: unknown): Record<string, unknown> | null {
-  if (!value) return null;
-  if (typeof value === "object" && value !== null)
-    return value as Record<string, unknown>;
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return parsed && typeof parsed === "object" ? parsed : null;
-    } catch {
-      return null;
-    }
-  }
-  return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -231,86 +160,7 @@ export function useMarketplaceTenant(
   const utmSource = tenantContext.utm_source ?? null;
   const utmCampaign = tenantContext.utm_campaign ?? null;
 
-  /* ── Resolve tenant ── */
-  const resolveTenant = useCallback(async (): Promise<{
-    tenantId: string;
-    info: MarketplaceTenantInfo;
-  } | null> => {
-    if (!resolvedSlug) return null;
-
-    try {
-      // Lookup tenant by slug
-      const res = await api.post(CRUD_ENDPOINT, {
-        action: "list",
-        table: "tenants",
-        ...buildSearchParams([
-          { field: "slug", value: resolvedSlug, operator: "equal" },
-        ]),
-      });
-      const tenants = normalizeCrudList<Record<string, unknown>>(
-        res.data,
-      ).filter((t) => !t.deleted_at);
-
-      if (tenants.length === 0) return null;
-
-      const t = tenants[0];
-      const tenantId = String(t.id ?? "");
-      if (!tenantId) return null;
-
-      // Extract branding from config
-      const cfg = parseConfig(t.config);
-      const brand = (cfg?.brand ?? {}) as Record<string, unknown>;
-      const primaryColor = validHex(brand.primary_color) ?? "#2563eb";
-      const marketplace = (cfg?.marketplace ?? {}) as Record<string, unknown>;
-
-      const info: MarketplaceTenantInfo = {
-        tenant_id: tenantId,
-        company_name: String(t.company_name ?? ""),
-        slug: String(t.slug ?? resolvedSlug),
-        brand_name: String(brand.name ?? t.company_name ?? "").trim() || "Loja",
-        primary_color: primaryColor,
-        primary_dark: darken(primaryColor, 0.15),
-        primary_light: lighten(primaryColor, 0.85),
-        banner_url: marketplace.banner_url
-          ? String(marketplace.banner_url)
-          : null,
-        about_text: marketplace.about_text
-          ? String(marketplace.about_text)
-          : null,
-      };
-
-      return { tenantId, info };
-    } catch {
-      return null;
-    }
-  }, [resolvedSlug]);
-
-  /* ── Load all marketplace data ── */
-  const loadMarketplaceData = useCallback(async (tenantId: string) => {
-    const [cfgResult, productsResult, categoriesResult] =
-      await Promise.allSettled([
-        getMarketplaceConfig(tenantId),
-        listMarketplaceProducts({ tenantId, pageSize: 999 }),
-        listMarketplaceCategories(tenantId),
-      ]);
-
-    const marketplaceConfig =
-      cfgResult.status === "fulfilled" ? cfgResult.value : null;
-    const productList =
-      productsResult.status === "fulfilled"
-        ? productsResult.value.products
-        : [];
-    const categoryList =
-      categoriesResult.status === "fulfilled" ? categoriesResult.value : [];
-
-    return {
-      config: marketplaceConfig,
-      products: productList,
-      categories: categoryList,
-    };
-  }, []);
-
-  /* ── Main initialization ── */
+  /* ── Main initialization (fully parallel — no sequential dependency) ── */
   const initialize = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -326,9 +176,29 @@ export function useMarketplaceTenant(
         return;
       }
 
-      // 1. Resolve tenant
-      const result = await resolveTenant();
-      if (!result) {
+      const t0 = __DEV__ ? performance.now() : 0;
+
+      // Fire ALL three queries in parallel — each one resolves tenant by slug
+      // internally via a sub-select, so there's no need to wait for a tenant ID.
+      const [bootstrapResult, productsResult, categoriesResult] =
+        await Promise.allSettled([
+          bootstrapMarketplace(resolvedSlug),
+          listMarketplaceProducts({ tenantSlug: resolvedSlug, pageSize: 999 }),
+          listMarketplaceCategories(undefined, undefined, resolvedSlug),
+        ]);
+
+      if (__DEV__) {
+        const elapsed = performance.now() - t0;
+        console.log(
+          `[MARKETPLACE_HOOK] Parallel init done in ${elapsed.toFixed(0)}ms`,
+        );
+      }
+
+      // --- Bootstrap (tenant info + config) ---
+      const bootstrap: MarketplaceBootstrap | null =
+        bootstrapResult.status === "fulfilled" ? bootstrapResult.value : null;
+
+      if (!bootstrap) {
         setError("Loja não encontrada. Verifique o endereço.");
         setTenant(null);
         setConfig(null);
@@ -338,18 +208,24 @@ export function useMarketplaceTenant(
         return;
       }
 
-      setTenant(result.info);
+      setTenant(bootstrap.info as MarketplaceTenantInfo);
+      setConfig(bootstrap.config);
 
-      // 2. Load marketplace data
-      const data = await loadMarketplaceData(result.tenantId);
+      // --- Products ---
+      const productList =
+        productsResult.status === "fulfilled"
+          ? productsResult.value.products
+          : [];
+      setAllProducts(productList as MarketplaceProduct[]);
+      setProducts(productList as MarketplaceProduct[]);
 
-      setConfig(data.config);
-      setAllProducts(data.products as MarketplaceProduct[]);
-      setProducts(data.products as MarketplaceProduct[]);
-      setCategories(data.categories);
+      // --- Categories ---
+      const categoryList =
+        categoriesResult.status === "fulfilled" ? categoriesResult.value : [];
+      setCategories(categoryList);
 
-      // 3. Validate marketplace is enabled
-      if (!data.config?.enabled) {
+      // Validate marketplace is enabled
+      if (!bootstrap.config?.enabled) {
         setError("Esta loja não está disponível no momento.");
       }
     } catch (err) {
@@ -359,7 +235,7 @@ export function useMarketplaceTenant(
     } finally {
       setLoading(false);
     }
-  }, [resolvedSlug, resolveTenant, loadMarketplaceData]);
+  }, [resolvedSlug]);
 
   useEffect(() => {
     initialize();

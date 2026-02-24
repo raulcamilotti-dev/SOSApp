@@ -162,6 +162,16 @@ export const ADMIN_PAGES: AdminPage[] = [
     requiredAnyPermissions: [PERMISSIONS.SALE_READ],
   },
   {
+    id: "minhas_vendas",
+    group: "Vendas & PDV",
+    module: "operacao",
+    title: "Minhas Vendas",
+    description: "Histórico das suas vendas realizadas",
+    icon: "receipt-outline",
+    route: "/Servicos/MinhasVendas",
+    requiredAnyPermissions: [PERMISSIONS.SALE_READ],
+  },
+  {
     id: "estoque",
     group: "Estoque & Compras",
     module: "operacao",
@@ -324,6 +334,16 @@ export const ADMIN_PAGES: AdminPage[] = [
       PERMISSIONS.PARTNER_READ,
       PERMISSIONS.FINANCIAL_READ,
     ],
+  },
+  {
+    id: "meus_trabalhos",
+    group: "Parceiros",
+    module: "operacao",
+    title: "Meus Trabalhos",
+    description: "Agendamentos atribuídos a você como parceiro",
+    icon: "hammer-outline",
+    route: "/Servicos/MeusTrabalhos",
+    requiredAnyPermissions: [PERMISSIONS.PARTNER_READ],
   },
 
   // ---- Financeiro ----

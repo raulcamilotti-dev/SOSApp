@@ -373,7 +373,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   const refreshAvailableTenants = useCallback(async (): Promise<void> => {
-    const currentUser = user ?? (await getUser());
+    // Prefer stored user over closure-captured `user` to avoid stale state
+    // (e.g. after updateUser sets admin role but React hasn't re-rendered)
+    const currentUser = (await getUser()) ?? user;
     if (!currentUser) return;
     await loadAvailableTenants(currentUser);
   }, [loadAvailableTenants, user]);

@@ -79,45 +79,7 @@ const SERVICE_GROUPS: ServiceGroup[] = [
       },
     ],
   },
-  {
-    key: "parceiros",
-    label: "Parceiros",
-    icon: "people-outline",
-    items: [
-      {
-        id: "meus_trabalhos",
-        title: "Meus Trabalhos",
-        description: "Agendamentos atribuídos a você como parceiro",
-        icon: "hammer-outline",
-        route: "/Servicos/MeusTrabalhos",
-        module: MODULE_KEYS.PARTNERS,
-      },
-      {
-        id: "pdv",
-        title: "Ponto de Venda",
-        description: "Vender produtos e serviços no balcão",
-        icon: "cart-outline",
-        route: "/Servicos/PDV",
-        module: MODULE_KEYS.PDV,
-      },
-      {
-        id: "pre_venda",
-        title: "Pré-Venda",
-        description: "Comandas abertas — adicione itens e feche depois",
-        icon: "clipboard-outline",
-        route: "/Servicos/PreVenda",
-        module: MODULE_KEYS.PDV,
-      },
-      {
-        id: "minhas_vendas",
-        title: "Minhas Vendas",
-        description: "Histórico das suas vendas realizadas",
-        icon: "receipt-outline",
-        route: "/Servicos/MinhasVendas",
-        module: MODULE_KEYS.PDV,
-      },
-    ],
-  },
+
   {
     key: "documentos",
     label: "Documentos",

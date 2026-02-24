@@ -189,14 +189,21 @@ export default function OnboardingScreen() {
 
       setResult(onboardingResult);
 
-      // Update auth context — mark user as admin since they created this tenant
-      try {
-        await updateUser({ role: "admin" });
-      } catch {
-        // Non-fatal
-      }
+      // First refresh tenants and select the newly created tenant
       await refreshAvailableTenants();
       await selectTenant(onboardingResult.tenantId);
+
+      // Update auth context LAST — mark user as admin since they created this tenant.
+      // Must be the final setUser/saveUser call to avoid stale-closure overwrites
+      // from refreshAvailableTenants/selectTenant (which capture pre-render user).
+      try {
+        await updateUser({
+          role: "admin",
+          tenant_id: onboardingResult.tenantId,
+        });
+      } catch {
+        // Non-fatal — DB already has admin role from runOnboarding
+      }
 
       setStep(3);
     } catch (err) {

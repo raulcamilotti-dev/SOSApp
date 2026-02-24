@@ -11,9 +11,10 @@
 
 import { api } from "./api";
 import {
+  API_DINAMICO,
   buildSearchParams,
   CRUD_ENDPOINT,
-  normalizeCrudList
+  normalizeCrudList,
 } from "./crud";
 import type { QuoteItemInput } from "./quotes";
 
@@ -53,6 +54,30 @@ function markPerfStep(ctx: PerfContext, stepName: string, details?: string) {
 function getPerfReport(ctx: PerfContext, functionName: string): string {
   const totalMs = performance.now() - ctx.startTime;
   return `[${functionName}] Total: ${totalMs.toFixed(2)}ms\n${ctx.logs.map((l) => `  • ${l.message}`).join("\n")}`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  SQL helper: tenant filter by ID or slug                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Build a SQL clause for filtering by tenant — accepts either tenantId or tenantSlug.
+ * When tenantSlug is used, a sub-select resolves the ID, allowing queries to fire
+ * without first resolving the tenant in a separate round-trip.
+ */
+function tenantIdClause(
+  tableAlias: string,
+  tenantId?: string,
+  tenantSlug?: string,
+): string {
+  if (tenantId) {
+    return `${tableAlias}.tenant_id = '${tenantId}'`;
+  }
+  if (tenantSlug) {
+    const escaped = tenantSlug.replace(/'/g, "''");
+    return `${tableAlias}.tenant_id = (SELECT id FROM tenants WHERE slug = '${escaped}' AND deleted_at IS NULL LIMIT 1)`;
+  }
+  throw new Error("Either tenantId or tenantSlug must be provided");
 }
 
 /* ------------------------------------------------------------------ */
@@ -299,9 +324,13 @@ function mapProduct(
  * List published products for a tenant's marketplace.
  * Uses a single SQL query with LEFT JOIN to fetch products + category data
  * in one round-trip (replaces 2 parallel CRUD calls).
+ *
+ * Accepts either `tenantId` or `tenantSlug` — when slug is provided,
+ * a sub-select resolves the tenant inline (no separate round-trip).
  */
 export async function listMarketplaceProducts(params: {
-  tenantId: string;
+  tenantId?: string;
+  tenantSlug?: string;
   categoryId?: string;
   search?: string;
   sortBy?: "price_asc" | "price_desc" | "name" | "newest";
@@ -314,6 +343,7 @@ export async function listMarketplaceProducts(params: {
   try {
     const {
       tenantId,
+      tenantSlug,
       categoryId,
       search,
       sortBy = "name",
@@ -324,12 +354,12 @@ export async function listMarketplaceProducts(params: {
     markPerfStep(
       perf,
       "START listMarketplaceProducts",
-      `tenantId=${tenantId}, page=${page}, pageSize=${pageSize}`,
+      `tenantId=${tenantId ?? "slug:" + tenantSlug}, page=${page}, pageSize=${pageSize}`,
     );
 
     // Build WHERE clauses
     const where: string[] = [
-      `s.tenant_id = '${tenantId}'`,
+      tenantIdClause("s", tenantId, tenantSlug),
       `s.is_published = true`,
       `s.deleted_at IS NULL`,
     ];
@@ -422,6 +452,7 @@ export async function listMarketplaceProducts(params: {
 
 /**
  * Get a single published product by its slug.
+ * Optimized: single SQL JOIN query instead of 2 sequential CRUD calls.
  */
 export async function getMarketplaceProductBySlug(
   tenantId: string,
@@ -436,20 +467,21 @@ export async function getMarketplaceProductBySlug(
       `slug=${productSlug}`,
     );
 
-    const res = await api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "services",
-      ...buildSearchParams(
-        [
-          { field: "tenant_id", value: tenantId },
-          { field: "slug", value: productSlug },
-          { field: "is_published", value: "true", operator: "equal" },
-        ],
-        { autoExcludeDeleted: true, limit: 1 },
-      ),
-    });
+    const sql = `
+      SELECT s.*,
+             sc.name AS _cat_name,
+             sc.slug AS _cat_slug
+        FROM services s
+        LEFT JOIN service_categories sc ON sc.id = s.category_id
+       WHERE s.tenant_id = '${tenantId}'
+         AND s.slug = '${productSlug}'
+         AND s.is_published = true
+         AND s.deleted_at IS NULL
+       LIMIT 1`;
+
+    const res = await api.post(API_DINAMICO, { sql });
     const items = normalizeCrudList<Record<string, unknown>>(res.data);
-    markPerfStep(perf, "Fetched product by slug", `found=${items.length > 0}`);
+    markPerfStep(perf, "JOIN query done", `found=${items.length > 0}`);
 
     if (items.length === 0) {
       markPerfStep(perf, "Product not found");
@@ -457,34 +489,12 @@ export async function getMarketplaceProductBySlug(
     }
 
     const item = items[0];
+    const cat =
+      item._cat_name || item._cat_slug
+        ? { name: item._cat_name, slug: item._cat_slug }
+        : null;
 
-    // Resolve category
-    let cat: Record<string, unknown> | null = null;
-    if (item.category_id) {
-      markPerfStep(perf, "Fetching category", `categoryId=${item.category_id}`);
-
-      try {
-        const catRes = await api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "service_categories",
-          ...buildSearchParams([
-            { field: "id", value: String(item.category_id) },
-          ]),
-        });
-        const cats = normalizeCrudList<Record<string, unknown>>(catRes.data);
-        cat = cats[0] ?? null;
-        markPerfStep(perf, "Category resolved", `found=${cat !== null}`);
-      } catch (catError) {
-        if (PERF_DEBUG)
-          console.log(
-            `[getMarketplaceProductBySlug] Category fetch failed:`,
-            catError,
-          );
-        // Ignore
-      }
-    }
-
-    const result = mapProduct(item, cat);
+    const result = mapProduct(item, cat as Record<string, unknown> | null);
     markPerfStep(perf, "Finished mapping product");
 
     if (PERF_DEBUG) {
@@ -533,13 +543,13 @@ export async function getMarketplaceProductById(
 /**
  * List categories that have published products (for the store navigation).
  *
- * When `publishedProducts` is provided, product counts are computed client-side
- * with zero extra API calls. Otherwise, a lightweight products query is made
- * in parallel with the categories fetch.
+ * Optimized: single SQL query with JOIN + COUNT instead of 2 parallel CRUD calls.
+ * The `_publishedProducts` parameter is kept for backward compatibility but ignored.
  */
 export async function listMarketplaceCategories(
-  tenantId: string,
-  publishedProducts?: { category_id?: string | null }[],
+  tenantId?: string,
+  _publishedProducts?: { category_id?: string | null }[],
+  tenantSlug?: string,
 ): Promise<MarketplaceCategory[]> {
   const perf = createPerfContext();
 
@@ -547,98 +557,40 @@ export async function listMarketplaceCategories(
     markPerfStep(
       perf,
       "START listMarketplaceCategories",
-      `tenantId=${tenantId}, preloaded=${publishedProducts ? publishedProducts.length : "none"}`,
+      `tenantId=${tenantId ?? "slug:" + tenantSlug}`,
     );
 
-    // Fetch categories (always) + lightweight product list (only if not preloaded) IN PARALLEL
-    const categoriesPromise = api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "service_categories",
-      ...buildSearchParams(
-        [
-          { field: "tenant_id", value: tenantId },
-          { field: "is_active", value: "true", operator: "equal" },
-        ],
-        { sortColumn: "sort_order ASC, name ASC", autoExcludeDeleted: true },
-      ),
-    });
+    // Single JOIN + GROUP BY + HAVING — 1 query replaces 2 parallel CRUD calls
+    const sql = `
+      SELECT sc.id, sc.name, sc.slug, sc.description, sc.color, sc.icon,
+             COUNT(s.id)::int AS product_count
+        FROM service_categories sc
+        LEFT JOIN services s
+          ON s.category_id = sc.id
+         AND s.is_published = true
+         AND s.deleted_at IS NULL
+       WHERE ${tenantIdClause("sc", tenantId, tenantSlug)}
+         AND sc.is_active = true
+         AND sc.deleted_at IS NULL
+       GROUP BY sc.id
+      HAVING COUNT(s.id) > 0
+       ORDER BY sc.sort_order ASC, sc.name ASC`;
 
-    const productsPromise = publishedProducts
-      ? Promise.resolve(null)
-      : api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "services",
-          ...buildSearchParams(
-            [
-              { field: "tenant_id", value: tenantId },
-              { field: "is_published", value: "true", operator: "equal" },
-            ],
-            { autoExcludeDeleted: true, fields: ["id", "category_id"] },
-          ),
-        });
+    const res = await api.post(API_DINAMICO, { sql });
+    const rows = normalizeCrudList<Record<string, unknown>>(res.data);
+    markPerfStep(perf, "JOIN query done", `rows=${rows.length}`);
 
-    const [catRes, prodRes] = await Promise.all([
-      categoriesPromise,
-      productsPromise,
-    ]);
+    const result: MarketplaceCategory[] = rows.map((cat) => ({
+      id: String(cat.id),
+      name: String(cat.name ?? ""),
+      slug: cat.slug ? String(cat.slug) : null,
+      description: cat.description ? String(cat.description) : null,
+      color: cat.color ? String(cat.color) : null,
+      icon: cat.icon ? String(cat.icon) : null,
+      product_count: Number(cat.product_count ?? 0),
+    }));
 
-    const categories = normalizeCrudList<Record<string, unknown>>(catRes.data);
-    markPerfStep(perf, "Fetched categories", `count=${categories.length}`);
-
-    if (categories.length === 0) {
-      markPerfStep(perf, "No categories found, returning empty");
-      return [];
-    }
-
-    // Build product count map (from preloaded OR lightweight query)
-    const countMap = new Map<string, number>();
-    if (publishedProducts) {
-      publishedProducts.forEach((p) => {
-        const catId = String(p.category_id ?? "");
-        if (catId) countMap.set(catId, (countMap.get(catId) ?? 0) + 1);
-      });
-      markPerfStep(
-        perf,
-        "Counts from preloaded products",
-        `entries=${countMap.size}`,
-      );
-    } else if (prodRes) {
-      const prodItems = normalizeCrudList<Record<string, unknown>>(
-        prodRes.data,
-      );
-      prodItems.forEach((p) => {
-        const catId = String(p.category_id ?? "");
-        if (catId) countMap.set(catId, (countMap.get(catId) ?? 0) + 1);
-      });
-      markPerfStep(
-        perf,
-        "Counts from lightweight query",
-        `products=${prodItems.length}, entries=${countMap.size}`,
-      );
-    }
-
-    // Build result — only categories with published products
-    const result: MarketplaceCategory[] = [];
-    categories.forEach((cat) => {
-      const catId = String(cat.id);
-      const count = countMap.get(catId) ?? 0;
-      if (count > 0) {
-        result.push({
-          id: catId,
-          name: String(cat.name ?? ""),
-          slug: cat.slug ? String(cat.slug) : null,
-          description: cat.description ? String(cat.description) : null,
-          color: cat.color ? String(cat.color) : null,
-          icon: cat.icon ? String(cat.icon) : null,
-          product_count: count,
-        });
-      }
-    });
-    markPerfStep(
-      perf,
-      "Result built",
-      `categories_with_products=${result.length}`,
-    );
+    markPerfStep(perf, "Result built", `categories=${result.length}`);
 
     if (PERF_DEBUG) {
       console.log(`\n${getPerfReport(perf, "listMarketplaceCategories")}\n`);
@@ -762,6 +714,152 @@ export async function getProductCompositionChildren(
       );
     }
     return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Bootstrap: single query for tenant info + config                    */
+/* ------------------------------------------------------------------ */
+
+/* Private color helpers for branding computation */
+function _hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m
+    ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) }
+    : null;
+}
+function _rgbToHex(r: number, g: number, b: number): string {
+  return (
+    "#" +
+    [r, g, b]
+      .map((c) => {
+        const v = Math.max(0, Math.min(255, Math.round(c))).toString(16);
+        return v.length === 1 ? "0" + v : v;
+      })
+      .join("")
+  );
+}
+function _darken(hex: string, amount: number): string {
+  const rgb = _hexToRgb(hex);
+  if (!rgb) return hex;
+  return _rgbToHex(
+    rgb.r * (1 - amount),
+    rgb.g * (1 - amount),
+    rgb.b * (1 - amount),
+  );
+}
+function _lighten(hex: string, amount: number): string {
+  const rgb = _hexToRgb(hex);
+  if (!rgb) return hex;
+  return _rgbToHex(
+    rgb.r + (255 - rgb.r) * amount,
+    rgb.g + (255 - rgb.g) * amount,
+    rgb.b + (255 - rgb.b) * amount,
+  );
+}
+function _validHex(value: unknown): string | null {
+  if (!value || typeof value !== "string") return null;
+  return /^#[0-9a-fA-F]{6}$/.test(value.trim()) ? value.trim() : null;
+}
+function _parseJsonConfig(value: unknown): Record<string, unknown> | null {
+  if (!value) return null;
+  if (typeof value === "object" && value !== null)
+    return value as Record<string, unknown>;
+  if (typeof value === "string") {
+    try {
+      const p = JSON.parse(value);
+      return p && typeof p === "object" ? p : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Result of bootstrapMarketplace — has everything the hook needs from one query. */
+export interface MarketplaceBootstrap {
+  tenantId: string;
+  info: {
+    tenant_id: string;
+    company_name: string;
+    slug: string;
+    brand_name: string;
+    primary_color: string;
+    primary_dark: string;
+    primary_light: string;
+    banner_url: string | null;
+    about_text: string | null;
+  };
+  config: MarketplaceConfig;
+}
+
+/**
+ * Bootstrap the marketplace in ONE query — returns tenant info, branding, and
+ * marketplace config.  This replaces the sequential resolveTenant() +
+ * getMarketplaceConfig() flow with a single round-trip.
+ */
+export async function bootstrapMarketplace(
+  slug: string,
+): Promise<MarketplaceBootstrap | null> {
+  const perf = createPerfContext();
+  try {
+    markPerfStep(perf, "START bootstrapMarketplace", `slug=${slug}`);
+
+    const escaped = slug.replace(/'/g, "''");
+    const sql = `SELECT id, company_name, slug, config
+                   FROM tenants
+                  WHERE slug = '${escaped}'
+                    AND deleted_at IS NULL
+                  LIMIT 1`;
+
+    const res = await api.post(API_DINAMICO, { sql });
+    const rows = normalizeCrudList<Record<string, unknown>>(res.data);
+    markPerfStep(perf, "Query done", `rows=${rows.length}`);
+
+    if (rows.length === 0) return null;
+
+    const t = rows[0];
+    const tenantId = String(t.id ?? "");
+    if (!tenantId) return null;
+
+    // Parse branding from config.brand
+    const cfg = _parseJsonConfig(t.config);
+    const brand = (cfg?.brand ?? {}) as Record<string, unknown>;
+    const primaryColor = _validHex(brand.primary_color) ?? "#2563eb";
+    const marketplace = (cfg?.marketplace ?? {}) as Record<string, unknown>;
+
+    const result: MarketplaceBootstrap = {
+      tenantId,
+      info: {
+        tenant_id: tenantId,
+        company_name: String(t.company_name ?? ""),
+        slug: String(t.slug ?? slug),
+        brand_name: String(brand.name ?? t.company_name ?? "").trim() || "Loja",
+        primary_color: primaryColor,
+        primary_dark: _darken(primaryColor, 0.15),
+        primary_light: _lighten(primaryColor, 0.85),
+        banner_url: marketplace.banner_url
+          ? String(marketplace.banner_url)
+          : null,
+        about_text: marketplace.about_text
+          ? String(marketplace.about_text)
+          : null,
+      },
+      config: parseMarketplaceConfigFromRaw(t.config),
+    };
+
+    markPerfStep(perf, "Bootstrap done");
+    if (PERF_DEBUG) {
+      console.log(`\n${getPerfReport(perf, "bootstrapMarketplace")}\n`);
+    }
+    return result;
+  } catch (error) {
+    if (PERF_DEBUG) {
+      console.error(
+        `\n${getPerfReport(perf, "bootstrapMarketplace")}\nERROR: ${error}\n`,
+      );
+    }
+    return null;
   }
 }
 

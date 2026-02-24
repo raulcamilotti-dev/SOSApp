@@ -176,6 +176,8 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
 export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   // Partners module
   parceiros: MODULE_KEYS.PARTNERS,
+  ganhos_parceiros: MODULE_KEYS.PARTNERS,
+  meus_trabalhos: MODULE_KEYS.PARTNERS,
 
   // Documents module
   document_signatures: MODULE_KEYS.DOCUMENTS,
