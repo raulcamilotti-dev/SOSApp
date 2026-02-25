@@ -12,30 +12,33 @@ import { useTenantLimits } from "@/hooks/use-tenant-limits";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-  CRUD_ENDPOINT,
-  aggregateCrud,
-  buildSearchParams,
-  normalizeCrudList,
+    CRUD_ENDPOINT,
+    aggregateCrud,
+    buildSearchParams,
+    normalizeCrudList,
 } from "@/services/crud";
 import {
-  ENTERPRISE_PRICE_PER_CLIENT,
-  PLAN_ORDER,
-  PLAN_TIERS,
-  formatPlanPrice,
+    ENTERPRISE_PRICE_PER_CLIENT,
+    PLAN_ORDER,
+    PLAN_TIERS,
+    formatPlanPrice,
 } from "@/services/saas-billing";
 
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Linking,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 /* ------------------------------------------------------------------ */
@@ -46,6 +49,8 @@ type TenantInfo = {
   id: string;
   company_name?: string;
   whatsapp_number?: string;
+  slug?: string;
+  custom_domains?: string[] | string | null;
   plan?: string;
   status?: string;
   created_at?: string;
@@ -103,6 +108,12 @@ export default function GestaoTenantScreen() {
   const [brandColor, setBrandColor] = useState("#2563eb");
   const [brandName, setBrandName] = useState("");
   const [savingBrand, setSavingBrand] = useState(false);
+
+  /* ── Domain / Link state ── */
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [domainRequest, setDomainRequest] = useState("");
+  const [requestingDomain, setRequestingDomain] = useState(false);
+  const [domainRequestSent, setDomainRequestSent] = useState(false);
 
   const PRESET_COLORS = [
     "#2563eb",
@@ -221,6 +232,100 @@ export default function GestaoTenantScreen() {
       setSavingBrand(false);
     }
   }, [tenantId, tenant, brandColor, brandName, reloadTheme]);
+
+  /* ── Tenant subdomain/link helpers ── */
+  const tenantSlug = tenant?.slug ?? "";
+  const tenantSubdomainUrl = tenantSlug
+    ? `https://${tenantSlug}.radul.com.br`
+    : "";
+
+  const parsedCustomDomains: string[] = (() => {
+    const raw = tenant?.custom_domains;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
+    if (typeof raw === "string") {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : [];
+      } catch {
+        return raw.trim() ? [raw.trim()] : [];
+      }
+    }
+    return [];
+  })();
+
+  const copyToClipboard = useCallback(async (text: string) => {
+    try {
+      if (Platform.OS === "web") {
+        await navigator.clipboard.writeText(text);
+      } else {
+        await Clipboard.setStringAsync(text);
+      }
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      Alert.alert("Erro", "Não foi possível copiar o link.");
+    }
+  }, []);
+
+  const handleRequestDomain = useCallback(async () => {
+    const domain = domainRequest.trim().toLowerCase();
+    if (!domain) {
+      Alert.alert("Domínio inválido", "Informe o domínio desejado.");
+      return;
+    }
+    // Basic domain format validation
+    if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/.test(domain)) {
+      Alert.alert(
+        "Formato inválido",
+        "Informe um domínio válido. Ex: app.meudominio.com.br",
+      );
+      return;
+    }
+    setRequestingDomain(true);
+    try {
+      // Create a support request / notification to Radul admin
+      await api.post(CRUD_ENDPOINT, {
+        action: "create",
+        table: "notifications",
+        payload: {
+          tenant_id: tenantId,
+          user_id: user?.id ?? null,
+          type: "domain_request",
+          title: "Solicitação de domínio personalizado",
+          body: `Tenant "${tenant?.company_name ?? tenantId}" solicitou o domínio: ${domain}`,
+          metadata: JSON.stringify({
+            requested_domain: domain,
+            tenant_slug: tenantSlug,
+            tenant_name: tenant?.company_name,
+            requested_by: user?.email ?? user?.id,
+            requested_at: new Date().toISOString(),
+          }),
+          created_at: new Date().toISOString(),
+        },
+      });
+      setDomainRequestSent(true);
+      setDomainRequest("");
+      Alert.alert(
+        "Solicitação enviada!",
+        `Seu pedido para o domínio "${domain}" foi registrado. Nossa equipe entrará em contato em breve.`,
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao enviar solicitação";
+      Alert.alert("Erro", msg);
+    } finally {
+      setRequestingDomain(false);
+    }
+  }, [domainRequest, tenantId, tenant, tenantSlug, user]);
+
+  const openLink = useCallback((url: string) => {
+    if (Platform.OS === "web") {
+      window.open(url, "_blank");
+    } else {
+      Linking.openURL(url).catch(() => {});
+    }
+  }, []);
 
   // Resolve plan: "trial" maps to "free" for display
   const planKey = tenant?.plan === "trial" ? "free" : (tenant?.plan ?? "free");
@@ -569,6 +674,222 @@ export default function GestaoTenantScreen() {
           mutedColor={mutedColor}
         />
       </View>
+
+      {/* Seu Link & Domínio */}
+      {tenantSlug ? (
+        <View
+          style={{
+            backgroundColor: cardBg,
+            borderRadius: 14,
+            padding: 20,
+            borderWidth: 1,
+            borderColor,
+            gap: 16,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Ionicons name="link-outline" size={22} color={tintColor} />
+            <Text style={{ fontSize: 16, fontWeight: "700", color: textColor }}>
+              Seu Link & Domínio
+            </Text>
+          </View>
+
+          {/* Subdomain URL */}
+          <View style={{ gap: 6 }}>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: textColor }}>
+              Link do seu sistema
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Pressable
+                onPress={() => openLink(tenantSubdomainUrl)}
+                style={{
+                  flex: 1,
+                  backgroundColor: `${tintColor}10`,
+                  borderWidth: 1,
+                  borderColor: tintColor,
+                  borderRadius: 10,
+                  padding: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Ionicons name="globe-outline" size={18} color={tintColor} />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "600",
+                    color: tintColor,
+                    flex: 1,
+                  }}
+                  numberOfLines={1}
+                >
+                  {tenantSubdomainUrl}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => copyToClipboard(tenantSubdomainUrl)}
+                style={{
+                  backgroundColor: linkCopied ? "#16a34a" : tintColor,
+                  borderRadius: 10,
+                  padding: 14,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons
+                  name={linkCopied ? "checkmark" : "copy-outline"}
+                  size={18}
+                  color="#fff"
+                />
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 11, color: mutedColor }}>
+              {linkCopied
+                ? "Link copiado!"
+                : "Este é o endereço exclusivo da sua empresa. Compartilhe com sua equipe e clientes."}
+            </Text>
+          </View>
+
+          {/* Custom domains (if any) */}
+          {parsedCustomDomains.length > 0 && (
+            <View style={{ gap: 6 }}>
+              <Text
+                style={{ fontSize: 13, fontWeight: "600", color: textColor }}
+              >
+                Domínios personalizados
+              </Text>
+              {parsedCustomDomains.map((domain) => (
+                <View
+                  key={domain}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    backgroundColor: `${tintColor}08`,
+                    borderWidth: 1,
+                    borderColor,
+                    borderRadius: 10,
+                    padding: 12,
+                  }}
+                >
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={16}
+                    color="#16a34a"
+                  />
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: textColor,
+                      flex: 1,
+                    }}
+                  >
+                    {domain}
+                  </Text>
+                  <Pressable
+                    onPress={() => copyToClipboard(`https://${domain}`)}
+                  >
+                    <Ionicons
+                      name="copy-outline"
+                      size={16}
+                      color={mutedColor}
+                    />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Request custom domain */}
+          <View
+            style={{
+              gap: 8,
+              borderTopWidth: 1,
+              borderTopColor: borderColor,
+              paddingTop: 16,
+            }}
+          >
+            <Text style={{ fontSize: 13, fontWeight: "600", color: textColor }}>
+              Solicitar domínio personalizado
+            </Text>
+            <Text style={{ fontSize: 12, color: mutedColor }}>
+              Quer usar seu próprio domínio (ex: app.suaempresa.com.br)?
+              Solicite abaixo e nossa equipe configurará para você.
+            </Text>
+            {domainRequestSent ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  backgroundColor: "#dcfce7",
+                  borderRadius: 10,
+                  padding: 12,
+                }}
+              >
+                <Ionicons name="checkmark-circle" size={18} color="#16a34a" />
+                <Text style={{ fontSize: 13, color: "#15803d", flex: 1 }}>
+                  Solicitação enviada! Entraremos em contato em breve.
+                </Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  value={domainRequest}
+                  onChangeText={setDomainRequest}
+                  placeholder="app.suaempresa.com.br"
+                  placeholderTextColor={mutedColor}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  style={{
+                    flex: 1,
+                    backgroundColor: inputBg,
+                    borderWidth: 1,
+                    borderColor,
+                    borderRadius: 10,
+                    padding: 12,
+                    fontSize: 14,
+                    color: textColor,
+                  }}
+                />
+                <Pressable
+                  onPress={handleRequestDomain}
+                  disabled={requestingDomain}
+                  style={{
+                    backgroundColor: requestingDomain ? mutedColor : tintColor,
+                    borderRadius: 10,
+                    paddingHorizontal: 16,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  {requestingDomain ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontWeight: "700",
+                        fontSize: 13,
+                      }}
+                    >
+                      Solicitar
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      ) : null}
 
       {/* Branding / Personalização */}
       <View

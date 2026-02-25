@@ -6,7 +6,7 @@
     <title>Programa de Parceiros de Canal — Radul</title>
     <meta
       name="description"
-      content="Seja um Parceiro de Canal da Radul e ganhe 20% de comissão recorrente sobre cada cliente indicado. Ideal para contadores, consultores, agências e revendedores."
+      content="Seja um Parceiro de Canal da Radul e ganhe comissão recorrente sobre cada cliente indicado. Ideal para contadores, consultores, agências e revendedores."
     />
     <meta
       name="keywords"
@@ -20,7 +20,7 @@
     />
     <meta
       property="og:description"
-      content="Ganhe 20% de comissão recorrente sobre cada cliente indicado. Ideal para contadores, consultores e agências."
+      content="Ganhe de comissão recorrente sobre cada cliente indicado. Ideal para contadores, consultores e agências."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://radul.com.br/parceiros" />
@@ -54,7 +54,7 @@
       /* Override hero for partners page */
       .hero-partners {
         background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
-        padding: 100px 24px 80px;
+        padding: 140px 24px 80px;
         text-align: center;
         position: relative;
         overflow: hidden;
@@ -376,23 +376,6 @@
         line-height: 1.6;
       }
 
-      footer {
-        background: var(--dark);
-        color: var(--gray-400);
-        padding: 40px 24px;
-        text-align: center;
-      }
-
-      footer a {
-        color: var(--gray-400);
-        text-decoration: none;
-        margin: 0 12px;
-      }
-
-      footer a:hover {
-        color: var(--white);
-      }
-
       @media (max-width: 768px) {
         .step {
           flex-direction: column;
@@ -405,6 +388,49 @@
     </style>
   </head>
   <body>
+    <!-- Navigation -->
+    <nav class="nav">
+      <div class="container nav-inner">
+        <a href="/" class="nav-logo">radul<span>.</span></a>
+        <ul class="nav-links">
+          <li><a href="/#funcionalidades">Funcionalidades</a></li>
+          <li><a href="/#modulos">Módulos</a></li>
+          <li><a href="/#planos">Planos</a></li>
+          <li><a href="/#verticais">Verticais</a></li>
+          <li>
+            <a
+              href="parceiros.html"
+              style="color: var(--primary); font-weight: 700"
+              >Parceiros</a
+            >
+          </li>
+          <li><a href="/#faq">FAQ</a></li>
+        </ul>
+        <div class="nav-cta">
+          <a
+            href="https://app.radul.com.br/login"
+            class="btn btn-sm btn-secondary"
+            >Entrar</a
+          >
+          <a href="/#planos" class="btn btn-sm btn-primary">Começar Grátis</a>
+        </div>
+        <button
+          class="nav-mobile-toggle"
+          onclick="toggleMenu()"
+          aria-label="Menu"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M3 12h18M3 6h18M3 18h18" />
+          </svg>
+        </button>
+      </div>
+    </nav>
+
     <!-- Hero -->
     <section class="hero-partners">
       <div class="container">
@@ -412,7 +438,7 @@
         <p class="subtitle">
           Indique clientes para a Radul e ganhe comissão recorrente mensal
         </p>
-        <div class="commission-highlight">20% de comissão recorrente</div>
+        <div class="commission-highlight">Comissão recorrente</div>
         <p style="color: rgba(255, 255, 255, 0.9); margin-bottom: 32px">
           Ganhe todo mês, enquanto seus clientes continuarem usando a plataforma
         </p>
@@ -429,8 +455,8 @@
             <ion-icon name="cash-outline"></ion-icon>
             <h3>Comissão Recorrente</h3>
             <p>
-              Ganhe 20% sobre o valor da assinatura do cliente, TODOS OS MESES,
-              enquanto ele permanecer ativo
+              Ganhe uma comissão sobre o valor da assinatura do cliente, TODOS
+              OS MESES, enquanto ele permanecer ativo
             </p>
           </div>
 
@@ -530,8 +556,8 @@
           <div class="step-content">
             <h3>Receba TODO MÊS</h3>
             <p>
-              Sua comissão de 20% é calculada automaticamente no 1º dia de cada
-              mês e paga via PIX em até 5 dias úteis
+              Sua comissão é calculada automaticamente no 1º dia de cada mês e
+              paga via PIX em até 5 dias úteis
             </p>
           </div>
         </div>
@@ -731,9 +757,9 @@
           <div class="faq-item">
             <h3>Quanto vou ganhar por indicação?</h3>
             <p>
-              Você ganha 20% do valor da mensalidade do cliente, TODOS OS MESES.
-              Por exemplo: se o cliente paga R$ 249/mês no plano Growth, você
-              recebe R$ 49,80 mensais enquanto ele permanecer ativo.
+              Você ganha uma comissão sobre o valor da mensalidade do cliente,
+              TODOS OS MESES. Por exemplo: se o cliente paga R$ 249/mês no plano
+              Growth, você recebe todo mês enquanto ele permanecer ativo.
             </p>
           </div>
 
@@ -801,15 +827,44 @@
     </section>
 
     <!-- Footer -->
-    <footer>
-      <p>
-        <a href="/">Início</a>
-        <a href="/termos-de-uso.html">Termos de Uso</a>
-        <a href="/politica-de-privacidade.html">Política de Privacidade</a>
-      </p>
-      <p style="margin-top: 16px">
-        © 2026 Radulf LTDA. Todos os direitos reservados.
-      </p>
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-inner">
+          <div class="footer-brand">
+            <div class="nav-logo">radul<span>.</span></div>
+            <p>
+              Plataforma modular de operações para empresas de serviço. 15+
+              módulos inclusos em todos os planos. Feito no Brasil pela Radulf
+              LTDA.
+            </p>
+            <p class="footer-cnpj">CNPJ: 54.152.041/0001-22</p>
+          </div>
+          <div class="footer-col">
+            <h4>Produto</h4>
+            <a href="/#funcionalidades">Funcionalidades</a>
+            <a href="/#modulos">Módulos</a>
+            <a href="/#planos">Planos e Preços</a>
+            <a href="/#verticais">Verticais</a>
+            <a href="/#faq">FAQ</a>
+          </div>
+          <div class="footer-col">
+            <h4>Empresa</h4>
+            <a href="parceiros.html">Seja um Parceiro</a>
+            <a href="https://wa.me/5541999112641">Contato</a>
+            <a href="https://wa.me/5541999112641">Suporte</a>
+          </div>
+          <div class="footer-col">
+            <h4>Legal</h4>
+            <a href="termos-de-uso.html">Termos de Uso</a>
+            <a href="politica-de-privacidade.html">Política de Privacidade</a>
+            <a href="politica-de-privacidade.html#lgpd">LGPD</a>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© 2026 Radulf LTDA. Todos os direitos reservados.</span>
+          <span>Feito com ❤️ em Curitiba, PR</span>
+        </div>
+      </div>
     </footer>
 
     <!-- Form Submission Script -->
@@ -939,6 +994,31 @@
           }
           e.target.value = value;
         });
+
+      /* ---- Mobile menu toggle ---- */
+      function toggleMenu() {
+        const links = document.querySelector(".nav-links");
+        const isVisible = links.style.display === "flex";
+        links.style.display = isVisible ? "none" : "flex";
+        if (!isVisible) {
+          links.style.position = "absolute";
+          links.style.top = "72px";
+          links.style.left = "0";
+          links.style.right = "0";
+          links.style.background = "var(--white)";
+          links.style.flexDirection = "column";
+          links.style.padding = "16px 24px";
+          links.style.gap = "12px";
+          links.style.boxShadow = "var(--shadow-lg)";
+          links.style.borderBottom = "1px solid var(--gray-300)";
+        }
+      }
+
+      /* ---- Nav shadow on scroll ---- */
+      window.addEventListener("scroll", () => {
+        const nav = document.querySelector(".nav");
+        nav.style.boxShadow = window.scrollY > 10 ? "var(--shadow)" : "none";
+      });
     </script>
   </body>
 </html>
