@@ -1,3 +1,5 @@
+import { isRadulUser } from "@/core/auth/auth.utils";
+import { useAuth } from "@/core/auth/AuthContext";
 import { ADMIN_PANEL_PERMISSIONS } from "@/core/auth/permissions";
 import { usePermissions } from "@/core/auth/usePermissions";
 import {
@@ -26,6 +28,8 @@ type ServiceItem = {
   module?: ModuleKey;
   /** If true, only shown to users with admin permissions */
   adminOnly?: boolean;
+  /** Only visible to the Radul platform-root tenant */
+  platformOnly?: boolean;
 };
 
 type ServiceGroup = {
@@ -127,6 +131,7 @@ const SERVICE_GROUPS: ServiceGroup[] = [
         description: "Acompanhe indicacoes e comissoes",
         icon: "ribbon-outline",
         route: "/Servicos/ParceiroCanal",
+        platformOnly: true,
       },
     ],
   },
@@ -152,6 +157,8 @@ const SERVICE_GROUPS: ServiceGroup[] = [
 /* ------------------------------------------------------------------ */
 
 export default function ServicosScreen() {
+  const { user } = useAuth();
+  const isRadul = isRadulUser(user);
   const { hasAnyPermission } = usePermissions();
   const { isModuleEnabled } = useTenantModules();
   const router = useRouter();
@@ -174,6 +181,7 @@ export default function ServicosScreen() {
 
     for (const group of SERVICE_GROUPS) {
       const visibleItems = group.items.filter((item) => {
+        if (item.platformOnly && !isRadul) return false;
         if (item.adminOnly && !canAccessAdmin) return false;
         const mod = item.module ?? getServiceRouteModule(item.route);
         if (!isModuleEnabled(mod)) return false;
@@ -186,7 +194,7 @@ export default function ServicosScreen() {
     }
 
     return result;
-  }, [canAccessAdmin, isModuleEnabled]);
+  }, [canAccessAdmin, isModuleEnabled, isRadul]);
 
   return (
     <ScrollView

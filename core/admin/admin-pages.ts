@@ -361,9 +361,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     group: "Parceiros",
     module: "operacao",
     title: "Parceiros de Canal",
-    description: "Sistema de indicações e comissões recorrentes",
+    description: "Revendedores SaaS — apenas Radul",
     icon: "share-social-outline",
     route: "/Administrador/channel-partners",
+    superAdminOnly: true,
     requiredAnyPermissions: [
       PERMISSIONS.PARTNER_READ,
       PERMISSIONS.PARTNER_WRITE,
@@ -374,9 +375,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     group: "Parceiros",
     module: "operacao",
     title: "Dashboard de Parcerias",
-    description: "Métricas de indicações e comissões por parceiro de canal",
+    description: "Métricas de indicações e comissões — apenas Radul",
     icon: "trending-up-outline",
     route: "/Administrador/channel-partner-dashboard",
+    superAdminOnly: true,
     requiredAnyPermissions: [
       PERMISSIONS.PARTNER_READ,
       PERMISSIONS.FINANCIAL_READ,

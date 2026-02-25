@@ -31,6 +31,8 @@ interface SearchItem {
   icon: string;
   route: string;
   keywords?: string[];
+  /** Only visible to the Radul platform-root tenant */
+  platformOnly?: boolean;
 }
 
 const EXTRA_ROUTES: SearchItem[] = [
@@ -86,6 +88,7 @@ const EXTRA_ROUTES: SearchItem[] = [
     icon: "ribbon-outline",
     route: "/Servicos/ParceiroCanal",
     keywords: ["parceiro", "canal", "indicacao", "comissao"],
+    platformOnly: true,
   },
   {
     id: "minha_agenda",
@@ -242,7 +245,12 @@ function useSearchIndex(): SearchItem[] {
       keywords: [p.id, p.group.toLowerCase(), p.module],
     }));
 
-    return [...EXTRA_ROUTES, ...adminItems];
+    const extraItems = EXTRA_ROUTES.filter((r) => {
+      if (r.platformOnly && !isRadul) return false;
+      return true;
+    });
+
+    return [...extraItems, ...adminItems];
   }, [isRadul]);
 }
 

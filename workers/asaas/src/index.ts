@@ -269,70 +269,119 @@ async function handleStatus(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleWebhook(request: Request, env: Env): Promise<Response> {
-  const payload = (await request.json().catch(() => ({}))) as Record<
-    string,
-    any
-  >;
-  const payment = payload?.payment ?? payload?.data ?? payload;
-  const transactionId = payment?.id ? String(payment.id) : null;
-  const status = payment?.status ? String(payment.status) : "PENDING";
+  try {
+    const payload = (await request.json().catch(() => ({}))) as Record<
+      string,
+      any
+    >;
+    const event = payload?.event ? String(payload.event) : "unknown";
+    const payment = payload?.payment ?? payload?.data ?? payload;
+    const transactionId = payment?.id ? String(payment.id) : null;
+    const status = payment?.status ? String(payment.status) : "PENDING";
 
-  if (!env.API_CRUD_KEY || !env.API_CRUD_URL) {
-    return corsResponse(200, { ok: true });
-  }
+    console.log(
+      `[webhook] event=${event} transactionId=${transactionId} status=${status}`,
+    );
 
-  if (!transactionId) {
-    return corsResponse(200, { ok: true });
-  }
+    if (!env.API_CRUD_KEY || !env.API_CRUD_URL) {
+      console.log(
+        "[webhook] API_CRUD_KEY or API_CRUD_URL not configured, skipping",
+      );
+      return corsResponse(200, {
+        ok: true,
+        skipped: true,
+        reason: "no_crud_config",
+      });
+    }
 
-  const mappedStatus = mapStatus(status);
+    if (!transactionId) {
+      console.log("[webhook] No transactionId found in payload, skipping");
+      return corsResponse(200, {
+        ok: true,
+        skipped: true,
+        reason: "no_transaction_id",
+      });
+    }
 
-  const listResponse = await fetch(`${env.API_CRUD_URL}/api_crud`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Api-Key": env.API_CRUD_KEY,
-    },
-    body: JSON.stringify({
-      action: "list",
-      table: "payments",
-      search_field1: "transaction_id",
-      search_value1: transactionId,
-      search_operator1: "equal",
-    }),
-  });
+    const mappedStatus = mapStatus(status);
 
-  const listText = await listResponse.text();
-  const listData = listText ? JSON.parse(listText) : [];
-  const paymentRow = Array.isArray(listData) ? listData[0] : null;
-  if (!paymentRow?.id) {
-    return corsResponse(200, { ok: true, updated: false });
-  }
-
-  const updateResponse = await fetch(`${env.API_CRUD_URL}/api_crud`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Api-Key": env.API_CRUD_KEY,
-    },
-    body: JSON.stringify({
-      action: "update",
-      table: "payments",
-      payload: {
-        id: paymentRow.id,
-        status: mappedStatus,
-        updated_at: new Date().toISOString(),
+    const listResponse = await fetch(`${env.API_CRUD_URL}/api_crud`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": env.API_CRUD_KEY,
       },
-    }),
-  });
+      body: JSON.stringify({
+        action: "list",
+        table: "payments",
+        search_field1: "transaction_id",
+        search_value1: transactionId,
+        search_operator1: "equal",
+      }),
+    });
 
-  const data = await updateResponse.text();
+    const listText = await listResponse.text();
 
-  return corsResponse(200, {
-    ok: true,
-    updated: updateResponse.ok,
-    data,
-  });
+    let listData: any[] = [];
+    try {
+      const parsed = listText ? JSON.parse(listText) : [];
+      listData = Array.isArray(parsed) ? parsed : [];
+    } catch (parseErr) {
+      console.error(
+        `[webhook] Failed to parse list response: ${String(parseErr)}. Raw: ${listText?.slice(0, 500)}`,
+      );
+      return corsResponse(200, {
+        ok: true,
+        updated: false,
+        reason: "crud_list_parse_error",
+      });
+    }
+
+    const paymentRow = listData[0] ?? null;
+    if (!paymentRow?.id) {
+      console.log(
+        `[webhook] No payment row found for transaction_id=${transactionId}`,
+      );
+      return corsResponse(200, { ok: true, updated: false });
+    }
+
+    const updateResponse = await fetch(`${env.API_CRUD_URL}/api_crud`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": env.API_CRUD_KEY,
+      },
+      body: JSON.stringify({
+        action: "update",
+        table: "payments",
+        payload: {
+          id: paymentRow.id,
+          status: mappedStatus,
+          updated_at: new Date().toISOString(),
+        },
+      }),
+    });
+
+    const data = await updateResponse.text();
+
+    console.log(
+      `[webhook] Updated payment ${paymentRow.id} to status=${mappedStatus} ok=${updateResponse.ok}`,
+    );
+
+    return corsResponse(200, {
+      ok: true,
+      updated: updateResponse.ok,
+      data,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[webhook] Unhandled error: ${message}`);
+    // Always return 200 to Asaas to avoid webhook penalties
+    return corsResponse(200, {
+      ok: false,
+      error: message,
+    });
+  }
 }
 
 async function handleHealth(): Promise<Response> {

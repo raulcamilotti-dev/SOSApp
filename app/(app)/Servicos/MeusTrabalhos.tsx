@@ -104,6 +104,7 @@ export default function MeusTrabalhos() {
   const [error, setError] = useState<string | null>(null);
 
   const [partnerId, setPartnerId] = useState<string | null>(null);
+  const [partnerResolved, setPartnerResolved] = useState(false);
   const [partnerInfo, setPartnerInfo] = useState<Row | null>(null);
   const [appointments, setAppointments] = useState<Row[]>([]);
   const [earnings, setEarnings] = useState<Row[]>([]);
@@ -136,6 +137,8 @@ export default function MeusTrabalhos() {
       }
     } catch {
       // not a partner
+    } finally {
+      setPartnerResolved(true);
     }
   }, [user?.id]);
 
@@ -243,11 +246,15 @@ export default function MeusTrabalhos() {
   }, [resolvePartner]);
 
   useEffect(() => {
+    if (!partnerResolved) return;
     if (partnerId) {
       setLoading(true);
       loadData().finally(() => setLoading(false));
+    } else {
+      // No partner found — stop loading
+      setLoading(false);
     }
-  }, [partnerId, loadData]);
+  }, [partnerResolved, partnerId, loadData]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
