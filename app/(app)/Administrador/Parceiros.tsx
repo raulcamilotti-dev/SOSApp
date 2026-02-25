@@ -230,6 +230,12 @@ export default function ParceirosAdminScreen() {
       section: "Dados Financeiros",
     },
     {
+      key: "asaas_wallet_id",
+      label: "Asaas Wallet ID",
+      placeholder: "Ex: wal_123456789",
+      section: "Dados Financeiros",
+    },
+    {
       key: "pix_key_type",
       label: "Tipo da Chave PIX",
       type: "select",
@@ -245,6 +251,12 @@ export default function ParceirosAdminScreen() {
       key: "bank_name",
       label: "Banco",
       placeholder: "Ex: Nubank, Itaú, Bradesco",
+    },
+    {
+      key: "payout_enabled",
+      label: "Recebimentos ativos",
+      type: "boolean",
+      section: "Dados Financeiros",
     },
     {
       key: "created_by",
@@ -304,8 +316,20 @@ export default function ParceirosAdminScreen() {
             : "Não cadastrado",
         },
         {
+          label: "Asaas Wallet",
+          value: String(item.asaas_wallet_id ?? "-") || "-",
+        },
+        {
           label: "Banco",
           value: String(item.bank_name ?? "-"),
+        },
+        {
+          label: "Recebimentos ativos",
+          value:
+            item.payout_enabled === false ||
+            String(item.payout_enabled).toLowerCase() === "false"
+              ? "Inativo"
+              : "Ativo",
         },
         {
           label: "Disponibilidade",

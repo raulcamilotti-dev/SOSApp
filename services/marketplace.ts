@@ -126,10 +126,13 @@ export interface MarketplaceProduct {
 export interface MarketplaceConfig {
   enabled: boolean;
   commission_percent: number;
+  pix_provider?: "pix-utils" | "asaas";
   pix_key?: string | null;
   pix_key_type?: string | null;
   pix_merchant_name?: string | null;
   pix_merchant_city?: string | null;
+  asaas_enabled?: boolean;
+  asaas_wallet_id?: string | null;
   min_order_value: number;
   free_shipping_above?: number | null;
   default_partner_id?: string | null;

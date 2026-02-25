@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Programa de Parceiros de Canal — Radul</title>
+    <meta
+      name="description"
+      content="Seja um Parceiro de Canal da Radul e ganhe 20% de comissão recorrente sobre cada cliente indicado. Ideal para contadores, consultores, agências e revendedores."
+    />
+    <meta
+      name="keywords"
+      content="parceiro, afiliado, revendedor, comissão, recorrente, contador, consultor, agência, MSP"
+    />
+
+    <!-- Open Graph -->
+    <meta
+      property="og:title"
+      content="Programa de Parceiros de Canal — Radul"
+    />
+    <meta
+      property="og:description"
+      content="Ganhe 20% de comissão recorrente sobre cada cliente indicado. Ideal para contadores, consultores e agências."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://radul.com.br/parceiros" />
+    <meta property="og:image" content="https://radul.com.br/og-parceiros.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css" />
+
+    <!-- Ionicons -->
+    <script
+      type="module"
+      src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"
+    ></script>
+    <script
+      nomodule
+      src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"
+    ></script>
+
+    <style>
+      /* Override hero for partners page */
+      .hero-partners {
+        background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+        padding: 100px 24px 80px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero-partners::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v6h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        opacity: 0.3;
+      }
+
+      .hero-partners .container {
+        position: relative;
+        z-index: 1;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      .hero-partners h1 {
+        font-size: clamp(2.2rem, 5vw, 3.5rem);
+        font-weight: 900;
+        color: var(--white);
+        margin-bottom: 24px;
+        line-height: 1.1;
+      }
+
+      .hero-partners .subtitle {
+        font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+        color: rgba(255, 255, 255, 0.95);
+        margin-bottom: 12px;
+        font-weight: 500;
+      }
+
+      .hero-partners .commission-highlight {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        padding: 16px 32px;
+        margin: 24px auto;
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: var(--white);
+      }
+
+      .hero-partners .cta {
+        display: inline-block;
+        background: var(--white);
+        color: var(--primary);
+        padding: 16px 40px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .hero-partners .cta:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+      }
+
+      .benefits-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 32px;
+        margin: 60px 0;
+      }
+
+      .benefit-card {
+        background: var(--white);
+        border: 1px solid var(--gray-300);
+        border-radius: var(--radius-lg);
+        padding: 32px;
+        text-align: center;
+        transition: all 0.3s ease;
+      }
+
+      .benefit-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+        border-color: var(--primary);
+      }
+
+      .benefit-card ion-icon {
+        font-size: 48px;
+        color: var(--primary);
+        margin-bottom: 16px;
+      }
+
+      .benefit-card h3 {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--dark);
+        margin-bottom: 12px;
+      }
+
+      .benefit-card p {
+        color: var(--gray-700);
+        line-height: 1.6;
+      }
+
+      .steps-section {
+        background: var(--gray-100);
+        padding: 80px 24px;
+      }
+
+      .step {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 48px;
+        align-items: flex-start;
+      }
+
+      .step-number {
+        flex-shrink: 0;
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, var(--primary), var(--accent));
+        color: var(--white);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        font-weight: 800;
+      }
+
+      .step-content h3 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--dark);
+        margin-bottom: 8px;
+      }
+
+      .step-content p {
+        color: var(--gray-700);
+        line-height: 1.6;
+      }
+
+      .partner-types {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 24px;
+        margin: 40px 0;
+      }
+
+      .partner-type {
+        background: var(--white);
+        border: 2px solid var(--gray-300);
+        border-radius: var(--radius);
+        padding: 24px;
+        text-align: center;
+      }
+
+      .partner-type ion-icon {
+        font-size: 40px;
+        color: var(--accent);
+        margin-bottom: 12px;
+      }
+
+      .partner-type h4 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--dark);
+        margin-bottom: 8px;
+      }
+
+      .partner-type p {
+        font-size: 0.9rem;
+        color: var(--gray-600);
+      }
+
+      .form-section {
+        background: linear-gradient(
+          135deg,
+          var(--primary-light) 0%,
+          var(--accent-light) 100%
+        );
+        padding: 80px 24px;
+      }
+
+      .form-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: var(--white);
+        border-radius: var(--radius-lg);
+        padding: 48px;
+        box-shadow: var(--shadow-xl);
+      }
+
+      .form-container h2 {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--dark);
+        margin-bottom: 12px;
+        text-align: center;
+      }
+
+      .form-container .subtitle {
+        text-align: center;
+        color: var(--gray-600);
+        margin-bottom: 32px;
+      }
+
+      .form-group {
+        margin-bottom: 24px;
+      }
+
+      .form-group label {
+        display: block;
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+      }
+
+      .form-group label .required {
+        color: var(--danger);
+        margin-left: 4px;
+      }
+
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        width: 100%;
+        padding: 14px;
+        border: 2px solid var(--gray-300);
+        border-radius: var(--radius);
+        font-size: 1rem;
+        font-family: inherit;
+        transition: all 0.2s ease;
+      }
+
+      .form-group input:focus,
+      .form-group select:focus,
+      .form-group textarea:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 4px var(--primary-light);
+      }
+
+      .form-group textarea {
+        resize: vertical;
+        min-height: 120px;
+      }
+
+      .submit-btn {
+        width: 100%;
+        background: linear-gradient(135deg, var(--primary), var(--accent));
+        color: var(--white);
+        padding: 16px;
+        border: none;
+        border-radius: var(--radius);
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-family: inherit;
+      }
+
+      .submit-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
+      }
+
+      .submit-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .form-message {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: var(--radius);
+        text-align: center;
+        font-weight: 600;
+      }
+
+      .form-message.success {
+        background: #d1fae5;
+        color: #065f46;
+      }
+
+      .form-message.error {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+
+      .faq {
+        max-width: 800px;
+        margin: 60px auto;
+      }
+
+      .faq-item {
+        background: var(--white);
+        border: 1px solid var(--gray-300);
+        border-radius: var(--radius);
+        padding: 24px;
+        margin-bottom: 16px;
+      }
+
+      .faq-item h3 {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--dark);
+        margin-bottom: 12px;
+      }
+
+      .faq-item p {
+        color: var(--gray-700);
+        line-height: 1.6;
+      }
+
+      footer {
+        background: var(--dark);
+        color: var(--gray-400);
+        padding: 40px 24px;
+        text-align: center;
+      }
+
+      footer a {
+        color: var(--gray-400);
+        text-decoration: none;
+        margin: 0 12px;
+      }
+
+      footer a:hover {
+        color: var(--white);
+      }
+
+      @media (max-width: 768px) {
+        .step {
+          flex-direction: column;
+        }
+
+        .form-container {
+          padding: 32px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Hero -->
+    <section class="hero-partners">
+      <div class="container">
+        <h1>Programa de Parceiros de Canal</h1>
+        <p class="subtitle">
+          Indique clientes para a Radul e ganhe comissão recorrente mensal
+        </p>
+        <div class="commission-highlight">20% de comissão recorrente</div>
+        <p style="color: rgba(255, 255, 255, 0.9); margin-bottom: 32px">
+          Ganhe todo mês, enquanto seus clientes continuarem usando a plataforma
+        </p>
+        <a href="#formulario" class="cta">Quero ser Parceiro</a>
+      </div>
+    </section>
+
+    <!-- Benefícios -->
+    <section class="section">
+      <div class="container">
+        <h2 class="section-title">Por que ser Parceiro Radul?</h2>
+        <div class="benefits-grid">
+          <div class="benefit-card">
+            <ion-icon name="cash-outline"></ion-icon>
+            <h3>Comissão Recorrente</h3>
+            <p>
+              Ganhe 20% sobre o valor da assinatura do cliente, TODOS OS MESES,
+              enquanto ele permanecer ativo
+            </p>
+          </div>
+
+          <div class="benefit-card">
+            <ion-icon name="rocket-outline"></ion-icon>
+            <h3>Produto Completo</h3>
+            <p>
+              Plataforma robusta com PDV, estoque, financeiro, CRM, workflows e
+              IA. Seus clientes terão tudo em um só lugar
+            </p>
+          </div>
+
+          <div class="benefit-card">
+            <ion-icon name="trending-up-outline"></ion-icon>
+            <h3>Escale sua Renda</h3>
+            <p>
+              Sem limite de indicações. Quanto mais clientes você indicar, maior
+              sua renda recorrente mensal
+            </p>
+          </div>
+
+          <div class="benefit-card">
+            <ion-icon name="shield-checkmark-outline"></ion-icon>
+            <h3>Rastreamento Automático</h3>
+            <p>
+              Link exclusivo com código de indicação. Todas as conversões são
+              rastreadas automaticamente
+            </p>
+          </div>
+
+          <div class="benefit-card">
+            <ion-icon name="bar-chart-outline"></ion-icon>
+            <h3>Dashboard Transparente</h3>
+            <p>
+              Acompanhe suas indicações, conversões, comissões pagas e pendentes
+              em tempo real
+            </p>
+          </div>
+
+          <div class="benefit-card">
+            <ion-icon name="people-outline"></ion-icon>
+            <h3>Suporte Dedicado</h3>
+            <p>
+              Material de divulgação, treinamento e suporte para você converter
+              mais clientes
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Como Funciona -->
+    <section class="steps-section">
+      <div class="container" style="max-width: 800px">
+        <h2
+          class="section-title"
+          style="text-align: center; margin-bottom: 60px"
+        >
+          Como Funciona
+        </h2>
+
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Cadastre-se como Parceiro</h3>
+            <p>
+              Preencha o formulário abaixo com seus dados. Nossa equipe analisa
+              em até 2 dias úteis e envia seu link exclusivo de indicação
+            </p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Compartilhe seu Link</h3>
+            <p>
+              Use seu código de indicação único em redes sociais, e-mail,
+              WhatsApp ou presencialmente. Todos os acessos são rastreados
+            </p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Cliente se Cadastra e Paga</h3>
+            <p>
+              Quando o cliente se cadastra pelo seu link e realiza o primeiro
+              pagamento, você começa a ganhar comissão
+            </p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Receba TODO MÊS</h3>
+            <p>
+              Sua comissão de 20% é calculada automaticamente no 1º dia de cada
+              mês e paga via PIX em até 5 dias úteis
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Perfil de Parceiros -->
+    <section class="section">
+      <div class="container">
+        <h2 class="section-title">Perfis Ideais de Parceiros</h2>
+        <p
+          style="
+            text-align: center;
+            color: var(--gray-600);
+            margin-bottom: 40px;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+          "
+        >
+          Nosso programa é perfeito para profissionais e empresas que já atendem
+          nosso público-alvo
+        </p>
+
+        <div class="partner-types">
+          <div class="partner-type">
+            <ion-icon name="calculator-outline"></ion-icon>
+            <h4>Contadores</h4>
+            <p>
+              Indique seus clientes que precisam de gestão operacional completa
+            </p>
+          </div>
+
+          <div class="partner-type">
+            <ion-icon name="briefcase-outline"></ion-icon>
+            <h4>Consultores</h4>
+            <p>Recomende a Radul como parte da sua solução de negócio</p>
+          </div>
+
+          <div class="partner-type">
+            <ion-icon name="megaphone-outline"></ion-icon>
+            <h4>Agências</h4>
+            <p>Ofereça como serviço adicional aos seus clientes</p>
+          </div>
+
+          <div class="partner-type">
+            <ion-icon name="storefront-outline"></ion-icon>
+            <h4>Revendedores</h4>
+            <p>Revenda a plataforma com sua marca (white-label disponível)</p>
+          </div>
+
+          <div class="partner-type">
+            <ion-icon name="school-outline"></ion-icon>
+            <h4>Influenciadores</h4>
+            <p>Divulgue para sua audiência e ganhe por cada conversão</p>
+          </div>
+
+          <div class="partner-type">
+            <ion-icon name="globe-outline"></ion-icon>
+            <h4>Comunidades</h4>
+            <p>Ofereça como benefício exclusivo aos membros</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Formulário -->
+    <section class="form-section" id="formulario">
+      <div class="form-container">
+        <h2>Candidate-se ao Programa</h2>
+        <p class="subtitle">
+          Preencha o formulário e receba seu link de indicação em até 2 dias
+          úteis
+        </p>
+
+        <form id="partnerForm">
+          <div class="form-group">
+            <label for="partner_type">
+              Tipo de Parceiro<span class="required">*</span>
+            </label>
+            <select id="partner_type" name="partner_type" required>
+              <option value="">Selecione...</option>
+              <option value="contador">Contador / Escritório Contábil</option>
+              <option value="consultor">Consultor</option>
+              <option value="agencia">Agência</option>
+              <option value="revenda">Revendedor</option>
+              <option value="influenciador">Influenciador / Criador</option>
+              <option value="comunidade">Comunidade / Associação</option>
+              <option value="outro">Outro</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="contact_name">
+              Nome Completo<span class="required">*</span>
+            </label>
+            <input
+              type="text"
+              id="contact_name"
+              name="contact_name"
+              placeholder="Seu nome"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="contact_email">
+              E-mail<span class="required">*</span>
+            </label>
+            <input
+              type="email"
+              id="contact_email"
+              name="contact_email"
+              placeholder="seu@email.com"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="contact_phone">
+              Telefone / WhatsApp<span class="required">*</span>
+            </label>
+            <input
+              type="tel"
+              id="contact_phone"
+              name="contact_phone"
+              placeholder="(11) 99999-9999"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="company_name">Nome da Empresa</label>
+            <input
+              type="text"
+              id="company_name"
+              name="company_name"
+              placeholder="Sua empresa (opcional)"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="document_number">CNPJ ou CPF</label>
+            <input
+              type="text"
+              id="document_number"
+              name="document_number"
+              placeholder="00.000.000/0000-00 ou 000.000.000-00"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="audience_size"> Tamanho da sua Base/Audiência </label>
+            <select id="audience_size" name="audience_size">
+              <option value="">Selecione...</option>
+              <option value="1-10">1 a 10 clientes/seguidores</option>
+              <option value="11-50">11 a 50 clientes/seguidores</option>
+              <option value="51-200">51 a 200 clientes/seguidores</option>
+              <option value="201-1000">201 a 1.000 clientes/seguidores</option>
+              <option value="1001+">Mais de 1.000 clientes/seguidores</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="message"> Como você pretende divulgar a Radul? </label>
+            <textarea
+              id="message"
+              name="message"
+              placeholder="Conte-nos sobre sua estratégia de divulgação..."
+            ></textarea>
+          </div>
+
+          <button type="submit" class="submit-btn" id="submitBtn">
+            Enviar Candidatura
+          </button>
+
+          <div
+            id="formMessage"
+            class="form-message"
+            style="display: none"
+          ></div>
+        </form>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section">
+      <div class="container">
+        <h2
+          class="section-title"
+          style="text-align: center; margin-bottom: 60px"
+        >
+          Perguntas Frequentes
+        </h2>
+
+        <div class="faq">
+          <div class="faq-item">
+            <h3>Quanto vou ganhar por indicação?</h3>
+            <p>
+              Você ganha 20% do valor da mensalidade do cliente, TODOS OS MESES.
+              Por exemplo: se o cliente paga R$ 249/mês no plano Growth, você
+              recebe R$ 49,80 mensais enquanto ele permanecer ativo.
+            </p>
+          </div>
+
+          <div class="faq-item">
+            <h3>Como funciona o pagamento das comissões?</h3>
+            <p>
+              As comissões são calculadas automaticamente no 1º dia de cada mês
+              e transferidas via PIX em até 5 dias úteis. Você precisa cadastrar
+              sua chave PIX no sistema.
+            </p>
+          </div>
+
+          <div class="faq-item">
+            <h3>Existe um mínimo de indicações para receber?</h3>
+            <p>
+              Não! Você começa a receber assim que seu primeiro cliente fizer o
+              primeiro pagamento. Sem mínimos, sem burocracia.
+            </p>
+          </div>
+
+          <div class="faq-item">
+            <h3>Por quanto tempo recebo a comissão?</h3>
+            <p>
+              Você recebe enquanto o cliente permanecer ativo na plataforma. Se
+              o cliente ficar 2 anos, você ganha durante 2 anos. É renda
+              verdadeiramente recorrente!
+            </p>
+          </div>
+
+          <div class="faq-item">
+            <h3>Como sei se minha indicação converteu?</h3>
+            <p>
+              Você tem acesso a um dashboard completo onde acompanha em tempo
+              real: total de cliques no seu link, cadastros iniciados,
+              conversões pagas, comissões pendentes e comissões já recebidas.
+            </p>
+          </div>
+
+          <div class="faq-item">
+            <h3>Posso indicar qualquer tipo de empresa?</h3>
+            <p>
+              Sim! A Radul atende empresas de serviços de qualquer segmento:
+              advocacia, consultoria, saúde, varejo, comércio, cartórios e muito
+              mais. Nossa plataforma é modular e se adapta a cada necessidade.
+            </p>
+          </div>
+
+          <div class="faq-item">
+            <h3>Preciso ter CNPJ para ser parceiro?</h3>
+            <p>
+              Não é obrigatório. Você pode ser parceiro como pessoa física (CPF)
+              ou jurídica (CNPJ). Ambos recebem normalmente via PIX.
+            </p>
+          </div>
+
+          <div class="faq-item">
+            <h3>Existe algum custo para ser parceiro?</h3>
+            <p>
+              Zero! O programa de parceiros é 100% gratuito. Sem taxas de
+              adesão, sem mensalidades, sem custos ocultos. Você só ganha.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>
+        <a href="/">Início</a>
+        <a href="/termos-de-uso.html">Termos de Uso</a>
+        <a href="/politica-de-privacidade.html">Política de Privacidade</a>
+      </p>
+      <p style="margin-top: 16px">
+        © 2026 Radulf LTDA. Todos os direitos reservados.
+      </p>
+    </footer>
+
+    <!-- Form Submission Script -->
+    <script>
+      const RADUL_TENANT_ID = "0bc867c7-082b-4d6f-a240-405f01b2941e"; // Radul Platform tenant
+      const API_URL =
+        "https://sos-api-crud.raulcamilotti-c44.workers.dev/api_crud";
+      const API_KEY = "pnZdAqNqmtSPfHHUMsjAs1pFaygbyjd8Jd66QZXYwvg";
+
+      document
+        .getElementById("partnerForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const submitBtn = document.getElementById("submitBtn");
+          const formMessage = document.getElementById("formMessage");
+
+          // Disable button
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Enviando...";
+          formMessage.style.display = "none";
+
+          // Get form data
+          const formData = new FormData(e.target);
+          const data = Object.fromEntries(formData.entries());
+
+          // Build lead payload
+          const leadPayload = {
+            tenant_id: RADUL_TENANT_ID,
+            name: data.contact_name,
+            email: data.contact_email || null,
+            phone: data.contact_phone,
+            company_name: data.company_name || null,
+            source: "site_parceiros",
+            status: "novo",
+            priority: "alta", // Partner leads are high priority
+            interested_service_type_id: null,
+            notes: JSON.stringify({
+              partner_type: data.partner_type,
+              document_number: data.document_number || null,
+              audience_size: data.audience_size || null,
+              message: data.message || null,
+              submitted_at: new Date().toISOString(),
+              form_url: window.location.href,
+            }),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          try {
+            // Submit lead via CRUD API
+            const response = await fetch(API_URL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Api-Key": API_KEY,
+              },
+              body: JSON.stringify({
+                action: "create",
+                table: "leads",
+                payload: leadPayload,
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error("Falha ao enviar formulário");
+            }
+
+            // Success
+            formMessage.className = "form-message success";
+            formMessage.textContent =
+              "✅ Candidatura enviada com sucesso! Você receberá um e-mail em até 2 dias úteis com seu link de parceiro.";
+            formMessage.style.display = "block";
+
+            // Reset form
+            e.target.reset();
+
+            // Track conversion (optional - if you have analytics)
+            if (window.gtag) {
+              gtag("event", "conversion", {
+                event_category: "partner_signup",
+                event_label: data.partner_type,
+              });
+            }
+          } catch (error) {
+            console.error("Form submission error:", error);
+            formMessage.className = "form-message error";
+            formMessage.textContent =
+              "❌ Erro ao enviar formulário. Por favor, tente novamente ou entre em contato via WhatsApp.";
+            formMessage.style.display = "block";
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Enviar Candidatura";
+          }
+        });
+
+      // Phone mask (optional)
+      document
+        .getElementById("contact_phone")
+        .addEventListener("input", (e) => {
+          let value = e.target.value.replace(/\D/g, "");
+          if (value.length <= 10) {
+            value = value.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3");
+          } else {
+            value = value.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3");
+          }
+          e.target.value = value;
+        });
+
+      // Document mask (CPF/CNPJ)
+      document
+        .getElementById("document_number")
+        .addEventListener("input", (e) => {
+          let value = e.target.value.replace(/\D/g, "");
+          if (value.length <= 11) {
+            // CPF
+            value = value.replace(
+              /(\d{3})(\d{3})(\d{3})(\d{0,2})/,
+              "$1.$2.$3-$4",
+            );
+          } else {
+            // CNPJ
+            value = value.replace(
+              /(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/,
+              "$1.$2.$3/$4-$5",
+            );
+          }
+          e.target.value = value;
+        });
+    </script>
+  </body>
+</html>

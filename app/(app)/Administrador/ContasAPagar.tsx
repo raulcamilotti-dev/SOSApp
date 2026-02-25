@@ -12,22 +12,23 @@ import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    CRUD_ENDPOINT,
-    buildSearchParams,
-    normalizeCrudList,
+  CRUD_ENDPOINT,
+  buildSearchParams,
+  normalizeCrudList,
 } from "@/services/crud";
 import { generatePixPayload } from "@/services/pix";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    Pressable,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 type Row = Record<string, unknown>;
@@ -224,6 +225,8 @@ const fields: CrudFieldConfig<Row>[] = [
     referenceLabelField: "company_name",
     referenceSearchField: "company_name",
     required: true,
+    visibleInForm: false,
+    visibleInList: false,
   },
 
   // --- Identificação ---
@@ -476,13 +479,189 @@ export default function ContasAPagarScreen() {
     [tenantId],
   );
 
+  const createItemBound = useMemo(
+    () => (payload: Partial<Row>) =>
+      createItem({
+        ...payload,
+        tenant_id: tenantId,
+        created_by: user?.id ?? null,
+      }),
+    [tenantId, user?.id],
+  );
+
   const [uploadingFile, setUploadingFile] = useState(false);
+
+  // Payment modal state
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [selectedPaymentItem, setSelectedPaymentItem] = useState<Row | null>(
+    null,
+  );
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState<string>("");
+  const [showQrCode, setShowQrCode] = useState(false);
 
   const borderColor = useThemeColor({}, "border");
   const textColor = useThemeColor({}, "text");
   const mutedColor = useThemeColor({}, "muted");
   const cardBg = useThemeColor({}, "card");
   const tintColor = useThemeColor({}, "tint");
+
+  // Processa pagamento direto (sem gerar QR, marca como pago)
+  const handlePaymentDirect = useCallback(async () => {
+    if (!selectedPaymentItem) return;
+
+    setPaymentProcessing(true);
+    try {
+      // Marca como pago direto no banco
+      await updateItem({
+        id: String(selectedPaymentItem.id),
+        amount_paid: selectedPaymentItem.amount,
+        status: "pago",
+      });
+
+      Alert.alert(
+        "✅ Pagamento Confirmado",
+        `Conta de R$ ${formatCurrency(selectedPaymentItem.amount)} marcada como paga!`,
+      );
+      setPaymentModalVisible(false);
+      setSelectedPaymentItem(null);
+      setQrCodeData("");
+      setShowQrCode(false);
+      loadItems();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao confirmar pagamento";
+      Alert.alert("❌ Erro", msg);
+    } finally {
+      setPaymentProcessing(false);
+    }
+  }, [selectedPaymentItem, loadItems]);
+
+  // Registra como pago manualmente (sem Asaas)
+  const handlePaymentManual = useCallback(async () => {
+    if (!selectedPaymentItem) return;
+
+    setPaymentProcessing(true);
+    try {
+      await updateItem({
+        id: String(selectedPaymentItem.id),
+        amount_paid: selectedPaymentItem.amount,
+        status: "pago",
+      });
+
+      Alert.alert(
+        "✅ Registrado",
+        `Conta de R$ ${formatCurrency(selectedPaymentItem.amount)} marcada como paga manualmente!`,
+      );
+      setPaymentModalVisible(false);
+      setSelectedPaymentItem(null);
+      setQrCodeData("");
+      setShowQrCode(false);
+      loadItems();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao registrar pagamento";
+      Alert.alert("❌ Erro", msg);
+    } finally {
+      setPaymentProcessing(false);
+    }
+  }, [selectedPaymentItem, loadItems]);
+
+  // Gera PIX QR Code
+  const handleGeneratePixQr = useCallback(async () => {
+    if (!selectedPaymentItem || !selectedPaymentItem.pix_key) {
+      Alert.alert("Aviso", "Nenhuma chave PIX cadastrada para este fornecedor");
+      return;
+    }
+
+    setPaymentProcessing(true);
+    try {
+      const chargePayload = {
+        amount_cents: Math.round(Number(selectedPaymentItem.amount ?? 0) * 100),
+        method: "pix",
+        description: String(selectedPaymentItem.description ?? "Conta a Pagar"),
+        due_date: String(
+          selectedPaymentItem.due_date ??
+            new Date().toISOString().split("T")[0],
+        ),
+        customer: {
+          name: String(selectedPaymentItem.supplier_name ?? "Fornecedor"),
+          cpfCnpj: String(selectedPaymentItem.pix_key ?? ""),
+          email: "admin@empresa.com",
+          phone: "11999999999",
+        },
+      };
+
+      console.log("[PIX] Enviando payload para Asaas:", chargePayload);
+
+      const chargeRes = await api.post(
+        "https://sos-asaas.raulcamilotti-c44.workers.dev/asaas/charge",
+        chargePayload,
+      );
+
+      console.log("[PIX] Resposta do Asaas:", chargeRes.data);
+
+      // Tenta extrair QR code da resposta
+      const chargeData = chargeRes.data?.data || chargeRes.data;
+      console.log("[PIX] chargeData:", chargeData);
+
+      // Busca QR code em diferentes formatos possíveis
+      let qrCode =
+        chargeData?.dict || chargeData?.qrCode || chargeData?.copy_paste || "";
+      console.log(
+        "[PIX] QR Code encontrado:",
+        qrCode ? "SIM" : "NÃO",
+        qrCode.substring(0, 50) || "",
+      );
+
+      if (qrCode) {
+        setQrCodeData(String(qrCode));
+        setShowQrCode(true);
+      } else {
+        console.error(
+          "[PIX] QR Code vazio. Resposta completa:",
+          JSON.stringify(chargeRes.data),
+        );
+        Alert.alert(
+          "Erro",
+          "Não foi possível gerar o PIX QR Code. Tente novamente ou use outra opção de pagamento.",
+        );
+      }
+    } catch (err) {
+      console.error("[PIX] Erro:", err);
+      const msg =
+        err instanceof Error ? err.message : "Erro ao gerar PIX QR Code";
+      Alert.alert("❌ Erro", msg);
+    } finally {
+      setPaymentProcessing(false);
+    }
+  }, [selectedPaymentItem]);
+
+  const renderItemActions = useCallback(
+    (item: Row) => {
+      return (
+        <Pressable
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            backgroundColor: tintColor,
+            borderRadius: 6,
+            alignItems: "center",
+            marginTop: 8,
+          }}
+          onPress={() => {
+            setSelectedPaymentItem(item);
+            setPaymentModalVisible(true);
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>
+            💳 Pagar
+          </Text>
+        </Pressable>
+      );
+    },
+    [tintColor],
+  );
 
   const fileToBase64Web = (uri: string): Promise<string> =>
     fetch(uri)
@@ -670,72 +849,350 @@ export default function ContasAPagarScreen() {
   );
 
   return (
-    <CrudScreen<Row>
-      title="Contas a Pagar"
-      subtitle="Despesas, pagamentos a parceiros, impostos e salários"
-      searchPlaceholder="Buscar por descrição, fornecedor..."
-      searchFields={["description", "supplier_name", "category", "notes"]}
-      fields={fields}
-      loadItems={loadItems}
-      createItem={createItem}
-      updateItem={updateItem}
-      deleteItem={deleteItem}
-      renderCustomField={renderCustomField}
-      getId={(item) => String(item.id ?? "")}
-      getTitle={(item) => {
-        const desc = String(item.description ?? "Conta");
-        const amount = formatCurrency(item.amount);
-        return `${desc} — ${amount}`;
-      }}
-      getDetails={(item) => [
-        {
-          label: "Tipo",
-          value:
-            TYPE_LABELS[String(item.type ?? "")] ?? String(item.type ?? "—"),
-        },
-        {
-          label: "Valor",
-          value: formatCurrency(item.amount),
-        },
-        {
-          label: "Pago",
-          value: formatCurrency(item.amount_paid),
-        },
-        {
-          label: "Status",
-          value:
-            STATUS_LABELS[String(item.status ?? "")] ??
-            String(item.status ?? "—"),
-        },
-        {
-          label: "Vencimento",
-          value: formatDate(item.due_date),
-        },
-        {
-          label: "Recorrência",
-          value:
-            RECURRENCE_LABELS[String(item.recurrence ?? "none")] ??
-            "Sem recorrência",
-        },
-        {
-          label: "Fornecedor",
-          value: String(item.supplier_name ?? "—"),
-        },
-        {
-          label: "Categoria",
-          value: String(item.category ?? "—"),
-        },
-        {
-          label: "PIX",
-          value: item.pix_key
-            ? `${String(item.pix_key)} (${String(item.pix_key_type ?? "").toUpperCase()})`
-            : "—",
-        },
-        {
-          label: "Anexo",
-          value: item.attachment_name ? String(item.attachment_name) : "Nenhum",
-        },
-      ]}
-    />
+    <View style={{ flex: 1 }}>
+      <CrudScreen<Row>
+        title="Contas a Pagar"
+        subtitle="Despesas, pagamentos a parceiros, impostos e salários"
+        searchPlaceholder="Buscar por descrição, fornecedor..."
+        searchFields={["description", "supplier_name", "category", "notes"]}
+        fields={fields}
+        loadItems={loadItems}
+        createItem={createItemBound}
+        updateItem={updateItem}
+        deleteItem={deleteItem}
+        renderCustomField={renderCustomField}
+        renderItemActions={renderItemActions}
+        getId={(item) => String(item.id ?? "")}
+        getTitle={(item) => {
+          const desc = String(item.description ?? "Conta");
+          const amount = formatCurrency(item.amount);
+          return `${desc} — ${amount}`;
+        }}
+        getDetails={(item) => [
+          {
+            label: "Tipo",
+            value:
+              TYPE_LABELS[String(item.type ?? "")] ?? String(item.type ?? "—"),
+          },
+          {
+            label: "Valor",
+            value: formatCurrency(item.amount),
+          },
+          {
+            label: "Pago",
+            value: formatCurrency(item.amount_paid),
+          },
+          {
+            label: "Status",
+            value:
+              STATUS_LABELS[String(item.status ?? "")] ??
+              String(item.status ?? "—"),
+          },
+          {
+            label: "Vencimento",
+            value: formatDate(item.due_date),
+          },
+          {
+            label: "Recorrência",
+            value:
+              RECURRENCE_LABELS[String(item.recurrence ?? "none")] ??
+              "Sem recorrência",
+          },
+          {
+            label: "Fornecedor",
+            value: String(item.supplier_name ?? "—"),
+          },
+          {
+            label: "Categoria",
+            value: String(item.category ?? "—"),
+          },
+          {
+            label: "PIX",
+            value: item.pix_key
+              ? `${String(item.pix_key)} (${String(item.pix_key_type ?? "").toUpperCase()})`
+              : "—",
+          },
+          {
+            label: "Anexo",
+            value: item.attachment_name
+              ? String(item.attachment_name)
+              : "Nenhum",
+          },
+        ]}
+      />
+
+      {/* Payment Modal */}
+      <Modal
+        visible={paymentModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setPaymentModalVisible(false);
+          setSelectedPaymentItem(null);
+          setQrCodeData("");
+          setShowQrCode(false);
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 12,
+              padding: 20,
+              gap: 16,
+            }}
+          >
+            <Text style={{ color: textColor, fontSize: 18, fontWeight: "700" }}>
+              Pagamento — {formatCurrency(selectedPaymentItem?.amount)}
+            </Text>
+
+            {!showQrCode ? (
+              <>
+                {/* Action buttons - Direct payment options */}
+                <Text
+                  style={{ color: mutedColor, fontSize: 12, lineHeight: 18 }}
+                >
+                  Escolha como deseja processar o pagamento:
+                </Text>
+
+                <View style={{ gap: 8 }}>
+                  {/* Pay now button */}
+                  <Pressable
+                    onPress={handlePaymentDirect}
+                    disabled={paymentProcessing}
+                    style={{
+                      padding: 14,
+                      borderRadius: 8,
+                      backgroundColor: "#10b981",
+                      alignItems: "center",
+                      opacity: paymentProcessing ? 0.6 : 1,
+                    }}
+                  >
+                    {paymentProcessing ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={{ color: "#fff", fontWeight: "700" }}>
+                        💳 Pagar Agora
+                      </Text>
+                    )}
+                  </Pressable>
+
+                  {/* Generate PIX button */}
+                  {selectedPaymentItem?.pix_key && (
+                    <Pressable
+                      onPress={handleGeneratePixQr}
+                      disabled={paymentProcessing}
+                      style={{
+                        padding: 14,
+                        borderRadius: 8,
+                        borderWidth: 2,
+                        borderColor: tintColor,
+                        backgroundColor: cardBg,
+                        alignItems: "center",
+                        opacity: paymentProcessing ? 0.6 : 1,
+                      }}
+                    >
+                      {paymentProcessing ? (
+                        <ActivityIndicator size="small" color={tintColor} />
+                      ) : (
+                        <Text style={{ color: tintColor, fontWeight: "700" }}>
+                          🔗 Gerar PIX
+                        </Text>
+                      )}
+                    </Pressable>
+                  )}
+
+                  {/* Manual registration button */}
+                  <Pressable
+                    onPress={handlePaymentManual}
+                    disabled={paymentProcessing}
+                    style={{
+                      padding: 14,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor: mutedColor,
+                      backgroundColor: cardBg,
+                      alignItems: "center",
+                      opacity: paymentProcessing ? 0.6 : 1,
+                    }}
+                  >
+                    {paymentProcessing ? (
+                      <ActivityIndicator size="small" color={mutedColor} />
+                    ) : (
+                      <Text style={{ color: mutedColor, fontWeight: "700" }}>
+                        ✋ Registrar como Pago (Manual)
+                      </Text>
+                    )}
+                  </Pressable>
+                </View>
+
+                {/* Details */}
+                <View style={{ gap: 6, paddingTop: 8 }}>
+                  <Text
+                    style={{ color: mutedColor, fontSize: 11, lineHeight: 16 }}
+                  >
+                    <Text style={{ fontWeight: "700" }}>💳 Pagar Agora:</Text>{" "}
+                    Processa o pagamento imediatamente via API e marca como pago
+                    no sistema.
+                  </Text>
+                  {selectedPaymentItem?.pix_key && (
+                    <Text
+                      style={{
+                        color: mutedColor,
+                        fontSize: 11,
+                        lineHeight: 16,
+                      }}
+                    >
+                      <Text style={{ fontWeight: "700" }}>🔗 Gerar PIX:</Text>{" "}
+                      Cria um QR Code ( escaneiar para pagar).
+                    </Text>
+                  )}
+                  <Text
+                    style={{
+                      color: mutedColor,
+                      fontSize: 11,
+                      lineHeight: 16,
+                    }}
+                  >
+                    <Text style={{ fontWeight: "700" }}>
+                      ✋ Registrar Manual:
+                    </Text>{" "}
+                    Marca como pago sem envolver nenhuma API (apenas controle
+                    interno).
+                  </Text>
+                </View>
+
+                {/* Cancel button */}
+                <Pressable
+                  onPress={() => {
+                    setPaymentModalVisible(false);
+                    setSelectedPaymentItem(null);
+                    setQrCodeData("");
+                    setShowQrCode(false);
+                  }}
+                  style={{
+                    padding: 12,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: textColor, fontWeight: "600" }}>
+                    Cancelar
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                {/* QR Code display */}
+                <View style={{ alignItems: "center", gap: 12 }}>
+                  <Text
+                    style={{
+                      color: textColor,
+                      fontSize: 14,
+                      fontWeight: "700",
+                    }}
+                  >
+                    🔗 QR Code PIX Gerado
+                  </Text>
+                  <Text style={{ color: mutedColor, fontSize: 11 }}>
+                    Para pagamento:
+                  </Text>
+                  <View
+                    style={{
+                      backgroundColor: "#fff",
+                      padding: 12,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: borderColor,
+                      maxHeight: 300,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: textColor,
+                        fontSize: 10,
+                        fontFamily: "monospace",
+                      }}
+                      selectable
+                    >
+                      {qrCodeData}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={() => {
+                      if (Platform.OS === "web") {
+                        navigator.clipboard.writeText(qrCodeData);
+                      }
+                      Alert.alert(
+                        "✅ Copiado",
+                        "QR Code copiado para a área de transferência!",
+                      );
+                    }}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      backgroundColor: tintColor,
+                      borderRadius: 6,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontWeight: "700",
+                        fontSize: 12,
+                      }}
+                    >
+                      📋 Copiar Código
+                    </Text>
+                  </Pressable>
+
+                  <Text
+                    style={{
+                      color: mutedColor,
+                      fontSize: 11,
+                      textAlign: "center",
+                      marginTop: 8,
+                    }}
+                  >
+                    Escanear este QR Code para pagar via PIX.
+                  </Text>
+                </View>
+
+                {/* Confirm button */}
+                <Pressable
+                  onPress={() => {
+                    setPaymentModalVisible(false);
+                    setSelectedPaymentItem(null);
+                    setQrCodeData("");
+                    loadItems().then(() => {});
+                  }}
+                  style={{
+                    padding: 12,
+                    borderRadius: 8,
+                    backgroundColor: tintColor,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700" }}>
+                    ✓ Fechar
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }

@@ -19,6 +19,7 @@ import {
     type CrudFilter,
     type CrudListOptions,
 } from "./crud";
+import { asaasPixOut } from "./partner";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -640,6 +641,40 @@ export async function updateAccountPayable(
     payload,
   });
   return normalizeCrudOne<AccountPayable>(res.data);
+}
+
+export async function payAccountPayableViaAsaas(params: {
+  payable: AccountPayable;
+  amount?: number;
+  description?: string;
+}): Promise<{ transferId: string; status: string }> {
+  const { payable, amount, description } = params;
+  const pixKey = payable.pix_key ?? "";
+  if (!pixKey) {
+    throw new Error("Conta a pagar sem chave PIX");
+  }
+
+  const amountToPay = amount ?? payable.amount;
+  const transfer = await asaasPixOut({
+    amount_cents: Math.round(amountToPay * 100),
+    pix_key: pixKey,
+    pix_key_type: payable.pix_key_type ?? undefined,
+    description: description ?? payable.description,
+    external_reference: payable.id,
+  });
+
+  await updateAccountPayable({
+    id: payable.id,
+    status: "paid",
+    amount_paid: amountToPay,
+    paid_at: new Date().toISOString(),
+    payment_method: "pix",
+    notes: payable.notes
+      ? `${payable.notes}\nASAAS transfer: ${transfer.transferId}`
+      : `ASAAS transfer: ${transfer.transferId}`,
+  });
+
+  return { transferId: transfer.transferId, status: transfer.status };
 }
 
 /* ------------------------------------------------------------------ */

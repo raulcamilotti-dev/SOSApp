@@ -2,6 +2,7 @@ import { isUserProfileComplete } from "@/core/auth/auth.utils";
 import { useAuth } from "@/core/auth/AuthContext";
 import { getAuthColors, useTenantBranding } from "@/hooks/use-tenant-branding";
 import { formatCpf, validateCpf } from "@/services/brasil-api";
+import { captureReferralOnRegistration } from "@/services/referral-tracking";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -48,6 +49,23 @@ export default function Register() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const getWebSearchParams = () => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search);
+  };
+
+  const stashReferralParams = () => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    try {
+      const search = window.location.search;
+      if (search) {
+        window.sessionStorage?.setItem("channel_referral_params", search);
+      }
+    } catch {
+      // Non-fatal: referral tracking should not block registration
+    }
+  };
+
   async function handleRegister() {
     try {
       setError("");
@@ -89,10 +107,18 @@ export default function Register() {
       }
 
       if (!result.user.tenant_id) {
+        stashReferralParams();
         router.replace("/(app)/Usuario/onboarding");
-      } else if (!isUserProfileComplete(result.user)) {
-        router.replace("/(app)/Usuario/complete-profile");
       } else {
+        const urlParams = getWebSearchParams();
+        if (urlParams) {
+          await captureReferralOnRegistration(result.user.tenant_id, urlParams);
+        }
+      }
+
+      if (result.user.tenant_id && !isUserProfileComplete(result.user)) {
+        router.replace("/(app)/Usuario/complete-profile");
+      } else if (result.user.tenant_id) {
         router.replace("/");
       }
     } catch (err) {

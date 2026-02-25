@@ -345,8 +345,60 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Servicos/MeusTrabalhos",
     requiredAnyPermissions: [PERMISSIONS.PARTNER_READ],
   },
+  {
+    id: "channel_partners",
+    group: "Parceiros",
+    module: "operacao",
+    title: "Parceiros de Canal",
+    description: "Sistema de indicações e comissões recorrentes",
+    icon: "share-social-outline",
+    route: "/Administrador/channel-partners",
+    requiredAnyPermissions: [
+      PERMISSIONS.PARTNER_READ,
+      PERMISSIONS.PARTNER_WRITE,
+    ],
+  },
+  {
+    id: "channel_partner_dashboard",
+    group: "Parceiros",
+    module: "operacao",
+    title: "Dashboard de Parcerias",
+    description: "Métricas de indicações e comissões por parceiro de canal",
+    icon: "trending-up-outline",
+    route: "/Administrador/channel-partner-dashboard",
+    requiredAnyPermissions: [
+      PERMISSIONS.PARTNER_READ,
+      PERMISSIONS.FINANCIAL_READ,
+    ],
+  },
 
   // ---- Financeiro ----
+  {
+    id: "recebimentos_config",
+    group: "Financeiro",
+    module: "operacao",
+    title: "Recebimentos",
+    description: "Habilitar PIX e cartao e configurar gateway",
+    icon: "wallet-outline",
+    route: "/Administrador/recebimentos-config",
+    requiredAnyPermissions: [
+      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.FINANCIAL_WRITE,
+    ],
+  },
+  {
+    id: "split_servicos",
+    group: "Financeiro",
+    module: "operacao",
+    title: "Splits por Servico",
+    description: "Regras de divisao por servico e parceiro",
+    icon: "git-branch-outline",
+    route: "/Administrador/split-servicos",
+    requiredAnyPermissions: [
+      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.FINANCIAL_WRITE,
+    ],
+  },
   {
     id: "dashboard_financeiro",
     group: "Financeiro",

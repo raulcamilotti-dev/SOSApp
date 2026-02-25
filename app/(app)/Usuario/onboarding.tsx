@@ -16,6 +16,7 @@ import {
     runOnboarding,
     type OnboardingCompanyData,
 } from "@/services/onboarding";
+import { captureReferralOnRegistration } from "@/services/referral-tracking";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -116,6 +117,18 @@ export default function OnboardingScreen() {
   // Errors
   const [error, setError] = useState("");
 
+  const getReferralParams = () => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return null;
+    const direct = window.location.search;
+    if (direct) return new URLSearchParams(direct);
+    try {
+      const stored = window.sessionStorage?.getItem("channel_referral_params");
+      return stored ? new URLSearchParams(stored) : null;
+    } catch {
+      return null;
+    }
+  };
+
   // Pre-fill company name from user
   useEffect(() => {
     if (!companyName && user?.fullname) {
@@ -188,6 +201,19 @@ export default function OnboardingScreen() {
       );
 
       setResult(onboardingResult);
+
+      try {
+        const urlParams = getReferralParams();
+        if (urlParams) {
+          await captureReferralOnRegistration(
+            onboardingResult.tenantId,
+            urlParams,
+          );
+          window.sessionStorage?.removeItem("channel_referral_params");
+        }
+      } catch {
+        // Non-fatal: referral tracking should not block onboarding
+      }
 
       // First refresh tenants and select the newly created tenant
       await refreshAvailableTenants();

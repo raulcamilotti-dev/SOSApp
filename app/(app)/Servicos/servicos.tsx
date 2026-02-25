@@ -117,6 +117,20 @@ const SERVICE_GROUPS: ServiceGroup[] = [
     ],
   },
   {
+    key: "parceiros",
+    label: "Parceiros",
+    icon: "people-outline",
+    items: [
+      {
+        id: "parceiro_canal",
+        title: "Parceiro de Canal",
+        description: "Acompanhe indicacoes e comissoes",
+        icon: "ribbon-outline",
+        route: "/Servicos/ParceiroCanal",
+      },
+    ],
+  },
+  {
     key: "gestao",
     label: "Gestão",
     icon: "settings-outline",

@@ -207,6 +207,8 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   metabase: MODULE_KEYS.BI_ANALYTICS,
 
   // Financial module
+  recebimentos_config: MODULE_KEYS.FINANCIAL,
+  split_servicos: MODULE_KEYS.FINANCIAL,
   faturas: MODULE_KEYS.FINANCIAL,
   pagamentos: MODULE_KEYS.FINANCIAL,
   dashboard_financeiro: MODULE_KEYS.FINANCIAL,
@@ -261,6 +263,7 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
 export const SERVICE_ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/Servicos/MinhasAssinaturas": MODULE_KEYS.DOCUMENTS,
   "/Servicos/MeusTrabalhos": MODULE_KEYS.PARTNERS,
+  "/Servicos/ParceiroCanal": MODULE_KEYS.PARTNERS,
   "/Servicos/PDV": MODULE_KEYS.PDV,
   "/Servicos/MinhasVendas": MODULE_KEYS.PDV,
   "/Servicos/PreVenda": MODULE_KEYS.PDV,

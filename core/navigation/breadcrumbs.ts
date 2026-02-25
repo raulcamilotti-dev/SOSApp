@@ -105,6 +105,7 @@ export const breadcrumbMap: Record<string, string> = {
   MinhaAgenda: "Minha Agenda",
   MinhasAssinaturas: "Minhas Assinaturas",
   MinhasEmpresas: "Minhas Empresas",
+  ParceiroCanal: "Parceiro de Canal",
   Processo: "Processo",
   servicos: "Serviços",
   SolicitarServico: "Solicitar Serviço",

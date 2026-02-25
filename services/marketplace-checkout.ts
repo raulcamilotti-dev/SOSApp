@@ -29,6 +29,7 @@ import {
     type CrudFilter,
 } from "./crud";
 import { getMarketplaceConfig, type MarketplaceConfig } from "./marketplace";
+import { asaasCreateCharge } from "./partner";
 import {
     generatePixPayload,
     generatePixQRCodeBase64,
@@ -250,11 +251,50 @@ async function generateOrderPix(
   config: MarketplaceConfig,
   amount: number,
   orderId: string,
+  customer: {
+    name?: string;
+    email?: string;
+    cpf?: string;
+    phone?: string;
+  },
+  shippingAddress: ShippingAddress,
 ): Promise<{
   brCode: string | null;
   qrBase64: string | null;
   pixKey: string | null;
 }> {
+  if (config.pix_provider === "asaas" || config.asaas_enabled) {
+    if (!customer.cpf) {
+      throw new Error("CPF do cliente e obrigatorio para PIX Asaas");
+    }
+
+    const charge = await asaasCreateCharge({
+      amount_cents: Math.round(amount * 100),
+      method: "pix",
+      description: `Pedido #${orderId.slice(0, 8)}`,
+      external_reference: orderId,
+      customer: {
+        name: customer.name ?? "Cliente",
+        email: customer.email ?? null,
+        cpfCnpj: customer.cpf ?? null,
+        phone: customer.phone ?? null,
+        address: shippingAddress.street,
+        addressNumber: shippingAddress.number,
+        complement: shippingAddress.complement ?? null,
+        province: shippingAddress.neighborhood,
+        postalCode: shippingAddress.cep,
+        city: shippingAddress.city,
+        state: shippingAddress.state,
+      },
+    });
+
+    return {
+      brCode: charge.pixCopyPaste ?? null,
+      qrBase64: charge.pixQrCodeBase64 ?? null,
+      pixKey: null,
+    };
+  }
+
   if (!config.pix_key) {
     return { brCode: null, qrBase64: null, pixKey: null };
   }
@@ -789,7 +829,13 @@ export async function createOnlineOrder(
   }
 
   // ── Step 13: Generate PIX payment ──
-  const pixData = await generateOrderPix(config, total, sale.id);
+  const pixData = await generateOrderPix(
+    config,
+    total,
+    sale.id,
+    customer,
+    shippingAddress,
+  );
 
   // ── Step 14: Clear cart ──
   if (cart.cart?.id) {
@@ -1285,7 +1331,38 @@ export async function regenerateOrderPix(orderId: string): Promise<{
   const config = await getMarketplaceConfig(order.tenant_id);
   if (!config) throw new Error("Marketplace não configurado");
 
-  const pixData = await generateOrderPix(config, order.total, order.id);
+  const customerRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "customers",
+    ...buildSearchParams([{ field: "id", value: order.customer_id }]),
+  });
+  const customerRow = normalizeCrudList<Record<string, unknown>>(
+    customerRes.data,
+  )[0];
+
+  const customerInfo = {
+    name: String(customerRow?.name ?? ""),
+    email: customerRow?.email ? String(customerRow.email) : undefined,
+    cpf: customerRow?.cpf ? String(customerRow.cpf) : undefined,
+    phone: customerRow?.phone ? String(customerRow.phone) : undefined,
+  };
+
+  const shipping = order.shipping_address ?? {
+    cep: "",
+    street: "",
+    number: "",
+    neighborhood: "",
+    city: "",
+    state: "",
+  };
+
+  const pixData = await generateOrderPix(
+    config,
+    order.total,
+    order.id,
+    customerInfo,
+    shipping,
+  );
 
   return {
     pixBrCode: pixData.brCode,

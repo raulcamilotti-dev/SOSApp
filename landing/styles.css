@@ -262,6 +262,27 @@ img {
   margin-bottom: 20px;
 }
 
+.partner-cta-banner {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #fff7ed, #ffedd5);
+  color: #9a3412;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 16px rgba(234, 88, 12, 0.15);
+}
+
+.partner-cta-banner a {
+  color: #9a3412;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
 .hero h1 {
   font-size: clamp(36px, 5vw, 56px);
   font-weight: 800;

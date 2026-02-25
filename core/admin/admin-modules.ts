@@ -117,6 +117,8 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
     icon: "cash-outline",
     color: "#10b981",
     pageIds: [
+      "recebimentos_config",
+      "split_servicos",
       "dashboard_financeiro",
       "dre",
       "contas_a_receber",
@@ -169,7 +171,13 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
     description: "Gestão de parceiros e comissões",
     icon: "people-circle-outline",
     color: "#f59e0b",
-    pageIds: ["parceiros", "ganhos_parceiros", "meus_trabalhos"],
+    pageIds: [
+      "parceiros",
+      "ganhos_parceiros",
+      "meus_trabalhos",
+      "channel_partners",
+      "channel_partner_dashboard",
+    ],
   },
   {
     key: "automacao",

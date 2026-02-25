@@ -14,6 +14,10 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
+    createChannelPartner,
+    type ChannelPartnerType,
+} from "@/services/channel-partners";
+import {
     ACTIVITY_TYPES,
     CONVERTIBLE_STATUSES,
     convertLeadToCustomer,
@@ -70,6 +74,29 @@ const formatCurrency = (v?: number | string | null) => {
   const num = typeof v === "string" ? parseFloat(v) : v;
   if (isNaN(num)) return "—";
   return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+};
+
+const PARTNER_LEAD_SOURCE = "site_parceiros";
+
+const normalizePartnerType = (raw?: string | null): ChannelPartnerType => {
+  const value = String(raw ?? "").toLowerCase();
+  if (value === "contador") return "accountant";
+  if (value === "consultor") return "consultant";
+  if (value === "agencia") return "agency";
+  if (value === "revenda") return "reseller";
+  if (value === "influenciador") return "influencer";
+  if (value === "comunidade") return "association";
+  return "other";
+};
+
+const parsePartnerNotes = (notes?: string | null) => {
+  if (!notes) return {} as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(notes);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return { notes_original: notes } as Record<string, unknown>;
+  }
 };
 
 /* ─── Component ─── */
@@ -239,7 +266,6 @@ export default function CrmLeadDetailScreen() {
         Alert.alert("Erro", e?.message ?? "Falha na conversão");
       }
     };
-
     if (Platform.OS === "web") {
       const ok = window.confirm(
         `Converter "${lead.name}" em cliente?\n\nSe já existir um cliente com mesmo CPF/email/telefone, será vinculado automaticamente.`,
@@ -254,6 +280,86 @@ export default function CrmLeadDetailScreen() {
           { text: "Converter", onPress: doConvert },
         ],
       );
+    }
+  };
+
+  const handleApprovePartner = async () => {
+    if (!lead) return;
+    const contactEmail = String(lead.email ?? "")
+      .trim()
+      .toLowerCase();
+    if (!contactEmail) {
+      Alert.alert(
+        "E-mail obrigatório",
+        "Informe um e-mail válido para aprovar como parceiro.",
+      );
+      return;
+    }
+
+    const meta = parsePartnerNotes(lead.notes ?? "");
+    const partnerType = normalizePartnerType(
+      meta.partner_type as string | undefined,
+    );
+
+    const doApprove = async () => {
+      try {
+        const partner = await createChannelPartner({
+          type: partnerType,
+          contact_name: lead.name ?? "",
+          contact_email: contactEmail,
+          contact_phone: lead.phone ?? undefined,
+          company_name:
+            (meta.company_name as string | undefined) ??
+            lead.company_name ??
+            undefined,
+          document_number:
+            (meta.document_number as string | undefined) ??
+            lead.cpf ??
+            undefined,
+          commission_rate: 20,
+          status: "active",
+          approved_by: user?.id ?? undefined,
+          approved_at: new Date().toISOString(),
+          notes: JSON.stringify({
+            ...meta,
+            lead_id: lead.id,
+            source: PARTNER_LEAD_SOURCE,
+          }),
+        });
+
+        const updatedNotes = {
+          ...meta,
+          channel_partner_id: partner.id,
+          partner_approved_at: new Date().toISOString(),
+          partner_referral_code: partner.referral_code,
+        };
+
+        await updateLead(lead.id, {
+          status: "convertido",
+          notes: JSON.stringify(updatedNotes),
+          source_detail: "parceiro_canal",
+        });
+
+        Alert.alert(
+          "Parceiro criado",
+          `Codigo de indicacao: ${partner.referral_code}`,
+        );
+        loadData();
+      } catch (e: any) {
+        Alert.alert("Erro", e?.message ?? "Falha ao aprovar parceiro");
+      }
+    };
+
+    if (Platform.OS === "web") {
+      const ok = window.confirm(
+        `Aprovar "${lead.name}" como parceiro de canal?`,
+      );
+      if (ok) doApprove();
+    } else {
+      Alert.alert("Aprovar Parceiro", "Deseja aprovar este lead?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Aprovar", onPress: doApprove },
+      ]);
     }
   };
 
@@ -291,6 +397,11 @@ export default function CrmLeadDetailScreen() {
   const statusCfg = getLeadStatusConfig(lead.status);
   const canConvert = CONVERTIBLE_STATUSES.includes(lead.status);
   const isTerminal = lead.status === "convertido" || lead.status === "perdido";
+  const partnerMeta = parsePartnerNotes(lead.notes ?? "");
+  const isPartnerLead = String(lead.source ?? "") === PARTNER_LEAD_SOURCE;
+  const isPartnerApproved = Boolean(
+    partnerMeta.channel_partner_id || partnerMeta.partner_approved_at,
+  );
 
   return (
     <View style={[s.container, { backgroundColor: bg }]}>
@@ -520,6 +631,16 @@ export default function CrmLeadDetailScreen() {
             >
               <Ionicons name="person-add-outline" size={16} color="#fff" />
               <Text style={s.actionBtnText}>Converter</Text>
+            </TouchableOpacity>
+          )}
+
+          {isPartnerLead && !isPartnerApproved && (
+            <TouchableOpacity
+              style={[s.actionBtn, { backgroundColor: "#0ea5e9" }]}
+              onPress={handleApprovePartner}
+            >
+              <Ionicons name="ribbon-outline" size={16} color="#fff" />
+              <Text style={s.actionBtnText}>Aprovar Parceiro</Text>
             </TouchableOpacity>
           )}
 

@@ -173,6 +173,10 @@ export default function CustomersAdminScreen() {
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<CrudFieldConfig<Row>[]>([]);
   const [debugInfo, setDebugInfo] = useState<CustomersDebugInfo | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null,
+  );
+  const [selectedCustomerName, setSelectedCustomerName] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -677,6 +681,136 @@ export default function CustomersAdminScreen() {
               >
                 Imóveis (
                 {Number.isFinite(propertiesCount) ? propertiesCount : 0})
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/Administrador/customer-processes" as any,
+                  params: {
+                    customerId,
+                    tenantId,
+                    customerName: String(item.name ?? "").trim(),
+                  },
+                })
+              }
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+              >
+                📋 Processos
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/Administrador/customer-sales" as any,
+                  params: {
+                    customerId,
+                    tenantId,
+                    customerName: String(item.name ?? "").trim(),
+                  },
+                })
+              }
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+              >
+                💳 Vendas
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/Administrador/customer-quotes" as any,
+                  params: {
+                    customerId,
+                    tenantId,
+                    customerName: String(item.name ?? "").trim(),
+                  },
+                })
+              }
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+              >
+                📋 Orçamentos
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/Administrador/customer-payments" as any,
+                  params: {
+                    customerId,
+                    tenantId,
+                    customerName: String(item.name ?? "").trim(),
+                  },
+                })
+              }
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+              >
+                💰 Pagamentos
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/Administrador/customer-contracts" as any,
+                  params: {
+                    customerId,
+                    tenantId,
+                    customerName: String(item.name ?? "").trim(),
+                  },
+                })
+              }
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+              >
+                📄 Contratos
               </ThemedText>
             </TouchableOpacity>
           </View>

@@ -5,10 +5,18 @@
  * Alternativa à visualização Kanban — permite busca, filtros e edição.
  */
 
-import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import {
+    CrudScreen,
+    type CrudFieldConfig,
+    type CrudScreenHandle,
+} from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
+import {
+    createChannelPartner,
+    type ChannelPartnerType,
+} from "@/services/channel-partners";
 import {
     CONVERTIBLE_STATUSES,
     convertLeadToCustomer,
@@ -16,6 +24,7 @@ import {
     LEAD_PRIORITIES,
     LEAD_SOURCES,
     LEAD_STATUSES,
+    updateLead,
     type Lead,
     type LeadStatus,
 } from "@/services/crm";
@@ -26,17 +35,47 @@ import {
 } from "@/services/crud";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Alert, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Platform, Text, TouchableOpacity, View } from "react-native";
 
 // Re-defined locally (CrudScreen does not export DetailItem)
 type DetailItem = { label: string; value: string };
 
 type Row = Record<string, unknown>;
 
+const PARTNER_LEAD_SOURCE = "site_parceiros";
+
+const normalizePartnerType = (raw?: string | null): ChannelPartnerType => {
+  const value = String(raw ?? "").toLowerCase();
+  if (value === "contador") return "accountant";
+  if (value === "consultor") return "consultant";
+  if (value === "agencia") return "agency";
+  if (value === "revenda") return "reseller";
+  if (value === "influenciador") return "influencer";
+  if (value === "comunidade") return "association";
+  return "other";
+};
+
+const parsePartnerNotes = (notes?: string | null) => {
+  if (!notes) return {} as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(notes);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return { notes_original: notes } as Record<string, unknown>;
+  }
+};
+
 export default function CrmLeadsScreen() {
   const { user } = useAuth();
   const tintColor = useThemeColor({}, "tint");
   const tenantId = user?.tenant_id ?? "";
+  const [showPartnerLeadsOnly, setShowPartnerLeadsOnly] = useState(false);
+  const crudRef = useRef<CrudScreenHandle | null>(null);
+
+  useEffect(() => {
+    crudRef.current?.reload();
+  }, [showPartnerLeadsOnly]);
 
   /* ─── Fields ─── */
 
@@ -201,10 +240,14 @@ export default function CrmLeadsScreen() {
   /* ─── CRUD Handlers ─── */
 
   const loadItems = async (): Promise<Row[]> => {
+    const filters = [{ field: "tenant_id", value: tenantId }];
+    if (showPartnerLeadsOnly) {
+      filters.push({ field: "source", value: PARTNER_LEAD_SOURCE });
+    }
     const res = await api.post(CRUD_ENDPOINT, {
       action: "list",
       table: "leads",
-      ...buildSearchParams([{ field: "tenant_id", value: tenantId }], {
+      ...buildSearchParams(filters, {
         sortColumn: "created_at DESC",
       }),
     });
@@ -313,6 +356,90 @@ export default function CrmLeadsScreen() {
     const status = item.status as LeadStatus;
     const canConvert = CONVERTIBLE_STATUSES.includes(status);
     const cfg = getLeadStatusConfig(status);
+    const notesMeta = parsePartnerNotes(String(item.notes ?? ""));
+    const isPartnerLead = String(item.source ?? "") === PARTNER_LEAD_SOURCE;
+    const isPartnerApproved = Boolean(
+      notesMeta.channel_partner_id || notesMeta.partner_approved_at,
+    );
+
+    const handleApprovePartner = async () => {
+      const lead = item as unknown as Lead;
+      const contactEmail = String(lead.email ?? "")
+        .trim()
+        .toLowerCase();
+      if (!contactEmail) {
+        Alert.alert(
+          "E-mail obrigatório",
+          "Informe um e-mail válido para aprovar como parceiro.",
+        );
+        return;
+      }
+
+      const meta = parsePartnerNotes(lead.notes ?? "");
+      const partnerType = normalizePartnerType(
+        meta.partner_type as string | undefined,
+      );
+
+      const confirmApprove = async () => {
+        try {
+          const partner = await createChannelPartner({
+            type: partnerType,
+            contact_name: lead.name ?? "",
+            contact_email: contactEmail,
+            contact_phone: lead.phone ?? undefined,
+            company_name:
+              (meta.company_name as string | undefined) ??
+              lead.company_name ??
+              undefined,
+            document_number:
+              (meta.document_number as string | undefined) ??
+              lead.cpf ??
+              undefined,
+            commission_rate: 20,
+            status: "active",
+            approved_by: user?.id ?? undefined,
+            approved_at: new Date().toISOString(),
+            notes: JSON.stringify({
+              ...meta,
+              lead_id: lead.id,
+              source: PARTNER_LEAD_SOURCE,
+            }),
+          });
+
+          const updatedNotes = {
+            ...meta,
+            channel_partner_id: partner.id,
+            partner_approved_at: new Date().toISOString(),
+            partner_referral_code: partner.referral_code,
+          };
+
+          await updateLead(lead.id, {
+            status: "convertido",
+            notes: JSON.stringify(updatedNotes),
+            source_detail: "parceiro_canal",
+          });
+
+          Alert.alert(
+            "Parceiro criado",
+            `Codigo de indicacao: ${partner.referral_code}`,
+          );
+        } catch (e: any) {
+          Alert.alert("Erro", e?.message ?? "Falha ao aprovar parceiro");
+        }
+      };
+
+      if (Platform.OS === "web") {
+        const ok = window.confirm(
+          `Aprovar "${lead.name}" como parceiro de canal?`,
+        );
+        if (ok) confirmApprove();
+      } else {
+        Alert.alert("Aprovar Parceiro", "Deseja aprovar este lead?", [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Aprovar", onPress: confirmApprove },
+        ]);
+      }
+    };
 
     const handleConvert = async () => {
       try {
@@ -365,6 +492,27 @@ export default function CrmLeadsScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Approve channel partner */}
+        {isPartnerLead && !isPartnerApproved && (
+          <TouchableOpacity
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              backgroundColor: "#0ea5e9",
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 6,
+            }}
+            onPress={handleApprovePartner}
+          >
+            <Ionicons name="ribbon-outline" size={12} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>
+              Aprovar Parceiro
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* Kanban view */}
         <TouchableOpacity
           style={{
@@ -402,6 +550,36 @@ export default function CrmLeadsScreen() {
       getTitle={(item) => String(item.name ?? "—")}
       getDetails={getDetails}
       renderItemActions={renderItemActions}
+      controlRef={crudRef}
+      headerActions={
+        <TouchableOpacity
+          onPress={() => setShowPartnerLeadsOnly((prev) => !prev)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 999,
+            backgroundColor: showPartnerLeadsOnly ? "#0ea5e9" : "#e2e8f0",
+          }}
+        >
+          <Ionicons
+            name="funnel-outline"
+            size={12}
+            color={showPartnerLeadsOnly ? "#fff" : "#334155"}
+          />
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: "700",
+              color: showPartnerLeadsOnly ? "#fff" : "#334155",
+            }}
+          >
+            {showPartnerLeadsOnly ? "Leads Parceiros" : "Todos os Leads"}
+          </Text>
+        </TouchableOpacity>
+      }
     />
   );
 }

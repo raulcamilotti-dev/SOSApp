@@ -1,0 +1,33 @@
+name = "sos-asaas"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set via `wrangler secret put`):
+#   ASAAS_API_KEY
+#   API_KEY
+#   API_CRUD_KEY
+#
+# Vars:
+#   ASAAS_API_URL (default: https://www.asaas.com/api/v3)
+#   API_CRUD_URL  (default: https://sos-api-crud.raulcamilotti-c44.workers.dev)
+#
+[vars]
+ENVIRONMENT = "production"
+ASAAS_API_URL = "https://www.asaas.com/api/v3"
+API_CRUD_URL = "https://sos-api-crud.raulcamilotti-c44.workers.dev"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1

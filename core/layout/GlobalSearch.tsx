@@ -79,6 +79,15 @@ const EXTRA_ROUTES: SearchItem[] = [
     keywords: ["tarefas", "atribuidos"],
   },
   {
+    id: "parceiro_canal",
+    title: "Parceiro de Canal",
+    description: "Indicacoes e comissoes do canal",
+    group: "Serviços",
+    icon: "ribbon-outline",
+    route: "/Servicos/ParceiroCanal",
+    keywords: ["parceiro", "canal", "indicacao", "comissao"],
+  },
+  {
     id: "minha_agenda",
     title: "Minha Agenda",
     description: "Agendamentos e compromissos",

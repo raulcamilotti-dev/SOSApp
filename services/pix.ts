@@ -7,7 +7,7 @@
  *
  * Usage:
  *   import { generatePixPayload, generatePixQRCodeBase64 } from "@/services/pix";
- *   const brCode = generatePixPayload({ pixKey, merchantName, merchantCity, amount });
+ *   const brCode = generatePixPayload({ pixKey, 1 merchantName, merchantCity, amount });
  *   const base64Png = await generatePixQRCodeBase64({ pixKey, merchantName, merchantCity, amount });
  */
 

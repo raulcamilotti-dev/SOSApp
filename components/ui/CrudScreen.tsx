@@ -6,10 +6,10 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
-    AI_AGENT_ENDPOINT,
-    buildAiInsightMessage,
-    extractAiInsightText,
-    UNIVERSAL_AI_INSIGHT_PROMPT,
+  AI_AGENT_ENDPOINT,
+  buildAiInsightMessage,
+  extractAiInsightText,
+  UNIVERSAL_AI_INSIGHT_PROMPT,
 } from "@/services/ai-insights";
 import { api, getApiErrorMessage } from "@/services/api";
 import { getTableInfo, type TableInfoRow } from "@/services/schema";
@@ -17,26 +17,26 @@ import DateTimePickerMobile from "@react-native-community/datetimepicker";
 import { useIsFocused } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import {
-    createElement,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
 } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 
 export type CrudFieldType =
@@ -1759,18 +1759,18 @@ export function CrudScreen<T extends Record<string, unknown>>({
         payload[field.key] = trimmedValue ? isTruthyString(trimmedValue) : null;
       } else if (field.type === "currency") {
         if (!trimmedValue) {
-          payload[field.key] = null;
+          payload[field.key] = 0;
         } else {
           const numericStr = parseCurrencyInput(trimmedValue);
           const num = parseFloat(numericStr);
-          payload[field.key] = isNaN(num) ? null : num;
+          payload[field.key] = isNaN(num) ? 0 : num;
         }
       } else if (field.type === "number") {
         if (!trimmedValue) {
-          payload[field.key] = null;
+          payload[field.key] = 0;
         } else {
           const num = parseFloat(trimmedValue.replace(",", "."));
-          payload[field.key] = isNaN(num) ? null : num;
+          payload[field.key] = isNaN(num) ? 0 : num;
         }
       } else if (field.type === "date") {
         if (!trimmedValue) {
@@ -1919,18 +1919,18 @@ export function CrudScreen<T extends Record<string, unknown>>({
       } else if (field.type === "currency") {
         // Parse BRL currency string to numeric value
         if (!trimmedValue) {
-          payload[field.key] = null;
+          payload[field.key] = 0;
         } else {
           const numericStr = parseCurrencyInput(trimmedValue);
           const num = parseFloat(numericStr);
-          payload[field.key] = isNaN(num) ? null : num;
+          payload[field.key] = isNaN(num) ? 0 : num;
         }
       } else if (field.type === "number") {
         if (!trimmedValue) {
-          payload[field.key] = null;
+          payload[field.key] = 0;
         } else {
           const num = parseFloat(trimmedValue.replace(",", "."));
-          payload[field.key] = isNaN(num) ? null : num;
+          payload[field.key] = isNaN(num) ? 0 : num;
         }
       } else if (field.type === "date") {
         // Store as ISO date string (YYYY-MM-DD) or null
@@ -2046,81 +2046,87 @@ export function CrudScreen<T extends Record<string, unknown>>({
         (field) => field.key === "updated_at",
       );
 
-      Alert.alert("Confirmar exclusão", "Deseja excluir este registro?", [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
+      const executeDelete = async () => {
+        try {
+          setSaving(true);
+
+          if (supportsDeletedAt) {
+            const softDeletePayload: Record<string, unknown> = {
+              id,
+              deleted_at: toIsoNow(),
+            };
+            if (supportsUpdatedAt) {
+              softDeletePayload.updated_at = toIsoNow();
+            }
+            await updateItem(
+              softDeletePayload as Partial<T> & { id?: string | null },
+            );
+          } else if (deleteItem) {
+            await deleteItem({ id } as Partial<T> & { id?: string | null });
+          } else {
+            throw new Error("Soft delete não suportado para esta tabela");
+          }
+
+          setModalOpen(false);
+          resetForm();
+          load();
+        } catch (error) {
+          if (supportsDeletedAt && deleteItem) {
             try {
-              setSaving(true);
-
-              if (supportsDeletedAt) {
-                const softDeletePayload: Record<string, unknown> = {
-                  id,
-                  deleted_at: toIsoNow(),
-                };
-                if (supportsUpdatedAt) {
-                  softDeletePayload.updated_at = toIsoNow();
-                }
-                await updateItem(
-                  softDeletePayload as Partial<T> & { id?: string | null },
-                );
-              } else if (deleteItem) {
-                await deleteItem({ id } as Partial<T> & { id?: string | null });
-              } else {
-                throw new Error("Soft delete não suportado para esta tabela");
-              }
-
+              await deleteItem({ id } as Partial<T> & {
+                id?: string | null;
+              });
               setModalOpen(false);
               resetForm();
               load();
-            } catch (error) {
-              if (supportsDeletedAt && deleteItem) {
-                try {
-                  await deleteItem({ id } as Partial<T> & {
-                    id?: string | null;
-                  });
-                  setModalOpen(false);
-                  resetForm();
-                  load();
-                } catch (deleteError) {
-                  setFormError(
-                    getApiErrorMessage(
-                      deleteError,
-                      "Não foi possível excluir.",
-                    ),
-                  );
-                  setFormErrorDiagnostic(
-                    buildDiagnosticReport(
-                      "delete_fallback",
-                      deleteError,
-                      { id },
-                      "Não foi possível excluir.",
-                    ),
-                  );
-                  setDiagnosticCopyStatus(null);
-                }
-              } else {
-                setFormError(
-                  getApiErrorMessage(error, "Não foi possível excluir."),
-                );
-                setFormErrorDiagnostic(
-                  buildDiagnosticReport(
-                    "delete",
-                    error,
-                    { id },
-                    "Não foi possível excluir.",
-                  ),
-                );
-                setDiagnosticCopyStatus(null);
-              }
-            } finally {
-              setSaving(false);
+            } catch (deleteError) {
+              setFormError(
+                getApiErrorMessage(deleteError, "Não foi possível excluir."),
+              );
+              setFormErrorDiagnostic(
+                buildDiagnosticReport(
+                  "delete_fallback",
+                  deleteError,
+                  { id },
+                  "Não foi possível excluir.",
+                ),
+              );
+              setDiagnosticCopyStatus(null);
             }
+          } else {
+            setFormError(
+              getApiErrorMessage(error, "Não foi possível excluir."),
+            );
+            setFormErrorDiagnostic(
+              buildDiagnosticReport(
+                "delete",
+                error,
+                { id },
+                "Não foi possível excluir.",
+              ),
+            );
+            setDiagnosticCopyStatus(null);
+          }
+        } finally {
+          setSaving(false);
+        }
+      };
+
+      // Use window.confirm on web, Alert.alert on native
+      if (Platform.OS === "web") {
+        if (window.confirm("Deseja excluir este registro?")) {
+          executeDelete();
+        }
+      } else {
+        Alert.alert("Confirmar exclusão", "Deseja excluir este registro?", [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Excluir",
+            style: "destructive",
+            onPress: executeDelete,
           },
-        },
-      ]);
+        ]);
+      }
     },
     [
       buildDiagnosticReport,
@@ -3046,6 +3052,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
                                     justifyContent: "space-between",
                                     paddingVertical: 12,
                                   }}
+                                  pointerEvents="none"
                                 >
                                   <ThemedText
                                     style={{
@@ -3094,11 +3101,13 @@ export function CrudScreen<T extends Record<string, unknown>>({
                                       bottom: 0,
                                       width: "100%",
                                       height: "100%",
-                                      opacity: 0.011,
+                                      opacity: 0.01,
                                       cursor: "pointer",
                                       border: "none",
                                       background: "transparent",
                                       fontSize: 16,
+                                      zIndex: 10,
+                                      pointerEvents: "auto" as const,
                                     },
                                   })}
                               </View>
@@ -3413,7 +3422,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
                       {saving ? "Salvando..." : "Salvar"}
                     </ThemedText>
                   </TouchableOpacity>
-                  {modalMode === "edit" && editingId ? (
+                  {modalMode === "edit" && editingId && deleteItem ? (
                     <TouchableOpacity
                       onPress={() => handleSoftDelete(editingId)}
                       disabled={saving}
@@ -3422,6 +3431,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
                         paddingHorizontal: 14,
                         borderRadius: 6,
                         backgroundColor: "#dc2626",
+                        opacity: saving ? 0.5 : 1,
                       }}
                     >
                       <ThemedText
@@ -3750,6 +3760,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
                                   justifyContent: "space-between",
                                   paddingVertical: 12,
                                 }}
+                                pointerEvents="none"
                               >
                                 <ThemedText
                                   style={{
@@ -3798,11 +3809,13 @@ export function CrudScreen<T extends Record<string, unknown>>({
                                     bottom: 0,
                                     width: "100%",
                                     height: "100%",
-                                    opacity: 0.011,
+                                    opacity: 0.01,
                                     cursor: "pointer",
                                     border: "none",
                                     background: "transparent",
                                     fontSize: 16,
+                                    zIndex: 10,
+                                    pointerEvents: "auto" as const,
                                   },
                                 })}
                             </View>

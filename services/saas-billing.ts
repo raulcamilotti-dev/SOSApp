@@ -35,18 +35,23 @@
 
 import { api } from "./api";
 import {
-  aggregateCrud,
-  buildSearchParams,
-  CRUD_ENDPOINT,
-  normalizeCrudList,
+    getReferralByTenantId,
+    updateReferralStatus,
+} from "./channel-partners";
+import {
+    aggregateCrud,
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    normalizeCrudList,
 } from "./crud";
 import {
-  createAccountReceivable,
-  createInvoice,
-  createInvoiceItem,
-  recalculateInvoice,
-  updateAccountReceivable,
+    createAccountReceivable,
+    createInvoice,
+    createInvoiceItem,
+    recalculateInvoice,
+    updateAccountReceivable,
 } from "./financial";
+import { asaasCreateCharge } from "./partner";
 import { generatePixPayload, generatePixQRCodeBase64 } from "./pix";
 
 /* ------------------------------------------------------------------ */
@@ -223,6 +228,11 @@ export interface BillingConfig {
   pix_key_type: string;
   pix_merchant_name: string;
   pix_merchant_city: string;
+  asaas_enabled?: boolean;
+  asaas_customer_name?: string;
+  asaas_customer_email?: string;
+  asaas_customer_cpf?: string;
+  asaas_customer_phone?: string;
 }
 
 interface TenantRow {
@@ -256,6 +266,59 @@ function parseConfig(config: unknown): Record<string, unknown> {
   }
   if (typeof config === "object") return config as Record<string, unknown>;
   return {};
+}
+
+async function generateBillingPix(params: {
+  billingConfig: BillingConfig;
+  amount: number;
+  description: string;
+  externalReference?: string;
+}): Promise<{
+  pixPayload: string | null;
+  pixQrBase64: string | null;
+  gatewayTransactionId?: string;
+}> {
+  const { billingConfig, amount, description, externalReference } = params;
+
+  if (billingConfig.asaas_enabled && billingConfig.asaas_customer_cpf) {
+    const response = await asaasCreateCharge({
+      amount_cents: Math.round(amount * 100),
+      method: "pix",
+      description,
+      external_reference: externalReference,
+      customer: {
+        name: billingConfig.asaas_customer_name ?? "Radul",
+        email: billingConfig.asaas_customer_email ?? null,
+        cpfCnpj: billingConfig.asaas_customer_cpf ?? null,
+        phone: billingConfig.asaas_customer_phone ?? null,
+      },
+    });
+
+    return {
+      pixPayload: response.pixCopyPaste ?? null,
+      pixQrBase64: response.pixQrCodeBase64 ?? null,
+      gatewayTransactionId: response.transactionId,
+    };
+  }
+
+  const pixParams = {
+    pixKey: billingConfig.pix_key,
+    merchantName: billingConfig.pix_merchant_name,
+    merchantCity: billingConfig.pix_merchant_city,
+    amount,
+    txId: externalReference ? externalReference.slice(0, 25) : undefined,
+    description: description.substring(0, 72),
+  };
+
+  const pixPayload = generatePixPayload(pixParams);
+  let pixQrBase64: string | null = null;
+  try {
+    pixQrBase64 = await generatePixQRCodeBase64(pixParams);
+  } catch {
+    // QR is nice-to-have
+  }
+
+  return { pixPayload, pixQrBase64 };
 }
 
 /**
@@ -313,6 +376,7 @@ async function getRadulBillingConfig(): Promise<BillingConfig> {
       pix_merchant_city: String(
         radul.pix_merchant_city ?? RADUL_BILLING_DEFAULTS.pix_merchant_city,
       ),
+      asaas_enabled: false,
     };
   }
 
@@ -331,6 +395,19 @@ async function getRadulBillingConfig(): Promise<BillingConfig> {
     pix_merchant_city: String(
       billing.pix_merchant_city ?? RADUL_BILLING_DEFAULTS.pix_merchant_city,
     ),
+    asaas_enabled: Boolean(billing.asaas_enabled),
+    asaas_customer_name: billing.asaas_customer_name
+      ? String(billing.asaas_customer_name)
+      : undefined,
+    asaas_customer_email: billing.asaas_customer_email
+      ? String(billing.asaas_customer_email)
+      : undefined,
+    asaas_customer_cpf: billing.asaas_customer_cpf
+      ? String(billing.asaas_customer_cpf)
+      : undefined,
+    asaas_customer_phone: billing.asaas_customer_phone
+      ? String(billing.asaas_customer_phone)
+      : undefined,
   };
 }
 
@@ -733,22 +810,13 @@ export async function subscribeToPlan(
     await recalculateInvoice(invoice.id);
 
     // 4. Generate PIX payload & QR code
-    const pixParams = {
-      pixKey: billingConfig.pix_key,
-      merchantName: billingConfig.pix_merchant_name,
-      merchantCity: billingConfig.pix_merchant_city,
-      amount: totalAmount,
-      txId: `SOS${invoice.id.substring(0, 15).replace(/-/g, "")}`,
-      description: `Plano ${tier.label} - ${buyerName}`.substring(0, 72),
-    };
-
-    const pixPayload = generatePixPayload(pixParams);
-    let pixQrBase64: string | null = null;
-    try {
-      pixQrBase64 = await generatePixQRCodeBase64(pixParams);
-    } catch {
-      // QR is nice-to-have
-    }
+    const { pixPayload, pixQrBase64, gatewayTransactionId } =
+      await generateBillingPix({
+        billingConfig,
+        amount: totalAmount,
+        description: `Plano ${tier.label} - ${buyerName}`,
+        externalReference: invoice.id,
+      });
 
     // 5. Create Accounts Receivable on Radul tenant (monthly recurrence)
     const ar = await createAccountReceivable({
@@ -778,6 +846,7 @@ export async function subscribeToPlan(
         is_initial: true,
         competence: competenceDate,
         invoice_id: invoice.id,
+        asaas_transaction_id: gatewayTransactionId ?? null,
       }),
     });
 
@@ -897,22 +966,13 @@ export async function purchaseExtraClients(
 
     await recalculateInvoice(invoice.id);
 
-    const pixParams = {
-      pixKey: billingConfig.pix_key,
-      merchantName: billingConfig.pix_merchant_name,
-      merchantCity: billingConfig.pix_merchant_city,
-      amount: totalAmount,
-      txId: `SOS${invoice.id.substring(0, 15).replace(/-/g, "")}`,
-      description: `${quantity}x cliente extra - ${buyerName}`.substring(0, 72),
-    };
-
-    const pixPayload = generatePixPayload(pixParams);
-    let pixQrBase64: string | null = null;
-    try {
-      pixQrBase64 = await generatePixQRCodeBase64(pixParams);
-    } catch {
-      /* QR is nice-to-have */
-    }
+    const { pixPayload, pixQrBase64, gatewayTransactionId } =
+      await generateBillingPix({
+        billingConfig,
+        amount: totalAmount,
+        description: `${quantity}x cliente extra - ${buyerName}`,
+        externalReference: invoice.id,
+      });
 
     const ar = await createAccountReceivable({
       tenant_id: radul.id,
@@ -941,6 +1001,7 @@ export async function purchaseExtraClients(
         is_initial: true,
         competence: competenceDate,
         invoice_id: invoice.id,
+        asaas_transaction_id: gatewayTransactionId ?? null,
       }),
     });
 
@@ -1113,6 +1174,21 @@ export async function confirmSeatPayment(
       }
     }
 
+    // 3.1 Activate channel referral on first plan payment
+    if (isInitial && noteType === "saas_plan_subscription") {
+      try {
+        const referral = await getReferralByTenantId(buyerTenantId);
+        if (referral && referral.status === "pending") {
+          await updateReferralStatus(referral.id, "active");
+        }
+      } catch (err) {
+        console.warn(
+          "[SaaS Billing] Failed to activate channel referral:",
+          err,
+        );
+      }
+    }
+
     // 4. Auto-generate next month's billing (AR + Invoice)
     let nextArId: string | undefined;
     try {
@@ -1227,22 +1303,13 @@ async function generateNextMonthBilling(
   await recalculateInvoice(invoice.id);
 
   // 3. Generate PIX for next month
-  const pixParams = {
-    pixKey: billingConfig.pix_key,
-    merchantName: billingConfig.pix_merchant_name,
-    merchantCity: billingConfig.pix_merchant_city,
-    amount: totalAmount,
-    txId: `SOS${invoice.id.substring(0, 15).replace(/-/g, "")}`,
-    description: `${invoiceTitle}`.substring(0, 72),
-  };
-
-  const pixPayload = generatePixPayload(pixParams);
-  let pixQrBase64: string | null = null;
-  try {
-    pixQrBase64 = await generatePixQRCodeBase64(pixParams);
-  } catch {
-    // QR is nice-to-have
-  }
+  const { pixPayload, pixQrBase64, gatewayTransactionId } =
+    await generateBillingPix({
+      billingConfig,
+      amount: totalAmount,
+      description: invoiceTitle,
+      externalReference: invoice.id,
+    });
 
   // 4. Create AR entry for next month (linked to parent via recurrence_parent_id)
   const ar = await createAccountReceivable({
@@ -1269,6 +1336,7 @@ async function generateNextMonthBilling(
       is_initial: false,
       competence: nextCompetence,
       invoice_id: invoice.id,
+      asaas_transaction_id: gatewayTransactionId ?? null,
     }),
   });
 
