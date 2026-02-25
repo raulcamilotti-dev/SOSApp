@@ -3,10 +3,10 @@ import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
+import { CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
 import { TouchableOpacity, View } from "react-native";
-import { CRUD_ENDPOINT } from "@/services/crud";
 
 type Row = Record<string, unknown>;
 
@@ -179,6 +179,26 @@ export default function WorkflowTemplatesScreen() {
             <TouchableOpacity
               onPress={() =>
                 router.push({
+                  pathname: "/Administrador/workflow-editor" as any,
+                  params: { templateId },
+                })
+              }
+              style={{
+                backgroundColor: tintColor,
+                borderRadius: 999,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}
+              >
+                Editor Visual ({Number.isFinite(count) ? count : 0} steps)
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
                   pathname: "/Administrador/workflow_steps" as any,
                   params: { templateId },
                 })
@@ -194,7 +214,7 @@ export default function WorkflowTemplatesScreen() {
               <ThemedText
                 style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
               >
-                Steps ({Number.isFinite(count) ? count : 0})
+                Steps (lista)
               </ThemedText>
             </TouchableOpacity>
           </View>

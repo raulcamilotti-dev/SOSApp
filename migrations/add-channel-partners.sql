@@ -229,9 +229,9 @@ SELECT
     -- Comissão mensal atual (soma das comissões ativas)
     COALESCE(SUM(
         CASE 
-            WHEN cpr.status = 'active' AND t.config->>'billing'->>'current_plan' = 'starter' THEN 99 * (cpr.commission_rate / 100)
-            WHEN cpr.status = 'active' AND t.config->>'billing'->>'current_plan' = 'growth' THEN 249 * (cpr.commission_rate / 100)
-            WHEN cpr.status = 'active' AND t.config->>'billing'->>'current_plan' = 'scale' THEN 499 * (cpr.commission_rate / 100)
+            WHEN cpr.status = 'active' AND t.config->'billing'->>'current_plan' = 'starter' THEN 99 * (cpr.commission_rate / 100)
+            WHEN cpr.status = 'active' AND t.config->'billing'->>'current_plan' = 'growth' THEN 249 * (cpr.commission_rate / 100)
+            WHEN cpr.status = 'active' AND t.config->'billing'->>'current_plan' = 'scale' THEN 499 * (cpr.commission_rate / 100)
             ELSE 0
         END
     ), 0) AS monthly_recurring_commission,

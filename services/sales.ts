@@ -1131,3 +1131,42 @@ export async function getPendingDelivery(
   );
   return items.filter((i) => validSaleIds.has(i.sale_id));
 }
+
+/**
+ * Get service items pending scheduling across all sales.
+ * Returns sale_items where item_kind='service' AND fulfillment_status is
+ * 'pending' or 'in_progress', excluding composition parent rows.
+ */
+export async function getPendingScheduling(
+  tenantId: string,
+): Promise<SaleItem[]> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "sale_items",
+    ...buildSearchParams([
+      { field: "item_kind", value: "service" },
+      {
+        field: "fulfillment_status",
+        value: "pending,in_progress",
+        operator: "in",
+      },
+    ]),
+  });
+  const items = normalizeCrudList<SaleItem>(res.data).filter(
+    (i) => !i.is_composition_parent,
+  );
+  if (items.length === 0) return [];
+  const saleIds = [...new Set(items.map((i) => i.sale_id))];
+  const salesRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "sales",
+    ...buildSearchParams([
+      { field: "id", value: saleIds.join(","), operator: "in" },
+      { field: "tenant_id", value: tenantId },
+    ]),
+  });
+  const validSaleIds = new Set(
+    normalizeCrudList<Sale>(salesRes.data).map((s) => s.id),
+  );
+  return items.filter((i) => validSaleIds.has(i.sale_id));
+}

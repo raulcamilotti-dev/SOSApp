@@ -33,6 +33,13 @@ function corsResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+function corsOptionsResponse(): Response {
+  return new Response(null, {
+    status: 200,
+    headers: CORS_HEADERS,
+  });
+}
+
 function errorResponse(
   status: number,
   message: string,
@@ -338,7 +345,7 @@ async function handleHealth(): Promise<Response> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") {
-      return corsResponse(204, {});
+      return corsOptionsResponse();
     }
 
     const url = new URL(request.url);

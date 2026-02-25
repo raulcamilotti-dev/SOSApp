@@ -16,16 +16,18 @@ import {
   buildSearchParams,
   normalizeCrudList,
 } from "@/services/crud";
-import { generatePixPayload } from "@/services/pix";
+import { generatePixPayload, generatePixQRCodeBase64 } from "@/services/pix";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -498,6 +500,8 @@ export default function ContasAPagarScreen() {
   );
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string>("");
+  const [qrCodeImage, setQrCodeImage] = useState<string>("");
+  const [pixBrCode, setPixBrCode] = useState<string>("");
   const [showQrCode, setShowQrCode] = useState(false);
 
   const borderColor = useThemeColor({}, "border");
@@ -505,37 +509,6 @@ export default function ContasAPagarScreen() {
   const mutedColor = useThemeColor({}, "muted");
   const cardBg = useThemeColor({}, "card");
   const tintColor = useThemeColor({}, "tint");
-
-  // Processa pagamento direto (sem gerar QR, marca como pago)
-  const handlePaymentDirect = useCallback(async () => {
-    if (!selectedPaymentItem) return;
-
-    setPaymentProcessing(true);
-    try {
-      // Marca como pago direto no banco
-      await updateItem({
-        id: String(selectedPaymentItem.id),
-        amount_paid: selectedPaymentItem.amount,
-        status: "pago",
-      });
-
-      Alert.alert(
-        "✅ Pagamento Confirmado",
-        `Conta de R$ ${formatCurrency(selectedPaymentItem.amount)} marcada como paga!`,
-      );
-      setPaymentModalVisible(false);
-      setSelectedPaymentItem(null);
-      setQrCodeData("");
-      setShowQrCode(false);
-      loadItems();
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Erro ao confirmar pagamento";
-      Alert.alert("❌ Erro", msg);
-    } finally {
-      setPaymentProcessing(false);
-    }
-  }, [selectedPaymentItem, loadItems]);
 
   // Registra como pago manualmente (sem Asaas)
   const handlePaymentManual = useCallback(async () => {
@@ -546,7 +519,7 @@ export default function ContasAPagarScreen() {
       await updateItem({
         id: String(selectedPaymentItem.id),
         amount_paid: selectedPaymentItem.amount,
-        status: "pago",
+        status: "paid",
       });
 
       Alert.alert(
@@ -567,8 +540,8 @@ export default function ContasAPagarScreen() {
     }
   }, [selectedPaymentItem, loadItems]);
 
-  // Gera PIX QR Code
-  const handleGeneratePixQr = useCallback(async () => {
+  // Gera QR Code PIX local (sem Asaas, sem saldo) — operador escaneia com app do banco
+  const handleGeneratePixQrLocal = useCallback(async () => {
     if (!selectedPaymentItem || !selectedPaymentItem.pix_key) {
       Alert.alert("Aviso", "Nenhuma chave PIX cadastrada para este fornecedor");
       return;
@@ -576,66 +549,132 @@ export default function ContasAPagarScreen() {
 
     setPaymentProcessing(true);
     try {
-      const chargePayload = {
-        amount_cents: Math.round(Number(selectedPaymentItem.amount ?? 0) * 100),
-        method: "pix",
+      const pixKey = String(selectedPaymentItem.pix_key ?? "").trim();
+      const amount = Number(selectedPaymentItem.amount ?? 0);
+      const supplierName = String(
+        selectedPaymentItem.supplier_name ?? "Fornecedor",
+      );
+
+      const params = {
+        pixKey,
+        merchantName: supplierName,
+        merchantCity: "Brasil",
+        amount: amount > 0 ? amount : undefined,
         description: String(selectedPaymentItem.description ?? "Conta a Pagar"),
-        due_date: String(
-          selectedPaymentItem.due_date ??
-            new Date().toISOString().split("T")[0],
-        ),
-        customer: {
-          name: String(selectedPaymentItem.supplier_name ?? "Fornecedor"),
-          cpfCnpj: String(selectedPaymentItem.pix_key ?? ""),
-          email: "admin@empresa.com",
-          phone: "11999999999",
-        },
+        txId: selectedPaymentItem.id
+          ? String(selectedPaymentItem.id).replace(/-/g, "").slice(0, 25)
+          : undefined,
       };
 
-      console.log("[PIX] Enviando payload para Asaas:", chargePayload);
-
-      const chargeRes = await api.post(
-        "https://sos-asaas.raulcamilotti-c44.workers.dev/asaas/charge",
-        chargePayload,
-      );
-
-      console.log("[PIX] Resposta do Asaas:", chargeRes.data);
-
-      // Tenta extrair QR code da resposta
-      const chargeData = chargeRes.data?.data || chargeRes.data;
-      console.log("[PIX] chargeData:", chargeData);
-
-      // Busca QR code em diferentes formatos possíveis
-      let qrCode =
-        chargeData?.dict || chargeData?.qrCode || chargeData?.copy_paste || "";
-      console.log(
-        "[PIX] QR Code encontrado:",
-        qrCode ? "SIM" : "NÃO",
-        qrCode.substring(0, 50) || "",
-      );
-
-      if (qrCode) {
-        setQrCodeData(String(qrCode));
-        setShowQrCode(true);
-      } else {
-        console.error(
-          "[PIX] QR Code vazio. Resposta completa:",
-          JSON.stringify(chargeRes.data),
-        );
+      // Gera BRCode (copia e cola)
+      const brCode = generatePixPayload(params);
+      if (!brCode) {
         Alert.alert(
-          "Erro",
-          "Não foi possível gerar o PIX QR Code. Tente novamente ou use outra opção de pagamento.",
+          "⚠️ Erro",
+          "Não foi possível gerar o código PIX. Verifique a chave PIX do fornecedor.",
         );
+        return;
       }
+
+      // Gera imagem QR Code (base64)
+      const qrImage = await generatePixQRCodeBase64(params);
+
+      setPixBrCode(brCode);
+      setQrCodeData(brCode);
+      setQrCodeImage(qrImage ?? "");
+      setShowQrCode(true);
     } catch (err) {
-      console.error("[PIX] Erro:", err);
-      const msg =
-        err instanceof Error ? err.message : "Erro ao gerar PIX QR Code";
-      Alert.alert("❌ Erro", msg);
+      console.error("[PIX-QR] Erro ao gerar QR:", err);
+      Alert.alert("❌ Erro", "Falha ao gerar QR Code PIX.");
     } finally {
       setPaymentProcessing(false);
     }
   }, [selectedPaymentItem]);
+
+  // Transferência PIX direta via Asaas (pix-out) — requer saldo na conta Asaas
+  const handleAsaasPixOut = useCallback(async () => {
+    if (!selectedPaymentItem || !selectedPaymentItem.pix_key) {
+      Alert.alert("Aviso", "Nenhuma chave PIX cadastrada para este fornecedor");
+      return;
+    }
+
+    setPaymentProcessing(true);
+    try {
+      const pixOutPayload = {
+        amount_cents: Math.round(Number(selectedPaymentItem.amount ?? 0) * 100),
+        pix_key: String(selectedPaymentItem.pix_key ?? ""),
+        pix_key_type:
+          String(selectedPaymentItem.pix_key_type ?? "").toUpperCase() ||
+          undefined,
+        description: String(selectedPaymentItem.description ?? "Conta a Pagar"),
+        external_reference: selectedPaymentItem.id
+          ? String(selectedPaymentItem.id)
+          : undefined,
+      };
+
+      console.log("[PIX-OUT] Enviando transferência:", pixOutPayload);
+
+      const res = await api.post(
+        "https://sos-asaas.raulcamilotti-c44.workers.dev/asaas/pix-out",
+        pixOutPayload,
+      );
+
+      console.log("[PIX-OUT] Resposta:", res.data);
+
+      const transferId = res.data?.transferId;
+      const status = res.data?.status;
+
+      if (transferId) {
+        const updatePayload: Record<string, unknown> = {
+          id: selectedPaymentItem.id,
+          status: "paid",
+          amount_paid: Number(selectedPaymentItem.amount ?? 0),
+          paid_at: new Date().toISOString(),
+          payment_method: "pix",
+          notes:
+            `${String(selectedPaymentItem.notes ?? "")} | PIX enviado via Asaas (${transferId}) - Status: ${status}`.trim(),
+          updated_at: new Date().toISOString(),
+        };
+        await updateItem(updatePayload as any);
+
+        Alert.alert(
+          "✅ PIX Enviado",
+          `Transferência PIX realizada com sucesso!\n\nID: ${transferId}\nStatus: ${status}\nValor: R$ ${Number(selectedPaymentItem.amount ?? 0).toFixed(2)}`,
+        );
+        setPaymentModalVisible(false);
+        setSelectedPaymentItem(null);
+        loadItems();
+      } else {
+        Alert.alert(
+          "⚠️ Erro",
+          res.data?.error ||
+            "Não foi possível realizar a transferência. Verifique a chave PIX.",
+        );
+      }
+    } catch (err: any) {
+      console.error("[PIX-OUT] Erro:", err);
+      const backendMsg =
+        err?.response?.data?.error || err?.response?.data?.details;
+      // Mensagem amigável para erros conhecidos
+      let msg: string;
+      if (
+        typeof backendMsg === "string" &&
+        backendMsg.toLowerCase().includes("saldo insuficiente")
+      ) {
+        msg =
+          'Saldo insuficiente na conta Asaas para realizar esta transferência.\n\nUse a opção "Gerar QR Code PIX" para pagar com o app do seu banco.';
+      } else {
+        msg = backendMsg
+          ? String(backendMsg)
+          : err instanceof Error
+            ? err.message
+            : "Erro ao enviar PIX";
+      }
+      Alert.alert("❌ Transferência Falhou", msg);
+    } finally {
+      setPaymentProcessing(false);
+    }
+  }, [selectedPaymentItem, loadItems]);
 
   const renderItemActions = useCallback(
     (item: Row) => {
@@ -963,31 +1002,33 @@ export default function ContasAPagarScreen() {
                 </Text>
 
                 <View style={{ gap: 8 }}>
-                  {/* Pay now button */}
-                  <Pressable
-                    onPress={handlePaymentDirect}
-                    disabled={paymentProcessing}
-                    style={{
-                      padding: 14,
-                      borderRadius: 8,
-                      backgroundColor: "#10b981",
-                      alignItems: "center",
-                      opacity: paymentProcessing ? 0.6 : 1,
-                    }}
-                  >
-                    {paymentProcessing ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={{ color: "#fff", fontWeight: "700" }}>
-                        💳 Pagar Agora
-                      </Text>
-                    )}
-                  </Pressable>
-
-                  {/* Generate PIX button */}
+                  {/* Generate PIX QR Code (local, no Asaas balance needed) */}
                   {selectedPaymentItem?.pix_key && (
                     <Pressable
-                      onPress={handleGeneratePixQr}
+                      onPress={handleGeneratePixQrLocal}
+                      disabled={paymentProcessing}
+                      style={{
+                        padding: 14,
+                        borderRadius: 8,
+                        backgroundColor: tintColor,
+                        alignItems: "center",
+                        opacity: paymentProcessing ? 0.6 : 1,
+                      }}
+                    >
+                      {paymentProcessing ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={{ color: "#fff", fontWeight: "700" }}>
+                          📱 Gerar QR Code PIX
+                        </Text>
+                      )}
+                    </Pressable>
+                  )}
+
+                  {/* Asaas PIX-OUT — direct transfer (requires Asaas balance) */}
+                  {selectedPaymentItem?.pix_key && (
+                    <Pressable
+                      onPress={handleAsaasPixOut}
                       disabled={paymentProcessing}
                       style={{
                         padding: 14,
@@ -1003,13 +1044,13 @@ export default function ContasAPagarScreen() {
                         <ActivityIndicator size="small" color={tintColor} />
                       ) : (
                         <Text style={{ color: tintColor, fontWeight: "700" }}>
-                          🔗 Gerar PIX
+                          ⚡ Transferir PIX (Asaas)
                         </Text>
                       )}
                     </Pressable>
                   )}
 
-                  {/* Manual registration button */}
+                  {/* Manual registration */}
                   <Pressable
                     onPress={handlePaymentManual}
                     disabled={paymentProcessing}
@@ -1033,15 +1074,8 @@ export default function ContasAPagarScreen() {
                   </Pressable>
                 </View>
 
-                {/* Details */}
+                {/* Descriptions */}
                 <View style={{ gap: 6, paddingTop: 8 }}>
-                  <Text
-                    style={{ color: mutedColor, fontSize: 11, lineHeight: 16 }}
-                  >
-                    <Text style={{ fontWeight: "700" }}>💳 Pagar Agora:</Text>{" "}
-                    Processa o pagamento imediatamente via API e marca como pago
-                    no sistema.
-                  </Text>
                   {selectedPaymentItem?.pix_key && (
                     <Text
                       style={{
@@ -1050,8 +1084,24 @@ export default function ContasAPagarScreen() {
                         lineHeight: 16,
                       }}
                     >
-                      <Text style={{ fontWeight: "700" }}>🔗 Gerar PIX:</Text>{" "}
-                      Cria um QR Code ( escaneiar para pagar).
+                      <Text style={{ fontWeight: "700" }}>📱 QR Code PIX:</Text>{" "}
+                      Gera um QR Code para você escanear com o app do seu banco
+                      e pagar. Não precisa de saldo no Asaas.
+                    </Text>
+                  )}
+                  {selectedPaymentItem?.pix_key && (
+                    <Text
+                      style={{
+                        color: mutedColor,
+                        fontSize: 11,
+                        lineHeight: 16,
+                      }}
+                    >
+                      <Text style={{ fontWeight: "700" }}>
+                        ⚡ Transferir PIX:
+                      </Text>{" "}
+                      Envia dinheiro direto da conta Asaas para o fornecedor.
+                      Requer saldo.
                     </Text>
                   )}
                   <Text
@@ -1064,8 +1114,7 @@ export default function ContasAPagarScreen() {
                     <Text style={{ fontWeight: "700" }}>
                       ✋ Registrar Manual:
                     </Text>{" "}
-                    Marca como pago sem envolver nenhuma API (apenas controle
-                    interno).
+                    Marca como pago sem envolver nenhuma API.
                   </Text>
                 </View>
 
@@ -1091,104 +1140,185 @@ export default function ContasAPagarScreen() {
                 </Pressable>
               </>
             ) : (
-              <>
+              <ScrollView contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
                 {/* QR Code display */}
                 <View style={{ alignItems: "center", gap: 12 }}>
                   <Text
                     style={{
                       color: textColor,
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: "700",
                     }}
                   >
-                    🔗 QR Code PIX Gerado
+                    📱 QR Code PIX
                   </Text>
-                  <Text style={{ color: mutedColor, fontSize: 11 }}>
-                    Para pagamento:
-                  </Text>
-                  <View
+                  <Text
                     style={{
-                      backgroundColor: "#fff",
-                      padding: 12,
-                      borderRadius: 8,
-                      borderWidth: 1,
-                      borderColor: borderColor,
-                      maxHeight: 300,
+                      color: mutedColor,
+                      fontSize: 12,
+                      textAlign: "center",
                     }}
                   >
-                    <Text
-                      style={{
-                        color: textColor,
-                        fontSize: 10,
-                        fontFamily: "monospace",
-                      }}
-                      selectable
-                    >
-                      {qrCodeData}
-                    </Text>
-                  </View>
+                    Escaneie com o app do seu banco para pagar
+                  </Text>
 
+                  {/* QR Code Image */}
+                  {qrCodeImage ? (
+                    <View
+                      style={{
+                        backgroundColor: "#fff",
+                        padding: 16,
+                        borderRadius: 12,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Image
+                        source={{ uri: qrCodeImage }}
+                        style={{ width: 220, height: 220 }}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  ) : null}
+
+                  {/* BRCode copia-e-cola */}
+                  {pixBrCode ? (
+                    <View
+                      style={{
+                        backgroundColor: cardBg,
+                        padding: 12,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor,
+                        width: "100%",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: mutedColor,
+                          fontSize: 10,
+                          fontWeight: "700",
+                          marginBottom: 4,
+                        }}
+                      >
+                        PIX Copia e Cola:
+                      </Text>
+                      <Text
+                        style={{
+                          color: textColor,
+                          fontSize: 10,
+                          fontFamily: "monospace",
+                        }}
+                        selectable
+                        numberOfLines={3}
+                      >
+                        {pixBrCode}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Copy button */}
                   <Pressable
                     onPress={() => {
-                      if (Platform.OS === "web") {
-                        navigator.clipboard.writeText(qrCodeData);
+                      const code = pixBrCode || qrCodeData;
+                      if (Platform.OS === "web" && code) {
+                        navigator.clipboard.writeText(code);
                       }
                       Alert.alert(
                         "✅ Copiado",
-                        "QR Code copiado para a área de transferência!",
+                        "Código PIX copiado para a área de transferência!",
                       );
                     }}
                     style={{
-                      paddingHorizontal: 16,
+                      paddingHorizontal: 20,
                       paddingVertical: 10,
                       backgroundColor: tintColor,
-                      borderRadius: 6,
+                      borderRadius: 8,
                       alignItems: "center",
+                      width: "100%",
                     }}
                   >
                     <Text
                       style={{
                         color: "#fff",
                         fontWeight: "700",
-                        fontSize: 12,
+                        fontSize: 13,
                       }}
                     >
-                      📋 Copiar Código
+                      📋 Copiar Código PIX
                     </Text>
                   </Pressable>
 
-                  <Text
+                  {/* Mark as paid after scanning */}
+                  <Pressable
+                    onPress={async () => {
+                      try {
+                        await updateItem({
+                          id: String(selectedPaymentItem?.id),
+                          status: "paid",
+                          amount_paid: Number(selectedPaymentItem?.amount ?? 0),
+                          paid_at: new Date().toISOString(),
+                          payment_method: "pix",
+                          notes:
+                            `${String(selectedPaymentItem?.notes ?? "")} | PIX pago via QR Code`.trim(),
+                          updated_at: new Date().toISOString(),
+                        } as any);
+                        Alert.alert(
+                          "✅ Confirmado",
+                          "Pagamento marcado como realizado!",
+                        );
+                        setPaymentModalVisible(false);
+                        setSelectedPaymentItem(null);
+                        setShowQrCode(false);
+                        setQrCodeData("");
+                        setQrCodeImage("");
+                        setPixBrCode("");
+                        loadItems();
+                      } catch {
+                        Alert.alert("❌ Erro", "Falha ao atualizar registro.");
+                      }
+                    }}
                     style={{
-                      color: mutedColor,
-                      fontSize: 11,
-                      textAlign: "center",
-                      marginTop: 8,
+                      paddingHorizontal: 20,
+                      paddingVertical: 10,
+                      backgroundColor: "#10b981",
+                      borderRadius: 8,
+                      alignItems: "center",
+                      width: "100%",
                     }}
                   >
-                    Escanear este QR Code para pagar via PIX.
-                  </Text>
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontWeight: "700",
+                        fontSize: 13,
+                      }}
+                    >
+                      ✅ Já paguei — Marcar como Pago
+                    </Text>
+                  </Pressable>
                 </View>
 
-                {/* Confirm button */}
+                {/* Close / back button */}
                 <Pressable
                   onPress={() => {
-                    setPaymentModalVisible(false);
-                    setSelectedPaymentItem(null);
+                    setShowQrCode(false);
                     setQrCodeData("");
-                    loadItems().then(() => {});
+                    setQrCodeImage("");
+                    setPixBrCode("");
                   }}
                   style={{
                     padding: 12,
                     borderRadius: 8,
-                    backgroundColor: tintColor,
+                    borderWidth: 1,
+                    borderColor,
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "700" }}>
-                    ✓ Fechar
+                  <Text style={{ color: textColor, fontWeight: "600" }}>
+                    ← Voltar
                   </Text>
                 </Pressable>
-              </>
+              </ScrollView>
             )}
           </View>
         </View>

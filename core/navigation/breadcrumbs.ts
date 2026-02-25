@@ -14,6 +14,7 @@ export const breadcrumbMap: Record<string, string> = {
   /* ---- Administrador ---- */
   "admin-calendar": "Calendário",
   Agenda: "Agenda",
+  AgendamentosPendentes: "Agendamentos Pendentes",
   "agent-channel-bindings": "Canais dos Agentes",
   "agent-dashboard": "Dashboard do Agente",
   "agent-handoff-policies": "Políticas de Handoff",
@@ -93,6 +94,7 @@ export const breadcrumbMap: Record<string, string> = {
   "template-packs": "Pacotes de Template",
   tenants: "Tenants",
   user_tenants: "Vínculos Usuário-Tenant",
+  "workflow-editor": "Editor Visual de Workflow",
   workflow_steps: "Etapas do Workflow",
   workflow_templates: "Templates de Workflow",
 
