@@ -6,7 +6,7 @@
  * then navigates to the Kanban/Processo screen.
  */
 
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import {
     buildSearchParams,
     CRUD_ENDPOINT,
@@ -222,8 +222,7 @@ export async function startCollectionProcess(
 
     return { serviceOrderId, success: true };
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Erro ao iniciar cobrança";
+    const message = getApiErrorMessage(err, "Erro ao iniciar cobrança");
     console.error("[Cobrança] startCollectionProcess error:", err);
     return { serviceOrderId: "", success: false, error: message };
   }

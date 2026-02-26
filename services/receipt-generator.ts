@@ -18,7 +18,7 @@
  * Depends on: services/document-templates.ts, services/crud.ts, services/pix.ts
  */
 
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import {
     buildSearchParams,
     CRUD_ENDPOINT,
@@ -559,7 +559,7 @@ export async function generateReceipt(
       pdfUrl,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao gerar recibo";
+    const message = getApiErrorMessage(err, "Erro ao gerar recibo");
     console.error("[Receipt] Generation failed:", err);
     return {
       success: false,

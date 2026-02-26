@@ -18,7 +18,7 @@
  * - Full audit trail (who reconciled, when, which AR/AP was linked)
  */
 
-import { api } from "./api";
+import { api, getApiErrorMessage } from "./api";
 import {
     buildSearchParams,
     CRUD_ENDPOINT,
@@ -489,7 +489,7 @@ export async function matchTransaction(
     console.error("[Reconciliation] matchTransaction error:", err);
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Erro ao conciliar",
+      error: getApiErrorMessage(err, "Erro ao conciliar"),
     };
   }
 }
@@ -602,7 +602,7 @@ export async function createEntryFromTransaction(
     console.error("[Reconciliation] createEntryFromTransaction error:", err);
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Erro ao criar lançamento",
+      error: getApiErrorMessage(err, "Erro ao criar lançamento"),
     };
   }
 }
@@ -637,7 +637,7 @@ export async function ignoreTransaction(
     console.error("[Reconciliation] ignoreTransaction error:", err);
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Erro ao ignorar transação",
+      error: getApiErrorMessage(err, "Erro ao ignorar transação"),
     };
   }
 }

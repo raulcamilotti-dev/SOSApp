@@ -6,6 +6,8 @@ import {
     normalizeCrudOne,
 } from "./crud";
 
+const log = __DEV__ ? console.log : () => {};
+
 export interface DocumentRequest {
   id: string;
   property_process_update_id: string;
@@ -54,7 +56,7 @@ export async function listDocumentRequests(
   propertyProcessUpdateId: string,
 ): Promise<DocumentRequest[]> {
   const normalizedUpdateId = String(propertyProcessUpdateId);
-  console.log("[doc-trace][service] listDocumentRequests:start", {
+  log("[doc-trace][service] listDocumentRequests:start", {
     property_process_update_id: normalizedUpdateId,
   });
 
@@ -69,7 +71,7 @@ export async function listDocumentRequests(
     (row) => !row.deleted_at,
   );
 
-  console.log("[doc-trace][service] listDocumentRequests:ok", {
+  log("[doc-trace][service] listDocumentRequests:ok", {
     property_process_update_id: normalizedUpdateId,
     rows_count: rows.length,
     request_ids: rows.map((row) => row.id),
@@ -106,7 +108,7 @@ export async function createDocumentRequest(
     normalizedPayload.property_id = String(payload.property_id);
   }
 
-  console.log("[doc-trace][service] createDocumentRequest:start", {
+  log("[doc-trace][service] createDocumentRequest:start", {
     property_process_update_id: normalizedPayload.property_process_update_id,
     process_update_id: normalizedPayload.process_update_id,
     service_order_id: normalizedPayload.service_order_id,
@@ -123,7 +125,7 @@ export async function createDocumentRequest(
     throw new Error("Resposta inválida ao criar solicitação de documento");
   }
 
-  console.log("[doc-trace][service] createDocumentRequest:ok", {
+  log("[doc-trace][service] createDocumentRequest:ok", {
     created_request_id: created.id,
     created_update_id: created.property_process_update_id,
     created_document_type: created.document_type,

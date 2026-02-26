@@ -3,9 +3,9 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo } from "react";
@@ -49,9 +49,9 @@ const deleteRow = async (
 ): Promise<unknown> => {
   if (!payload.id) throw new Error("Id obrigatório para deletar");
   const response = await api.post(CRUD_ENDPOINT, {
-    action: "delete",
+    action: "update",
     table: "agent_states",
-    payload: { id: payload.id },
+    payload: { id: payload.id, deleted_at: new Date().toISOString() },
   });
   return response.data;
 };

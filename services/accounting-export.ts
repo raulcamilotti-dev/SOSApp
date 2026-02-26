@@ -324,11 +324,11 @@ const INVOICE_COLUMNS = [
   { key: "invoice_number", header: "Nº Fatura" },
   { key: "status", header: "Status" },
   { key: "subtotal_fmt", header: "Subtotal (R$)" },
-  { key: "discount_amount_fmt", header: "Desconto (R$)" },
-  { key: "tax_amount_fmt", header: "Impostos (R$)" },
-  { key: "total_amount_fmt", header: "Total (R$)" },
-  { key: "issue_date_fmt", header: "Data Emissão" },
-  { key: "due_date_fmt", header: "Vencimento" },
+  { key: "discount_fmt", header: "Desconto (R$)" },
+  { key: "tax_fmt", header: "Impostos (R$)" },
+  { key: "total_fmt", header: "Total (R$)" },
+  { key: "issued_at_fmt", header: "Data Emissão" },
+  { key: "due_at_fmt", header: "Vencimento" },
   { key: "paid_at_fmt", header: "Data Pagamento" },
   { key: "payment_method", header: "Forma Pagamento" },
   { key: "notes", header: "Observações" },
@@ -344,22 +344,22 @@ export async function exportFaturas(
     tenantId,
     year,
     month,
-    "issue_date",
+    "issued_at",
   );
 
   const mapped = rows.map((r) => ({
     ...r,
     subtotal_fmt: fmtBRL(r.subtotal),
-    discount_amount_fmt: fmtBRL(r.discount_amount),
-    tax_amount_fmt: fmtBRL(r.tax_amount),
-    total_amount_fmt: fmtBRL(r.total_amount),
-    issue_date_fmt: fmtDate(r.issue_date),
-    due_date_fmt: fmtDate(r.due_date),
+    discount_fmt: fmtBRL(r.discount),
+    tax_fmt: fmtBRL(r.tax),
+    total_fmt: fmtBRL(r.total),
+    issued_at_fmt: fmtDate(r.issued_at),
+    due_at_fmt: fmtDate(r.due_at),
     paid_at_fmt: fmtDate(r.paid_at),
   }));
 
   const total = rows.reduce(
-    (sum, r) => sum + (parseFloat(String(r.total_amount ?? 0)) || 0),
+    (sum, r) => sum + (parseFloat(String(r.total ?? 0)) || 0),
     0,
   );
 

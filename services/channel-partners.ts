@@ -20,6 +20,8 @@ import {
     normalizeCrudOne,
 } from "@/services/crud";
 
+const log = __DEV__ ? console.log : () => {};
+
 /* ═══════════════════════════════════════════════════════════
  * TYPES
  * ═══════════════════════════════════════════════════════════ */
@@ -472,9 +474,7 @@ export async function calculateMonthlyCommissions(
       );
 
       if (existing.length > 0) {
-        console.log(
-          `Comissão já existe para referral ${referral.id} no mês ${month}`,
-        );
+        log(`Comissão já existe para referral ${referral.id} no mês ${month}`);
         continue;
       }
 

@@ -13,31 +13,32 @@
 
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { getApiErrorMessage } from "@/services/api";
 import {
-    fetchModulePopularity,
-    fetchSaaSKPIs,
-    fetchTenantGrowth,
-    fetchTenantOverview,
-    fetchUserGrowth,
-    formatMonthLabel,
-    formatRelativeTime,
-    getModuleLabel,
-    type ModulePopularity,
-    type SaaSKPIs,
-    type TenantGrowth,
-    type TenantOverview,
-    type UserGrowth,
+  fetchModulePopularity,
+  fetchSaaSKPIs,
+  fetchTenantGrowth,
+  fetchTenantOverview,
+  fetchUserGrowth,
+  formatMonthLabel,
+  formatRelativeTime,
+  getModuleLabel,
+  type ModulePopularity,
+  type SaaSKPIs,
+  type TenantGrowth,
+  type TenantOverview,
+  type UserGrowth,
 } from "@/services/saas-dashboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
 } from "react-native";
 
 /* ------------------------------------------------------------------ */
@@ -47,23 +48,11 @@ import {
 export default function SaaSDashboardScreen() {
   const { user } = useAuth();
   const tintColor = useThemeColor({}, "tint");
-  const bgColor = useThemeColor(
-    { light: "#f5f5f5", dark: "#111" },
-    "background",
-  );
-  const cardBg = useThemeColor(
-    { light: "#fff", dark: "#1c1c1e" },
-    "background",
-  );
+  const bgColor = useThemeColor({}, "background");
+  const cardBg = useThemeColor({}, "card");
   const textColor = useThemeColor({}, "text");
-  const mutedColor = useThemeColor(
-    { light: "#6b7280", dark: "#9ca3af" },
-    "text",
-  );
-  const borderColor = useThemeColor(
-    { light: "#e5e7eb", dark: "#2c2c2e" },
-    "text",
-  );
+  const mutedColor = useThemeColor({}, "muted");
+  const borderColor = useThemeColor({}, "border");
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
@@ -98,7 +87,7 @@ export default function SaaSDashboardScreen() {
       setUserGrowth(ug);
     } catch (err: any) {
       console.error("SaaS dashboard error", err);
-      setError(err.message || "Erro ao carregar dados da plataforma");
+      setError(getApiErrorMessage(err, "Erro ao carregar dados da plataforma"));
     }
   }, []);
 

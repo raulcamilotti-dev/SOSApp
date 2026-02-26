@@ -2,8 +2,8 @@ import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
-import {  buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import { api, getApiErrorMessage } from "@/services/api";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import * as DocumensoService from "@/services/documenso";
 import * as ICPBrasilService from "@/services/icp-brasil";
 import { Ionicons } from "@expo/vector-icons";
@@ -385,8 +385,7 @@ function ItemActions({ item }: { item: Row }) {
       setSendSuccess(`Enviado! Doc #${result.documentId ?? "?"} — ${email}`);
       setPickedPdf(null);
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Erro desconhecido ao enviar";
+      const msg = getApiErrorMessage(err, "Erro desconhecido ao enviar");
       console.error("[DocumentSignatures] Erro ao enviar:", msg);
       setSendError(msg);
     } finally {
@@ -449,7 +448,7 @@ function ItemActions({ item }: { item: Row }) {
             : ""),
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao sincronizar";
+      const msg = getApiErrorMessage(err, "Erro ao sincronizar");
       console.error("[DocumentSignatures] Sync error:", msg);
       setSendError(msg);
     } finally {
@@ -564,8 +563,7 @@ function ItemActions({ item }: { item: Row }) {
                   `Documento assinado digitalmente por ${certInfo.name}.\nValidade jurídica: Assinatura Qualificada.`,
                 );
               } catch (err: unknown) {
-                const errMsg =
-                  err instanceof Error ? err.message : "Erro ao assinar";
+                const errMsg = getApiErrorMessage(err, "Erro ao assinar");
                 Alert.alert("Erro na assinatura", errMsg);
               } finally {
                 setLoading(false);
@@ -619,7 +617,7 @@ function ItemActions({ item }: { item: Row }) {
         );
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro";
+      const msg = getApiErrorMessage(err, "Erro");
       Alert.alert("Erro", msg);
     } finally {
       setLoading(false);

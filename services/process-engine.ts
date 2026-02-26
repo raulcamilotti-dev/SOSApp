@@ -8,6 +8,8 @@
 import { api } from "./api";
 import { buildSearchParams, CRUD_ENDPOINT, normalizeCrudList } from "./crud";
 
+const log = __DEV__ ? console.log : () => {};
+
 // =====================================================
 // TYPES
 // =====================================================
@@ -312,7 +314,7 @@ export async function finishProcess(
       const days = Math.ceil(
         (Date.now() - new Date(startedAt).getTime()) / (1000 * 60 * 60 * 24),
       );
-      console.log(`Process completed in ${days} days`);
+      log(`Process completed in ${days} days`);
     }
   } catch {
     // duration calculation failed

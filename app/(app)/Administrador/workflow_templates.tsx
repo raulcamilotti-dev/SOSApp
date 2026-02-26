@@ -3,7 +3,7 @@ import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { CRUD_ENDPOINT } from "@/services/crud";
+import { CRUD_ENDPOINT, normalizeCrudList } from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
 import { TouchableOpacity, View } from "react-native";
@@ -70,7 +70,11 @@ export default function WorkflowTemplatesScreen() {
     return async (): Promise<Row[]> => {
       const rows = await listRows();
       return rows.filter((item) => {
-        if (serviceId && String(item.service_id ?? "") !== serviceId)
+        // Support legacy serviceId param and new serviceTypeId
+        if (
+          serviceId &&
+          String(item.service_type_id ?? item.service_id ?? "") !== serviceId
+        )
           return false;
         return true;
       });
@@ -81,7 +85,7 @@ export default function WorkflowTemplatesScreen() {
     return async (payload: Partial<Row>): Promise<unknown> => {
       return createRow({
         ...payload,
-        service_id: serviceId ?? payload.service_id,
+        service_type_id: serviceId ?? payload.service_type_id,
       });
     };
   }, [serviceId]);
@@ -92,17 +96,19 @@ export default function WorkflowTemplatesScreen() {
     ): Promise<unknown> => {
       return updateRow({
         ...payload,
-        service_id: serviceId ?? payload.service_id,
+        service_type_id: serviceId ?? payload.service_type_id,
       });
     };
   }, [serviceId]);
 
   const loadRowsWithRelations = useMemo(() => {
     return async (): Promise<Row[]> => {
-      const [templateRows, stepsResponse] = await Promise.all([
-        loadFilteredRows(),
-        api.post(CRUD_ENDPOINT, { action: "list", table: "workflow_steps" }),
-      ]);
+      const [templateRows, stepsResponse, serviceTypesResponse] =
+        await Promise.all([
+          loadFilteredRows(),
+          api.post(CRUD_ENDPOINT, { action: "list", table: "workflow_steps" }),
+          api.post(CRUD_ENDPOINT, { action: "list", table: "service_types" }),
+        ]);
 
       const steps = filterActive(
         Array.isArray(stepsResponse.data)
@@ -110,15 +116,23 @@ export default function WorkflowTemplatesScreen() {
           : (((stepsResponse.data as any)?.data ?? []) as Row[]),
       );
 
+      const serviceTypes = filterActive(
+        normalizeCrudList<Row>(serviceTypesResponse.data),
+      );
+
       return templateRows.map((template) => {
         const templateId = String(template.id ?? "");
         const stepsCount = steps.filter(
           (step) => String(step.template_id ?? "") === templateId,
         ).length;
+        const linkedServiceTypes = serviceTypes.filter(
+          (st) => String(st.default_template_id ?? "") === templateId,
+        ).length;
 
         return {
           ...template,
           workflow_steps_count: stepsCount,
+          linked_service_types_count: linkedServiceTypes,
         };
       });
     };
@@ -130,11 +144,11 @@ export default function WorkflowTemplatesScreen() {
   const fields: CrudFieldConfig<Row>[] = [
     { key: "id", label: "Id", placeholder: "Id", visibleInForm: false },
     {
-      key: "service_id",
-      label: "Service Id",
-      placeholder: "Service Id",
+      key: "service_type_id",
+      label: "Tipo de Serviço Principal",
+      placeholder: "Tipo de Serviço",
       type: "reference",
-      referenceTable: "services",
+      referenceTable: "service_types",
       referenceLabelField: "name",
       referenceSearchField: "name",
       referenceIdField: "id",
@@ -143,15 +157,16 @@ export default function WorkflowTemplatesScreen() {
     },
     {
       key: "name",
-      label: "Name",
-      placeholder: "Name",
+      label: "Nome",
+      placeholder: "Nome do workflow",
       required: true,
       visibleInList: true,
     },
     {
       key: "created_at",
-      label: "Created At",
-      placeholder: "Created At",
+      label: "Criado em",
+      placeholder: "Criado em",
+      type: "datetime",
       visibleInForm: false,
     },
   ];
@@ -167,12 +182,20 @@ export default function WorkflowTemplatesScreen() {
       deleteItem={deleteRow}
       getDetails={(item) => [
         { label: "Nome", value: String(item.name ?? "-") },
-        { label: "Service", value: String(item.service_id ?? "-") },
+        {
+          label: "Tipo de Serviço Principal",
+          value: String(item.service_type_id ?? "-"),
+        },
         { label: "Steps", value: String(item.workflow_steps_count ?? 0) },
+        {
+          label: "Tipos de Serviço Vinculados",
+          value: String(item.linked_service_types_count ?? 0),
+        },
       ]}
       renderItemActions={(item) => {
         const templateId = String(item.id ?? "");
-        const count = Number(item.workflow_steps_count ?? 0);
+        const stepsCount = Number(item.workflow_steps_count ?? 0);
+        const linkedCount = Number(item.linked_service_types_count ?? 0);
 
         return (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -193,7 +216,8 @@ export default function WorkflowTemplatesScreen() {
               <ThemedText
                 style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}
               >
-                Editor Visual ({Number.isFinite(count) ? count : 0} steps)
+                Editor Visual ({Number.isFinite(stepsCount) ? stepsCount : 0}{" "}
+                steps)
               </ThemedText>
             </TouchableOpacity>
             <TouchableOpacity
@@ -215,6 +239,31 @@ export default function WorkflowTemplatesScreen() {
                 style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
               >
                 Steps (lista)
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/Administrador/ServicosWorkflow" as any,
+                  params: {
+                    workflowId: templateId,
+                    tenantId: String(item.tenant_id ?? ""),
+                    workflowName: String(item.name ?? "Workflow"),
+                  },
+                })
+              }
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+              >
+                Tipos de Serviço ({linkedCount})
               </ThemedText>
             </TouchableOpacity>
           </View>

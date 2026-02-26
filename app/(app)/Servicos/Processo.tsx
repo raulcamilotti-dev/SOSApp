@@ -7,40 +7,40 @@ import { PERMISSIONS } from "@/core/auth/permissions";
 import { usePermissions } from "@/core/auth/usePermissions";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
-    AI_AGENT_ENDPOINT,
-    buildAiInsightMessage,
-    extractAiInsightText,
-    UNIVERSAL_AI_INSIGHT_PROMPT,
+  AI_AGENT_ENDPOINT,
+  buildAiInsightMessage,
+  extractAiInsightText,
+  UNIVERSAL_AI_INSIGHT_PROMPT,
 } from "@/services/ai-insights";
 import { api, getApiErrorMessage } from "@/services/api";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import {
-    createAndSendDocument,
-    getDocument as documensoGetDocument,
-    getSigningUrl as documensoGetSigningUrl,
-    listRecipients as documensoListRecipients,
-    SIGNING_TYPES,
-    type SigningType,
+  createAndSendDocument,
+  getDocument as documensoGetDocument,
+  getSigningUrl as documensoGetSigningUrl,
+  listRecipients as documensoListRecipients,
+  SIGNING_TYPES,
+  type SigningType,
 } from "@/services/documenso";
 import {
-    createDocumentResponse,
-    updateDocumentRequest,
-    type DocumentRequest,
+  createDocumentResponse,
+  updateDocumentRequest,
+  type DocumentRequest,
 } from "@/services/document-requests";
 import { isPdf, pdfToImages } from "@/services/pdf-to-image";
 import {
-    buildPortalUrl,
-    buildReviewUrl,
-    createPortalToken,
-    listPortalTokens,
-    revokePortalToken,
+  buildPortalUrl,
+  buildReviewUrl,
+  createPortalToken,
+  listPortalTokens,
+  revokePortalToken,
 } from "@/services/portal-publico";
 import {
-    extractCnpj,
-    extractCpf,
-    extractCurrency,
-    extractDates,
-    recognizeText,
+  extractCnpj,
+  extractCpf,
+  extractCurrency,
+  extractDates,
+  recognizeText,
 } from "@/services/tesseract-ocr";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -48,15 +48,15 @@ import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Linking,
-    Modal,
-    Platform,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  Platform,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { styles } from "../../theme/styles";
 
@@ -314,7 +314,10 @@ export default function EtapaPropertiesScreen() {
           api.post(CRUD_ENDPOINT, {
             action: "list",
             table: "service_orders",
-            ...buildSearchParams([{ field: "id", value: serviceOrderId }]),
+            ...buildSearchParams([
+              { field: "id", value: serviceOrderId },
+              { field: "tenant_id", value: user?.tenant_id },
+            ]),
           }),
           api.post(CRUD_ENDPOINT, {
             action: "list",
@@ -340,7 +343,10 @@ export default function EtapaPropertiesScreen() {
           const response = await api.post(CRUD_ENDPOINT, {
             action: "list",
             table: "properties",
-            ...buildSearchParams([{ field: "id", value: propCtx.entity_id }]),
+            ...buildSearchParams([
+              { field: "id", value: propCtx.entity_id },
+              { field: "tenant_id", value: user?.tenant_id },
+            ]),
           });
           const list = normalizeList<Property>(response.data).filter(
             (item) => !item.deleted_at,
@@ -384,7 +390,10 @@ export default function EtapaPropertiesScreen() {
       const response = await api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "properties",
-        ...buildSearchParams([{ field: "id", value: propertyId }]),
+        ...buildSearchParams([
+          { field: "id", value: propertyId },
+          { field: "tenant_id", value: user?.tenant_id },
+        ]),
       });
       const list = normalizeList<Property>(response.data).filter(
         (item) => !item.deleted_at,
@@ -392,9 +401,9 @@ export default function EtapaPropertiesScreen() {
       const found = list.find((item) => String(item.id) === String(propertyId));
       setProperty(found ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar imóvel");
+      setError(getApiErrorMessage(err, "Falha ao carregar imóvel"));
     }
-  }, [propertyId, serviceOrderId]);
+  }, [propertyId, serviceOrderId, user?.tenant_id]);
 
   const fetchOnrData = useCallback(async () => {
     if (!propertyId) return;
@@ -403,12 +412,18 @@ export default function EtapaPropertiesScreen() {
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "onr_protocolos",
-          ...buildSearchParams([{ field: "property_id", value: propertyId }]),
+          ...buildSearchParams([
+            { field: "property_id", value: propertyId },
+            { field: "tenant_id", value: user?.tenant_id },
+          ]),
         }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "onr_certidoes",
-          ...buildSearchParams([{ field: "property_id", value: propertyId }]),
+          ...buildSearchParams([
+            { field: "property_id", value: propertyId },
+            { field: "tenant_id", value: user?.tenant_id },
+          ]),
         }),
       ]);
       const protocolos = normalizeList<any>(protocolosRes.data).filter(
@@ -422,7 +437,7 @@ export default function EtapaPropertiesScreen() {
     } catch {
       /* ONR data is optional — don't block the screen */
     }
-  }, [propertyId]);
+  }, [propertyId, user?.tenant_id]);
 
   /* ── Fetch service order segmentation: type, category, step, template ── */
   const fetchServiceOrderInfo = useCallback(async () => {
@@ -440,17 +455,26 @@ export default function EtapaPropertiesScreen() {
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "service_orders",
-          ...buildSearchParams([{ field: "id", value: soId }]),
+          ...buildSearchParams([
+            { field: "id", value: soId },
+            { field: "tenant_id", value: user?.tenant_id },
+          ]),
         }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "service_types",
-          sort_column: "name",
+          ...buildSearchParams(
+            [{ field: "tenant_id", value: user?.tenant_id }],
+            { sortColumn: "name" },
+          ),
         }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "service_categories",
-          sort_column: "name",
+          ...buildSearchParams(
+            [{ field: "tenant_id", value: user?.tenant_id }],
+            { sortColumn: "name" },
+          ),
         }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
@@ -460,12 +484,18 @@ export default function EtapaPropertiesScreen() {
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "workflow_templates",
-          sort_column: "name",
+          ...buildSearchParams(
+            [{ field: "tenant_id", value: user?.tenant_id }],
+            { sortColumn: "name" },
+          ),
         }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "customers",
-          ...buildSearchParams([], { sortColumn: "name" }),
+          ...buildSearchParams(
+            [{ field: "tenant_id", value: user?.tenant_id }],
+            { sortColumn: "name" },
+          ),
         }),
       ]);
 
@@ -524,7 +554,7 @@ export default function EtapaPropertiesScreen() {
     } catch {
       /* segmentation info is optional */
     }
-  }, [serviceOrderId]);
+  }, [serviceOrderId, user?.tenant_id]);
 
   const fetchUpdates = useCallback(async () => {
     const soId = serviceOrderId;
@@ -708,9 +738,7 @@ export default function EtapaPropertiesScreen() {
       setDocumentRequests(docRequestsByUpdate);
       setDocumentResponses(docResponsesByRequest);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Falha ao carregar atualizações",
-      );
+      setError(getApiErrorMessage(err, "Falha ao carregar atualizações"));
       setUpdates([]);
       setDocumentRequests(new Map());
       setDocumentResponses(new Map());
@@ -890,7 +918,7 @@ export default function EtapaPropertiesScreen() {
       }
       setPortalCopied(true);
       setTimeout(() => setPortalCopied(false), 3000);
-    } catch (err) {
+    } catch {
       Alert.alert("Erro", "Não foi possível gerar o link de acompanhamento.");
     } finally {
       setPortalLoading(false);
@@ -1116,6 +1144,7 @@ export default function EtapaPropertiesScreen() {
       const res = await api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "document_signatures",
+        ...buildSearchParams([{ field: "tenant_id", value: user?.tenant_id }]),
       });
       const list = normalizeList<any>(res.data).filter(
         (r: any) => !r.deleted_at && r.document_response_id,
@@ -1201,7 +1230,7 @@ export default function EtapaPropertiesScreen() {
     } catch {
       // ignore — signatures section is optional
     }
-  }, []);
+  }, [user?.tenant_id]);
 
   /* ── Fetch available OCR configs ── */
   const fetchOcrConfigs = useCallback(async () => {
@@ -1209,6 +1238,7 @@ export default function EtapaPropertiesScreen() {
       const res = await api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "ocr_config",
+        ...buildSearchParams([{ field: "tenant_id", value: user?.tenant_id }]),
       });
       const list = normalizeList<any>(res.data).filter(
         (r: any) => !r.deleted_at && r.is_active,
@@ -1217,7 +1247,7 @@ export default function EtapaPropertiesScreen() {
     } catch {
       // ignore
     }
-  }, []);
+  }, [user?.tenant_id]);
 
   /* ── Fetch existing OCR results per file ── */
   const fetchFileOcrResults = useCallback(async () => {
@@ -1225,6 +1255,7 @@ export default function EtapaPropertiesScreen() {
       const res = await api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "ocr_results",
+        ...buildSearchParams([{ field: "tenant_id", value: user?.tenant_id }]),
       });
       const list = normalizeList<any>(res.data).filter(
         (r: any) => !r.deleted_at && r.document_response_id,
@@ -1237,7 +1268,7 @@ export default function EtapaPropertiesScreen() {
     } catch {
       // ignore
     }
-  }, []);
+  }, [user?.tenant_id]);
 
   /* ── Toggle include_in_protocol flag on a file ── */
   const toggleIncludeInProtocol = useCallback(
@@ -1543,7 +1574,7 @@ export default function EtapaPropertiesScreen() {
             : ""),
       );
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Falha na análise OCR";
+      const msg = getApiErrorMessage(err, "Falha na análise OCR");
       Alert.alert("Erro", msg);
     } finally {
       setOcrLoading(false);
@@ -1686,7 +1717,7 @@ export default function EtapaPropertiesScreen() {
             : newStatus;
       Alert.alert("Status atualizado", `Status atual: ${label}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao sincronizar";
+      const msg = getApiErrorMessage(err, "Erro ao sincronizar");
       Alert.alert("Erro", msg);
     } finally {
       setSyncingFileId(null);
@@ -1804,6 +1835,7 @@ export default function EtapaPropertiesScreen() {
             ...buildSearchParams([
               { field: "document_response_id", value: signModalFile.id },
               { field: "status", value: "pending" },
+              { field: "tenant_id", value: user?.tenant_id },
             ]),
           });
           const sigRows = normalizeList<any>(sigRes.data).filter(
@@ -1852,8 +1884,7 @@ export default function EtapaPropertiesScreen() {
           : `Registro de assinatura criado para: ${signerNames}`,
       );
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Falha ao solicitar assinatura";
+      const msg = getApiErrorMessage(err, "Falha ao solicitar assinatura");
       Alert.alert("Erro", msg);
     } finally {
       setSignModalLoading(false);

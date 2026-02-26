@@ -2,6 +2,8 @@ import { api } from "@/services/api";
 import { executeQuery } from "@/services/schema";
 import { buildSearchParams, CRUD_ENDPOINT } from "./crud";
 
+const log = __DEV__ ? console.log : () => {};
+
 export type OperatorChatMessage = {
   id: string;
   session_id: string;
@@ -40,39 +42,39 @@ const OPERATOR_CHAT_ENDPOINTS = {
 };
 
 function logRequest(name: string, endpoint: string, payload?: unknown): void {
-  console.log(`[OperatorChat] ${name} -> API ${endpoint}`);
+  log(`[OperatorChat] ${name} -> API ${endpoint}`);
   if (payload !== undefined) {
-    console.log(`[OperatorChat] ${name} -> payload`, payload);
+    log(`[OperatorChat] ${name} -> payload`, payload);
   }
 }
 
 function logQuery(name: string, query: string): void {
-  console.log(`[OperatorChat] ${name} -> SQL`);
-  console.log(query);
+  log(`[OperatorChat] ${name} -> SQL`);
+  log(query);
 }
 
 function logResult(name: string, rows: unknown): void {
   const count = Array.isArray(rows) ? rows.length : 0;
-  console.log(`[OperatorChat] ${name} <- rows: ${count}`);
+  log(`[OperatorChat] ${name} <- rows: ${count}`);
   if (Array.isArray(rows) && rows.length > 0) {
-    console.log(`[OperatorChat] ${name} <- first row`, rows[0]);
+    log(`[OperatorChat] ${name} <- first row`, rows[0]);
   }
 }
 
 function logResponseShape(name: string, data: unknown): void {
   if (Array.isArray(data)) {
-    console.log(`[OperatorChat] ${name} <- shape: array(${data.length})`);
+    log(`[OperatorChat] ${name} <- shape: array(${data.length})`);
     return;
   }
 
   if (!data || typeof data !== "object") {
-    console.log(`[OperatorChat] ${name} <- shape:`, typeof data, data);
+    log(`[OperatorChat] ${name} <- shape:`, typeof data, data);
     return;
   }
 
   const object = data as Record<string, unknown>;
   const keys = Object.keys(object);
-  console.log(`[OperatorChat] ${name} <- shape: object keys`, keys);
+  log(`[OperatorChat] ${name} <- shape: object keys`, keys);
 
   const candidateKeys = [
     "rows",
@@ -88,12 +90,12 @@ function logResponseShape(name: string, data: unknown): void {
   for (const key of candidateKeys) {
     const value = object[key];
     if (Array.isArray(value)) {
-      console.log(`[OperatorChat] ${name} <- ${key}: array(${value.length})`);
+      log(`[OperatorChat] ${name} <- ${key}: array(${value.length})`);
       continue;
     }
 
     if (value && typeof value === "object") {
-      console.log(
+      log(
         `[OperatorChat] ${name} <- ${key}: object keys`,
         Object.keys(value as Record<string, unknown>),
       );
@@ -522,7 +524,7 @@ VALUES
 
   logQuery("sendManualMessage", query);
   await executeQuery(query);
-  console.log("[OperatorChat] sendManualMessage <- done");
+  log("[OperatorChat] sendManualMessage <- done");
 }
 
 export async function setAtendimentoRobotActive(
@@ -611,7 +613,7 @@ export async function getAtendimentoRobotStatus(
 
   const cached = lastKnownRobotStatusBySession.get(normalizedSessionId);
   if (typeof cached === "boolean") {
-    console.log(
+    log(
       "[OperatorChat] getAtendimentoRobotStatus -> fallback cache for session",
       normalizedSessionId,
     );

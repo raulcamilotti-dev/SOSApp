@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { getApiErrorMessage } from "@/services/api";
 import {
     countConversationsToday,
     getAtendimentoRobotStatus,
@@ -323,8 +324,7 @@ export default function AtendimentoOperadorScreen() {
     try {
       await loadConversations({ includeCount: true });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Erro ao carregar chat";
+      const message = getApiErrorMessage(err, "Erro ao carregar chat");
       setError(message);
     } finally {
       setLoading(false);
@@ -423,8 +423,7 @@ export default function AtendimentoOperadorScreen() {
           await loadRobotStatus(sessionId);
         }
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Erro ao carregar histórico";
+        const message = getApiErrorMessage(err, "Erro ao carregar histórico");
         setError(message);
       } finally {
         setRefreshing(false);
@@ -461,8 +460,10 @@ export default function AtendimentoOperadorScreen() {
       await setAtendimentoRobotActive(selectedSessionId, nextStatus);
       setRobotActive(nextStatus);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Erro ao atualizar status do robô";
+      const message = getApiErrorMessage(
+        err,
+        "Erro ao atualizar status do robô",
+      );
       setError(message);
     } finally {
       setUpdatingRobot(false);
@@ -494,8 +495,7 @@ export default function AtendimentoOperadorScreen() {
         loadConversations({ includeCount: false }),
       ]);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Erro ao enviar mensagem";
+      const message = getApiErrorMessage(err, "Erro ao enviar mensagem");
       setError(message);
     } finally {
       setSending(false);

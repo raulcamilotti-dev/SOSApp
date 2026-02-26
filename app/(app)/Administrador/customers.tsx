@@ -1,13 +1,13 @@
 import { ThemedText } from "@/components/themed-text";
 import {
-    convertTableInfoToFields,
-    CrudScreen,
-    type CrudFieldConfig,
+  convertTableInfoToFields,
+  CrudScreen,
+  type CrudFieldConfig,
 } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import { formatCpf, validateCpf } from "@/services/brasil-api";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { getTableInfo, type TableInfoRow } from "@/services/schema";
@@ -15,11 +15,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+
+const log = __DEV__ ? console.log : () => {};
 
 type Row = Record<string, unknown>;
 
@@ -431,12 +433,11 @@ export default function CustomersAdminScreen() {
         };
 
         setDebugInfo(info);
-        console.log("[customers-debug]", info);
+        log("[customers-debug]", info);
 
         return consolidatedCustomers;
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Erro desconhecido";
+        const message = getApiErrorMessage(error, "Erro desconhecido");
         const info: CustomersDebugInfo = {
           rawCustomers: 0,
           rawUsers: 0,
@@ -458,7 +459,7 @@ export default function CustomersAdminScreen() {
           error: message,
         };
         setDebugInfo(info);
-        console.log("[customers-debug:error]", info);
+        log("[customers-debug:error]", info);
         throw error;
       }
     };

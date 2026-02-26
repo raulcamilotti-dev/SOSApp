@@ -61,23 +61,11 @@ export default function CampaignDashboardScreen() {
   const { user } = useAuth();
   const tenantId = user?.tenant_id ?? "";
   const tintColor = useThemeColor({}, "tint");
-  const bgColor = useThemeColor(
-    { light: "#f5f5f5", dark: "#111" },
-    "background",
-  );
-  const cardBg = useThemeColor(
-    { light: "#fff", dark: "#1c1c1e" },
-    "background",
-  );
+  const bgColor = useThemeColor({}, "background");
+  const cardBg = useThemeColor({}, "card");
   const textColor = useThemeColor({}, "text");
-  const mutedColor = useThemeColor(
-    { light: "#6b7280", dark: "#9ca3af" },
-    "text",
-  );
-  const borderColor = useThemeColor(
-    { light: "#e5e7eb", dark: "#2c2c2e" },
-    "text",
-  );
+  const mutedColor = useThemeColor({}, "muted");
+  const borderColor = useThemeColor({}, "border");
 
   const { width } = useWindowDimensions();
   const isWide = width >= 768;

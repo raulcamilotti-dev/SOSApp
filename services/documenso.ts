@@ -11,6 +11,8 @@
 import axios from "axios";
 import { Platform } from "react-native";
 
+import { getApiErrorMessage } from "./api";
+
 /* ------------------------------------------------------------------ */
 /*  Config                                                             */
 /* ------------------------------------------------------------------ */
@@ -600,7 +602,7 @@ export async function batchSyncStatuses(
       results.push({
         id,
         updated: false,
-        error: err instanceof Error ? err.message : "Erro desconhecido",
+        error: getApiErrorMessage(err, "Erro desconhecido"),
       });
     }
   }

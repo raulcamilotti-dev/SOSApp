@@ -1,5 +1,5 @@
-import { api } from "@/services/api";
-import {  buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import { api, getApiErrorMessage } from "@/services/api";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import {
     DEFAULT_ROLE_PERMISSIONS,
     getAllPermissions,
@@ -56,16 +56,14 @@ export async function syncPermissions(): Promise<{
         created++;
       } catch (err) {
         errors.push(
-          `Falha ao criar permissão ${permissionCode}: ${err instanceof Error ? err.message : String(err)}`,
+          `Falha ao criar permissão ${permissionCode}: ${getApiErrorMessage(err)}`,
         );
       }
     }
 
     return { created, existing, errors };
   } catch (err) {
-    errors.push(
-      `Falha ao sincronizar permissões: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    errors.push(`Falha ao sincronizar permissões: ${getApiErrorMessage(err)}`);
     return { created, existing, errors };
   }
 }
@@ -172,7 +170,7 @@ export async function assignDefaultPermissionsToRole(
         assigned++;
       } catch (err) {
         errors.push(
-          `Falha ao atribuir ${permissionCode}: ${err instanceof Error ? err.message : String(err)}`,
+          `Falha ao atribuir ${permissionCode}: ${getApiErrorMessage(err)}`,
         );
       }
     }
@@ -180,7 +178,7 @@ export async function assignDefaultPermissionsToRole(
     return { assigned, errors };
   } catch (err) {
     errors.push(
-      `Falha ao atribuir permissões padrão: ${err instanceof Error ? err.message : String(err)}`,
+      `Falha ao atribuir permissões padrão: ${getApiErrorMessage(err)}`,
     );
     return { assigned, errors };
   }

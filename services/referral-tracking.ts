@@ -6,9 +6,13 @@
  */
 
 import {
-    createReferral,
-    getChannelPartnerByReferralCode,
+  createReferral,
+  getChannelPartnerByReferralCode,
 } from "@/services/channel-partners";
+
+const log = __DEV__ ? console.log : () => {};
+const warn = __DEV__ ? console.warn : () => {};
+const logError = __DEV__ ? console.error : () => {};
 
 /**
  * Capture and store referral code from URL parameters during tenant registration.
@@ -33,7 +37,7 @@ export async function captureReferralOnRegistration(
         : urlSearchParams.ref;
 
     if (!refCode) {
-      console.log("[ReferralTracking] No referral code in URL params");
+      log("[ReferralTracking] No referral code in URL params");
       return false;
     }
 
@@ -43,12 +47,12 @@ export async function captureReferralOnRegistration(
     );
 
     if (!channelPartner) {
-      console.warn(`[ReferralTracking] Referral code not found: ${refCode}`);
+      warn(`[ReferralTracking] Referral code not found: ${refCode}`);
       return false;
     }
 
     if (channelPartner.status !== "active") {
-      console.warn(
+      warn(
         `[ReferralTracking] Channel partner is not active: ${refCode} (status: ${channelPartner.status})`,
       );
       return false;
@@ -67,14 +71,6 @@ export async function captureReferralOnRegistration(
       urlSearchParams instanceof URLSearchParams
         ? urlSearchParams.get("utm_campaign")
         : urlSearchParams.utm_campaign;
-    const utmTerm =
-      urlSearchParams instanceof URLSearchParams
-        ? urlSearchParams.get("utm_term")
-        : urlSearchParams.utm_term;
-    const utmContent =
-      urlSearchParams instanceof URLSearchParams
-        ? urlSearchParams.get("utm_content")
-        : urlSearchParams.utm_content;
 
     // Create referral record
     await createReferral({
@@ -84,18 +80,16 @@ export async function captureReferralOnRegistration(
       utmSource: utmSource || undefined,
       utmMedium: utmMedium || undefined,
       utmCampaign: utmCampaign || undefined,
-      utmTerm: utmTerm || undefined,
-      utmContent: utmContent || undefined,
     });
 
-    console.log(
+    log(
       `[ReferralTracking] Referral created: tenant=${tenantId}, partner=${channelPartner.id}, code=${refCode}`,
     );
 
     return true;
   } catch (error) {
     // Log error but don't throw — referral tracking failure should NOT block registration
-    console.error("[ReferralTracking] Error capturing referral:", error);
+    logError("[ReferralTracking] Error capturing referral:", error);
     return false;
   }
 }

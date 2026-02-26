@@ -13,37 +13,37 @@ import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import type { CrudFilter } from "@/services/crud";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import {
-    listPurchaseRequestItems,
-    listPurchaseRequests,
-    updatePurchaseRequest,
-    type PurchaseRequest,
-    type PurchaseRequestItem,
+  listPurchaseRequestItems,
+  listPurchaseRequests,
+  updatePurchaseRequest,
+  type PurchaseRequest,
+  type PurchaseRequestItem,
 } from "@/services/purchase-requests";
 import {
-    cancelPurchaseOrder,
-    createPurchaseOrder,
-    markAsOrdered,
-    receivePurchaseOrder,
+  cancelPurchaseOrder,
+  createPurchaseOrder,
+  markAsOrdered,
+  receivePurchaseOrder,
 } from "@/services/purchases";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Platform,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type Row = Record<string, unknown>;
@@ -354,7 +354,7 @@ export default function ComprasScreen() {
       reload();
       Alert.alert("Sucesso", "Pedido de compra criado!");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao criar pedido";
+      const msg = getApiErrorMessage(err, "Erro ao criar pedido");
       Alert.alert("Erro", msg);
     } finally {
       setCreating(false);
@@ -465,10 +465,7 @@ export default function ComprasScreen() {
       setReceivingOrder(order);
       setReceiveModalVisible(true);
     } catch (err: unknown) {
-      Alert.alert(
-        "Erro",
-        err instanceof Error ? err.message : "Falha ao carregar itens",
-      );
+      Alert.alert("Erro", getApiErrorMessage(err, "Falha ao carregar itens"));
     }
   }, []);
 
@@ -500,10 +497,7 @@ export default function ComprasScreen() {
         "Recebimento registrado! Estoque, custo medio e contas a pagar atualizados.",
       );
     } catch (err: unknown) {
-      Alert.alert(
-        "Erro",
-        err instanceof Error ? err.message : "Falha no recebimento",
-      );
+      Alert.alert("Erro", getApiErrorMessage(err, "Falha no recebimento"));
     } finally {
       setSubmitting(false);
     }
@@ -537,7 +531,7 @@ export default function ComprasScreen() {
         await markAsOrdered(String(item.id));
         reload();
       } catch (err: unknown) {
-        Alert.alert("Erro", err instanceof Error ? err.message : "Falha");
+        Alert.alert("Erro", getApiErrorMessage(err, "Falha"));
       } finally {
         setSubmitting(false);
       }
@@ -559,7 +553,7 @@ export default function ComprasScreen() {
               await cancelPurchaseOrder(String(item.id));
               reload();
             } catch (err: unknown) {
-              Alert.alert("Erro", err instanceof Error ? err.message : "Falha");
+              Alert.alert("Erro", getApiErrorMessage(err, "Falha"));
             } finally {
               setSubmitting(false);
             }

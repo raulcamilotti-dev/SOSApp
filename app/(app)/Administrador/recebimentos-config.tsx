@@ -7,7 +7,7 @@
 
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import {
     buildSearchParams,
     CRUD_ENDPOINT,
@@ -121,7 +121,7 @@ export default function RecebimentosConfigScreen() {
       setPixMerchantName(String(tenant.pix_merchant_name ?? ""));
       setPixMerchantCity(String(tenant.pix_merchant_city ?? ""));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao carregar";
+      const msg = getApiErrorMessage(err, "Erro ao carregar");
       setError(msg);
     } finally {
       setLoading(false);
@@ -179,7 +179,7 @@ export default function RecebimentosConfigScreen() {
 
       Alert.alert("Sucesso", "Configuracoes de recebimento salvas!");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao salvar";
+      const msg = getApiErrorMessage(err, "Erro ao salvar");
       Alert.alert("Erro", msg);
     } finally {
       setSaving(false);

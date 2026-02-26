@@ -9,8 +9,8 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
-import {  buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import { api, getApiErrorMessage } from "@/services/api";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import * as ICPBrasilService from "@/services/icp-brasil";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
@@ -212,8 +212,7 @@ function SignatureCard({
 
                 onRefresh();
               } catch (err: unknown) {
-                const errMsg =
-                  err instanceof Error ? err.message : "Erro ao assinar";
+                const errMsg = getApiErrorMessage(err, "Erro ao assinar");
                 Alert.alert("Erro na assinatura", errMsg);
               } finally {
                 setLoading(false);
@@ -223,8 +222,7 @@ function SignatureCard({
         ],
       );
     } catch (err: unknown) {
-      const errMsg =
-        err instanceof Error ? err.message : "Erro ao validar certificado";
+      const errMsg = getApiErrorMessage(err, "Erro ao validar certificado");
       Alert.alert("Erro", errMsg);
     } finally {
       setLoading(false);

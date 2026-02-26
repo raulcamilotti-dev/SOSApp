@@ -224,8 +224,8 @@ export default function PublicProductDetail() {
     if (!product || addingToCart) return;
     setAddingToCart(true);
     try {
-      const partnerId = config?.default_partner_id ?? undefined;
-      await cart.addItem(product.id, quantity, partnerId);
+      // Partner is resolved at checkout scheduling step via partner_services table
+      await cart.addItem(product.id, quantity);
       setAddedFeedback(true);
       setTimeout(() => setAddedFeedback(false), 2000);
       setQuantity(1);
@@ -240,7 +240,7 @@ export default function PublicProductDetail() {
     } finally {
       setAddingToCart(false);
     }
-  }, [product, addingToCart, config?.default_partner_id, cart, quantity]);
+  }, [product, addingToCart, cart, quantity]);
 
   /* ═══ Render: Header ═══ */
   const renderHeader = () => (

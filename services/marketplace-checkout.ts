@@ -71,9 +71,9 @@ export interface CreateOnlineOrderParams {
   tenantId: string;
   userId: string;
   sessionId?: string;
-  /** Customer info — userId is used to find/create the customer record */
+  /** Customer info — userId links auth user to customer record */
   customer: {
-    id?: string;
+    userId?: string;
     cpf?: string;
     name?: string;
     email?: string;
@@ -90,6 +90,15 @@ export interface CreateOnlineOrderParams {
   scheduledDate?: string;
   scheduledTimeStart?: string;
   scheduledTimeEnd?: string;
+  /** Per-service scheduling data — when provided, takes precedence over the flat fields above */
+  serviceScheduling?: {
+    serviceId: string;
+    serviceName: string;
+    partnerId: string;
+    scheduledDate: string;
+    scheduledTimeStart: string;
+    scheduledTimeEnd: string;
+  }[];
 }
 
 export interface OnlineOrderResult {
@@ -181,15 +190,28 @@ const toIsoNow = () => new Date().toISOString();
 async function resolveOnlineCustomer(
   tenantId: string,
   input: {
-    id?: string;
+    userId?: string;
     cpf?: string;
     name?: string;
     email?: string;
     phone?: string;
   },
 ): Promise<string> {
-  // Direct ID
-  if (input.id) return input.id;
+  // Search by user_id (auth user linked to a customer record)
+  if (input.userId) {
+    const res = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "customers",
+      ...buildSearchParams([
+        { field: "tenant_id", value: tenantId },
+        { field: "user_id", value: input.userId },
+      ]),
+    });
+    const existing = normalizeCrudList<{ id: string }>(res.data).filter(
+      (c) => !(c as Record<string, unknown>).deleted_at,
+    );
+    if (existing.length > 0) return existing[0].id;
+  }
 
   // Search by CPF
   if (input.cpf) {
@@ -226,10 +248,11 @@ async function resolveOnlineCustomer(
   // Create new customer
   const customerPayload: Record<string, unknown> = {
     tenant_id: tenantId,
-    fullname: input.name || "Cliente Online",
+    name: input.name || "Cliente Online",
     email: input.email || null,
     phone: input.phone || null,
     cpf: input.cpf || null,
+    user_id: input.userId || null,
     created_at: toIsoNow(),
     updated_at: toIsoNow(),
   };
@@ -522,8 +545,12 @@ export async function createOnlineOrder(
 
   const total = Math.max(0, subtotal - discountAmount + effectiveShippingCost);
 
-  // ── Step 6: Resolve partner ──
-  const partnerId = params.partnerId || config.default_partner_id || null;
+  // ── Step 6: Resolve partner (backward-compat: use explicit partnerId or per-service scheduling) ──
+  const partnerId =
+    params.partnerId ||
+    params.serviceScheduling?.[0]?.partnerId ||
+    config.default_partner_id ||
+    null;
 
   // ── Step 7: Create sale record ──
   const salePayload: Record<string, unknown> = {
@@ -656,13 +683,26 @@ export async function createOnlineOrder(
     });
   }
 
-  // ── Step 8b: Create service_appointments if scheduling data provided ──
-  if (
-    params.scheduledDate &&
-    params.scheduledTimeStart &&
-    params.scheduledTimeEnd &&
-    partnerId
-  ) {
+  // ── Step 8b: Create service_appointments for scheduled services ──
+  const schedules = params.serviceScheduling?.length
+    ? params.serviceScheduling
+    : params.scheduledDate &&
+        params.scheduledTimeStart &&
+        params.scheduledTimeEnd &&
+        partnerId
+      ? [
+          {
+            serviceId: "",
+            serviceName: "",
+            partnerId: partnerId!,
+            scheduledDate: params.scheduledDate,
+            scheduledTimeStart: params.scheduledTimeStart,
+            scheduledTimeEnd: params.scheduledTimeEnd,
+          },
+        ]
+      : [];
+
+  for (const sched of schedules) {
     try {
       await api.post(CRUD_ENDPOINT, {
         action: "create",
@@ -670,13 +710,16 @@ export async function createOnlineOrder(
         payload: {
           tenant_id: tenantId,
           sale_id: sale.id,
-          partner_id: partnerId,
-          customer_id: customer.id,
-          scheduled_date: params.scheduledDate,
-          scheduled_time_start: params.scheduledTimeStart,
-          scheduled_time_end: params.scheduledTimeEnd,
+          partner_id: sched.partnerId,
+          customer_id: customerId,
+          service_id: sched.serviceId || null,
+          scheduled_date: sched.scheduledDate,
+          scheduled_time_start: sched.scheduledTimeStart,
+          scheduled_time_end: sched.scheduledTimeEnd,
           status: "scheduled",
-          notes: `Agendamento pedido online #${sale.id.slice(0, 8)}`,
+          notes: sched.serviceName
+            ? `Agendamento: ${sched.serviceName} — pedido #${sale.id.slice(0, 8)}`
+            : `Agendamento pedido online #${sale.id.slice(0, 8)}`,
           created_at: toIsoNow(),
           updated_at: toIsoNow(),
         },

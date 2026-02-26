@@ -43,6 +43,7 @@ const listRows = async (tenantId?: string | null): Promise<Row[]> => {
     availabilityResponse,
     timeOffResponse,
     ratingsResponse,
+    partnerServicesResponse,
   ] = await Promise.all([
     api.post(CRUD_ENDPOINT, {
       action: "list",
@@ -61,12 +62,20 @@ const listRows = async (tenantId?: string | null): Promise<Row[]> => {
       action: "list",
       table: "partner_rating_summary",
     }),
+    api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "partner_services",
+      ...tenantFilters,
+    }),
   ]);
 
   const partners = filterActive(normalizeList(partnersResponse.data));
   const availability = filterActive(normalizeList(availabilityResponse.data));
   const timeOff = filterActive(normalizeList(timeOffResponse.data));
   const ratings = filterActive(normalizeList(ratingsResponse.data));
+  const partnerServices = filterActive(
+    normalizeList(partnerServicesResponse.data),
+  );
 
   const availabilityByPartner = new Map<string, Row[]>();
   for (const row of availability) {
@@ -91,6 +100,14 @@ const listRows = async (tenantId?: string | null): Promise<Row[]> => {
     const partnerId = String(row.partner_id ?? "");
     if (!partnerId) continue;
     ratingByPartner.set(partnerId, row);
+  }
+
+  const serviceCountByPartner = new Map<string, number>();
+  for (const row of partnerServices) {
+    if (row.is_active === false) continue;
+    const pid = String(row.partner_id ?? "");
+    if (!pid) continue;
+    serviceCountByPartner.set(pid, (serviceCountByPartner.get(pid) ?? 0) + 1);
   }
 
   return partners.map((partner) => {
@@ -139,6 +156,7 @@ const listRows = async (tenantId?: string | null): Promise<Row[]> => {
       partner_availability_count: partnerAvailability.length,
       partner_time_off_count: partnerTimeOff.length,
       partner_rating_count: Number(totalReviews),
+      partner_services_count: serviceCountByPartner.get(partnerId) ?? 0,
       partner_availability_summary:
         availabilitySummary || "Sem disponibilidade cadastrada",
       partner_time_off_summary: upcomingTimeOff || "Sem folgas cadastradas",
@@ -352,9 +370,11 @@ export default function ParceirosAdminScreen() {
       renderItemActions={(item) => {
         const partnerId = String(item.id ?? "");
         const tenantId = String(item.tenant_id ?? "");
+        const partnerDisplayName = String(item.display_name ?? "Parceiro");
         const availabilityCount = Number(item.partner_availability_count ?? 0);
         const timeOffCount = Number(item.partner_time_off_count ?? 0);
         const ratingCount = Number(item.partner_rating_count ?? 0);
+        const servicesCount = Number(item.partner_services_count ?? 0);
 
         return (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -422,6 +442,32 @@ export default function ParceirosAdminScreen() {
                 style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
               >
                 Média ({Number.isFinite(ratingCount) ? ratingCount : 0})
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/Administrador/ServicosParceiro" as any,
+                  params: {
+                    partnerId,
+                    tenantId,
+                    partnerName: partnerDisplayName,
+                  },
+                })
+              }
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+              >
+                Serviços ({Number.isFinite(servicesCount) ? servicesCount : 0})
               </ThemedText>
             </TouchableOpacity>
           </View>

@@ -6,6 +6,7 @@
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import {
     calculateMonthlyCommissions,
@@ -45,12 +46,12 @@ export default function ChannelPartnerDashboardScreen() {
   );
   const [runningCommissions, setRunningCommissions] = useState(false);
 
-  const bg = "#f5f7fb";
-  const cardBg = "#ffffff";
-  const textColor = "#111827";
-  const mutedColor = "#64748b";
-  const borderColor = "#dbe3ee";
-  const tintColor = "#2563eb";
+  const bg = useThemeColor({}, "background");
+  const cardBg = useThemeColor({}, "card");
+  const textColor = useThemeColor({}, "text");
+  const mutedColor = useThemeColor({}, "muted");
+  const borderColor = useThemeColor({}, "border");
+  const tintColor = useThemeColor({}, "tint");
 
   const loadData = useCallback(async () => {
     try {

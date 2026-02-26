@@ -11,7 +11,7 @@
  * Uses the signer's own ICP-Brasil certificate for maximum legal validity.
  */
 
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import * as DocumentPicker from "expo-document-picker";
 import { Alert, Platform } from "react-native";
 
@@ -136,8 +136,7 @@ export async function pickCertificateFile(): Promise<PickedCertificate | null> {
       size: asset.size ?? base64.length,
     };
   } catch (err) {
-    const msg =
-      err instanceof Error ? err.message : "Erro ao selecionar arquivo";
+    const msg = getApiErrorMessage(err, "Erro ao selecionar arquivo");
     Alert.alert("Erro", msg);
     return null;
   }

@@ -41,7 +41,7 @@ export async function notifyProcessUpdate(
       type: "process_update",
       title: `Atualização: ${updateTitle}`,
       message: updateMessage,
-      related_table: "property_process_updates",
+      related_table: "process_updates",
       data: {
         processTitle,
         updateTitle,
@@ -107,7 +107,7 @@ export async function notifyAppointmentScheduled(
       type: "appointment_scheduled",
       title: "Agendamento Confirmado",
       message: `Sua consulta de ${appointmentType} foi agendada para ${appointmentDate}`,
-      related_table: "appointments",
+      related_table: "service_appointments",
       data: {
         appointmentDate,
         appointmentType,
@@ -129,7 +129,7 @@ export async function notifyAppointmentReminder(
       type: "appointment_reminder",
       title: "Lembrete de Consulta",
       message: `Lembrete: você tem uma consulta de ${appointmentType} em ${appointmentDate}`,
-      related_table: "appointments",
+      related_table: "service_appointments",
       data: {
         appointmentDate,
         appointmentType,

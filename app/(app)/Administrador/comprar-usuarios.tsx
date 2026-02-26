@@ -9,6 +9,8 @@
  * The purchase creates an invoice + accounts_receivable on the Radul tenant.
  */
 
+import { getApiErrorMessage } from "@/services/api";
+
 import { useAuth } from "@/core/auth/AuthContext";
 import { useTenantLimits } from "@/hooks/use-tenant-limits";
 import { useThemeColor } from "@/hooks/use-theme-color";
@@ -110,7 +112,7 @@ export default function UpgradePlanoScreen() {
         else Alert.alert("Erro", msg);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      const msg = getApiErrorMessage(err, "Erro desconhecido");
       if (Platform.OS === "web") window.alert?.(msg);
       else Alert.alert("Erro", msg);
     } finally {
@@ -130,7 +132,7 @@ export default function UpgradePlanoScreen() {
         else Alert.alert("Erro", msg);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      const msg = getApiErrorMessage(err, "Erro desconhecido");
       if (Platform.OS === "web") window.alert?.(msg);
       else Alert.alert("Erro", msg);
     } finally {

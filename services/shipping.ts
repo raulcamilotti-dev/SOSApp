@@ -13,6 +13,7 @@
  * Documentation: https://cws.correios.com.br/
  */
 
+import { getApiErrorMessage } from "./api";
 import { getMarketplaceConfig } from "./marketplace";
 
 /* ------------------------------------------------------------------ */
@@ -253,8 +254,7 @@ export async function calculateShippingRates(
         value: 0,
         estimatedDays: 0,
         error: true,
-        errorMessage:
-          err instanceof Error ? err.message : "Erro ao calcular frete",
+        errorMessage: getApiErrorMessage(err, "Erro ao calcular frete"),
       });
     }
   }
@@ -746,7 +746,7 @@ async function trackShipmentLegacy(code: string): Promise<TrackingResult> {
       events: [],
       delivered: false,
       lastStatus: "Erro ao consultar rastreio",
-      error: err instanceof Error ? err.message : "Falha na consulta",
+      error: getApiErrorMessage(err, "Falha na consulta"),
     };
   }
 }

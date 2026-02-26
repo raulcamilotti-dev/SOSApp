@@ -9,13 +9,13 @@ import { RADUL_TENANT_IDS } from "@/core/auth/auth.utils";
 import { assignDefaultPermissionsToRole } from "@/core/auth/permissions.sync";
 import type { PackSummary } from "@/data/template-packs";
 import { getAllPackSummaries, getPackByKey } from "@/data/template-packs";
-import { api } from "./api";
+import { api, getApiErrorMessage } from "./api";
 import { createSubdomainDNS } from "./cloudflare-dns";
 import {
-  buildSearchParams,
-  CRUD_ENDPOINT,
-  normalizeCrudList,
-  normalizeCrudOne,
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    normalizeCrudList,
+    normalizeCrudOne,
 } from "./crud";
 import { applyTemplatePack } from "./template-packs";
 
@@ -400,9 +400,7 @@ export async function runOnboarding(
           errors.push(...result.errors);
         }
       } catch (err) {
-        errors.push(
-          `Erro ao aplicar template: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        errors.push(`Erro ao aplicar template: ${getApiErrorMessage(err)}`);
       }
     }
   }

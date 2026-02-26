@@ -11,12 +11,18 @@ import { useCallback, useMemo } from "react";
 
 type Row = Record<string, unknown>;
 
-const loadItemsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
+const loadItemsForTenant = async (
+  tenantId?: string | null,
+  pagination?: { limit: number; offset: number },
+): Promise<Row[]> => {
   const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "partner_earnings",
-    ...buildSearchParams(filters, { sortColumn: "created_at DESC" }),
+    ...buildSearchParams(filters, {
+      sortColumn: "created_at DESC",
+      ...pagination,
+    }),
   });
   return filterActive(normalizeCrudList<Row>(res.data));
 };
@@ -225,6 +231,12 @@ export default function GanhosParceirosScreen() {
     () => () => loadItemsForTenant(tenantId),
     [tenantId],
   );
+  const paginatedLoadItems = useMemo(
+    () =>
+      ({ limit, offset }: { limit: number; offset: number }) =>
+        loadItemsForTenant(tenantId, { limit, offset }),
+    [tenantId],
+  );
   const createItem = useCallback(
     (payload: Partial<Row>) => createItemBase(payload, tenantId),
     [tenantId],
@@ -242,6 +254,8 @@ export default function GanhosParceirosScreen() {
       searchFields={["description", "payment_reference"]}
       fields={fields}
       loadItems={loadItems}
+      paginatedLoadItems={paginatedLoadItems}
+      pageSize={20}
       createItem={createItem}
       updateItem={updateItem}
       getId={(item) => String(item.id ?? "")}

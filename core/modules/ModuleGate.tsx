@@ -76,15 +76,6 @@ function getRouteModule(
       "cnpj-consulta": MODULE_KEYS.CORE,
       "company-members": MODULE_KEYS.CORE,
       "customer-properties": MODULE_KEYS.CORE,
-      "template-editor": MODULE_KEYS.DOCUMENTS,
-      ResumoAvaliacaoParceiro: MODULE_KEYS.PARTNERS,
-      LogsAvaliacoes: MODULE_KEYS.PARTNERS,
-      LogsAgendamentos: MODULE_KEYS.PARTNERS,
-      FolgasParceiro: MODULE_KEYS.PARTNERS,
-      ExecucoesServico: MODULE_KEYS.PARTNERS,
-      DisponibilidadeParceiro: MODULE_KEYS.PARTNERS,
-      agent_states: MODULE_KEYS.AI_AUTOMATION,
-      automations: MODULE_KEYS.AI_AUTOMATION,
     };
 
     const lastSegment = segments[segments.length - 1];

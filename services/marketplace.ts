@@ -57,6 +57,38 @@ function getPerfReport(ctx: PerfContext, functionName: string): string {
 }
 
 /* ------------------------------------------------------------------ */
+/*  SQL sanitisation helpers                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Escape a value for safe inclusion inside a SQL single-quoted literal.
+ * - doubles every single-quote  (SQL standard)
+ * - strips null-bytes            (prevents truncation attacks)
+ * - strips backslashes that precede quotes (PG standard_conforming_strings)
+ *
+ * Usage:  `WHERE col = '${esc(userInput)}'`
+ */
+function esc(value: string): string {
+  return value.replace(/\0/g, "").replace(/'/g, "''");
+}
+
+/**
+ * Validate that a value looks like a UUID (v4).  Throws on invalid input.
+ * Use this for IDs that must be UUIDs — prevents any injection via ID params.
+ */
+function assertUUID(value: string, label = "id"): string {
+  const cleaned = value.trim();
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      cleaned,
+    )
+  ) {
+    throw new Error(`Invalid UUID for ${label}: ${cleaned.slice(0, 60)}`);
+  }
+  return cleaned;
+}
+
+/* ------------------------------------------------------------------ */
 /*  SQL helper: tenant filter by ID or slug                            */
 /* ------------------------------------------------------------------ */
 
@@ -71,11 +103,10 @@ function tenantIdClause(
   tenantSlug?: string,
 ): string {
   if (tenantId) {
-    return `${tableAlias}.tenant_id = '${tenantId}'`;
+    return `${tableAlias}.tenant_id = '${assertUUID(tenantId, "tenantId")}'`;
   }
   if (tenantSlug) {
-    const escaped = tenantSlug.replace(/'/g, "''");
-    return `${tableAlias}.tenant_id = (SELECT id FROM tenants WHERE slug = '${escaped}' AND deleted_at IS NULL LIMIT 1)`;
+    return `${tableAlias}.tenant_id = (SELECT id FROM tenants WHERE slug = '${esc(tenantSlug)}' AND deleted_at IS NULL LIMIT 1)`;
   }
   throw new Error("Either tenantId or tenantSlug must be provided");
 }
@@ -368,14 +399,15 @@ export async function listMarketplaceProducts(params: {
     ];
 
     if (categoryId) {
-      where.push(`s.category_id = '${categoryId}'`);
+      where.push(`s.category_id = '${assertUUID(categoryId, "categoryId")}'`);
     }
     if (params.itemKind) {
-      where.push(`s.item_kind = '${params.itemKind}'`);
+      // only allow known values — prevents injection
+      const kind = params.itemKind === "service" ? "service" : "product";
+      where.push(`s.item_kind = '${kind}'`);
     }
     if (search?.trim()) {
-      const escaped = search.trim().replace(/'/g, "''");
-      where.push(`s.name ILIKE '%${escaped}%'`);
+      where.push(`s.name ILIKE '%${esc(search.trim())}%'`);
     }
 
     // Determine sort
@@ -476,8 +508,8 @@ export async function getMarketplaceProductBySlug(
              sc.slug AS _cat_slug
         FROM services s
         LEFT JOIN service_categories sc ON sc.id = s.category_id
-       WHERE s.tenant_id = '${tenantId}'
-         AND s.slug = '${productSlug}'
+       WHERE s.tenant_id = '${assertUUID(tenantId, "tenantId")}'
+         AND s.slug = '${esc(productSlug)}'
          AND s.is_published = true
          AND s.deleted_at IS NULL
        LIMIT 1`;
@@ -808,10 +840,9 @@ export async function bootstrapMarketplace(
   try {
     markPerfStep(perf, "START bootstrapMarketplace", `slug=${slug}`);
 
-    const escaped = slug.replace(/'/g, "''");
     const sql = `SELECT id, company_name, slug, config
                    FROM tenants
-                  WHERE slug = '${escaped}'
+                  WHERE slug = '${esc(slug)}'
                     AND deleted_at IS NULL
                   LIMIT 1`;
 

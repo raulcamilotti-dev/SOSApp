@@ -19,7 +19,7 @@
  * - If count < plan lower bound for 2 consecutive months -> auto-downgrade
  */
 
-import { api } from "./api";
+import { api, getApiErrorMessage } from "./api";
 import {
     API_DINAMICO,
     buildSearchParams,
@@ -167,7 +167,7 @@ export async function recalculateActiveClients(): Promise<{
     console.error("[Active Clients] Recalculation failed:", err);
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Recalculation failed",
+      error: getApiErrorMessage(err, "Recalculation failed"),
     };
   }
 }
@@ -272,7 +272,7 @@ export async function processMonthlyTierAdjustment(
           action: "upgrade",
           activeClients,
           pixGenerated: false,
-          error: err instanceof Error ? err.message : "Upgrade failed",
+          error: getApiErrorMessage(err, "Upgrade failed"),
         };
       }
     }
@@ -314,7 +314,7 @@ export async function processMonthlyTierAdjustment(
           newPlan: recommendedPlan,
           action: "downgrade",
           activeClients,
-          error: err instanceof Error ? err.message : "Downgrade failed",
+          error: getApiErrorMessage(err, "Downgrade failed"),
         };
       }
     } else {

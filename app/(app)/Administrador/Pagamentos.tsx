@@ -11,12 +11,18 @@ import { useMemo } from "react";
 
 type Row = Record<string, unknown>;
 
-const loadItemsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
+const loadItemsForTenant = async (
+  tenantId?: string | null,
+  pagination?: { limit: number; offset: number },
+): Promise<Row[]> => {
   const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "payments",
-    ...buildSearchParams(filters, { sortColumn: "created_at DESC" }),
+    ...buildSearchParams(filters, {
+      sortColumn: "created_at DESC",
+      ...pagination,
+    }),
   });
   return filterActive(normalizeCrudList<Row>(res.data));
 };
@@ -190,6 +196,12 @@ export default function PagamentosScreen() {
     () => () => loadItemsForTenant(tenantId),
     [tenantId],
   );
+  const paginatedLoadItems = useMemo(
+    () =>
+      ({ limit, offset }: { limit: number; offset: number }) =>
+        loadItemsForTenant(tenantId, { limit, offset }),
+    [tenantId],
+  );
 
   return (
     <CrudScreen<Row>
@@ -199,6 +211,8 @@ export default function PagamentosScreen() {
       searchFields={["gateway_reference", "pix_transaction_id", "notes"]}
       fields={fields}
       loadItems={loadItems}
+      paginatedLoadItems={paginatedLoadItems}
+      pageSize={20}
       createItem={createItem}
       updateItem={updateItem}
       getId={(item) => String(item.id ?? "")}

@@ -10,7 +10,7 @@ import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import {
   CRUD_ENDPOINT,
   buildSearchParams,
@@ -33,18 +33,26 @@ import {
   View,
 } from "react-native";
 
+const log = __DEV__ ? console.log : () => {};
+
 type Row = Record<string, unknown>;
 
 /* ------------------------------------------------------------------ */
 /*  CRUD handlers                                                      */
 /* ------------------------------------------------------------------ */
 
-const loadItemsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
+const loadItemsForTenant = async (
+  tenantId?: string | null,
+  pagination?: { limit: number; offset: number },
+): Promise<Row[]> => {
   const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "accounts_payable",
-    ...buildSearchParams(filters, { sortColumn: "due_date ASC" }),
+    ...buildSearchParams(filters, {
+      sortColumn: "due_date ASC",
+      ...pagination,
+    }),
   });
   return filterActive(normalizeCrudList<Row>(res.data));
 };
@@ -480,6 +488,12 @@ export default function ContasAPagarScreen() {
     () => () => loadItemsForTenant(tenantId),
     [tenantId],
   );
+  const paginatedLoadItems = useMemo(
+    () =>
+      ({ limit, offset }: { limit: number; offset: number }) =>
+        loadItemsForTenant(tenantId, { limit, offset }),
+    [tenantId],
+  );
 
   const createItemBound = useMemo(
     () => (payload: Partial<Row>) =>
@@ -532,8 +546,7 @@ export default function ContasAPagarScreen() {
       setShowQrCode(false);
       loadItems();
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Erro ao registrar pagamento";
+      const msg = getApiErrorMessage(err, "Erro ao registrar pagamento");
       Alert.alert("❌ Erro", msg);
     } finally {
       setPaymentProcessing(false);
@@ -612,14 +625,14 @@ export default function ContasAPagarScreen() {
           : undefined,
       };
 
-      console.log("[PIX-OUT] Enviando transferência:", pixOutPayload);
+      log("[PIX-OUT] Enviando transferência:", pixOutPayload);
 
       const res = await api.post(
         "https://sos-asaas.raulcamilotti-c44.workers.dev/asaas/pix-out",
         pixOutPayload,
       );
 
-      console.log("[PIX-OUT] Resposta:", res.data);
+      log("[PIX-OUT] Resposta:", res.data);
 
       const transferId = res.data?.transferId;
       const status = res.data?.status;
@@ -666,9 +679,7 @@ export default function ContasAPagarScreen() {
       } else {
         msg = backendMsg
           ? String(backendMsg)
-          : err instanceof Error
-            ? err.message
-            : "Erro ao enviar PIX";
+          : getApiErrorMessage(err, "Erro ao enviar PIX");
       }
       Alert.alert("❌ Transferência Falhou", msg);
     } finally {
@@ -749,8 +760,7 @@ export default function ContasAPagarScreen() {
           attachment_name: file.name ?? "documento",
         }));
       } catch (err) {
-        const msg =
-          err instanceof Error ? err.message : "Erro ao anexar arquivo";
+        const msg = getApiErrorMessage(err, "Erro ao anexar arquivo");
         if (Platform.OS === "web") window.alert?.(msg);
         else Alert.alert("Erro", msg);
       } finally {
@@ -896,6 +906,8 @@ export default function ContasAPagarScreen() {
         searchFields={["description", "supplier_name", "category", "notes"]}
         fields={fields}
         loadItems={loadItems}
+        paginatedLoadItems={paginatedLoadItems}
+        pageSize={20}
         createItem={createItemBound}
         updateItem={updateItem}
         deleteItem={deleteItem}

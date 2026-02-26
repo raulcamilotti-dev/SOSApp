@@ -586,7 +586,7 @@ export default function TemplateEditorScreen() {
             borderColor,
             borderRadius: 10,
             padding: 12,
-            minHeight: 5,
+            minHeight: 50,
             color: textColor,
             textAlignVertical: "top",
           }}

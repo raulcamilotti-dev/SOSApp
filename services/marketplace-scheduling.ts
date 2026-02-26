@@ -12,6 +12,7 @@
 
 import { api } from "./api";
 import { buildSearchParams, CRUD_ENDPOINT, normalizeCrudList } from "./crud";
+import { listPartnerServices, type PartnerService } from "./partner-services";
 
 /* ═══════════════════════════════════════════════════════
  * TYPES
@@ -207,9 +208,15 @@ export async function getPartnerAppointments(
  */
 export async function getAvailableSlots(
   tenantId: string,
-  partnerId: string,
+  partnerId: string | null,
   durationMinutes?: number | null,
 ): Promise<DaySlots[]> {
+  // Guard: partnerId must be a valid non-empty string (UUID)
+  if (!partnerId || partnerId === "null" || partnerId === "undefined") {
+    console.warn("[getAvailableSlots] Invalid partnerId:", partnerId);
+    return [];
+  }
+
   const duration = durationMinutes ?? DEFAULT_SLOT_MINUTES;
 
   // Fetch all data in parallel
@@ -320,6 +327,174 @@ export async function getAvailableSlots(
   }
 
   return result;
+}
+
+/* ═══════════════════════════════════════════════════════
+ * PARTNER DISCOVERY + SLOTS PER SERVICE
+ * ═══════════════════════════════════════════════════════ */
+
+/** A partner that can perform a given service, with their available slots */
+export interface PartnerWithSlots {
+  partnerId: string;
+  partnerName: string;
+  /** Custom duration from partner_services (null = use service default) */
+  customDuration: number | null;
+  /** Custom price from partner_services (null = use service default) */
+  customPrice: number | null;
+  /** Available time slots for this partner */
+  slots: DaySlots[];
+}
+
+/** Result of looking up scheduling options for a single service item */
+export interface ServiceSchedulingOptions {
+  /** The service ID from the cart item */
+  serviceId: string;
+  /** The service/product name for display */
+  serviceName: string;
+  /** Duration in minutes for this service */
+  durationMinutes: number;
+  /** Available partners with their slots (sorted by name) */
+  partners: PartnerWithSlots[];
+}
+
+/**
+ * For a list of schedulable service items, find which partners offer each
+ * service (via partner_services), fetch their names, and generate available
+ * time slots per partner.
+ *
+ * This replaces the old single-partner resolution chain and lets the
+ * customer choose which partner to book when multiple are available.
+ *
+ * @param tenantId - Tenant UUID
+ * @param serviceItems - Cart items that require scheduling
+ * @returns Scheduling options grouped by service item
+ */
+export async function getSchedulingOptionsForServices(
+  tenantId: string,
+  serviceItems: {
+    service_id: string;
+    product_name?: string;
+    duration_minutes?: number | null;
+  }[],
+): Promise<ServiceSchedulingOptions[]> {
+  if (!tenantId || serviceItems.length === 0) return [];
+
+  // Deduplicate service IDs (multiple cart items could be the same service)
+  const uniqueServiceIds = [...new Set(serviceItems.map((s) => s.service_id))];
+
+  // Build a name lookup from the cart items
+  const serviceNameMap = new Map<string, string>();
+  const serviceDurationMap = new Map<string, number>();
+  for (const item of serviceItems) {
+    if (!serviceNameMap.has(item.service_id)) {
+      serviceNameMap.set(item.service_id, item.product_name ?? "Serviço");
+    }
+    if (!serviceDurationMap.has(item.service_id)) {
+      serviceDurationMap.set(
+        item.service_id,
+        item.duration_minutes ?? DEFAULT_SLOT_MINUTES,
+      );
+    }
+  }
+
+  // For each unique service, find linked partners from partner_services
+  const results: ServiceSchedulingOptions[] = [];
+
+  for (const serviceId of uniqueServiceIds) {
+    const links = await listPartnerServices(tenantId, {
+      serviceId,
+    });
+    const activeLinks = links.filter((l) => l.is_active !== false);
+
+    if (activeLinks.length === 0) {
+      // No partner offers this service — include with empty partners
+      results.push({
+        serviceId,
+        serviceName: serviceNameMap.get(serviceId) ?? "Serviço",
+        durationMinutes:
+          serviceDurationMap.get(serviceId) ?? DEFAULT_SLOT_MINUTES,
+        partners: [],
+      });
+      continue;
+    }
+
+    // Fetch partner names in batch
+    const partnerIds = activeLinks.map((l) => l.partner_id);
+    let partnerNames = new Map<string, string>();
+    try {
+      const nameRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "partners",
+        ...buildSearchParams(
+          [
+            { field: "id", value: partnerIds.join(","), operator: "in" },
+            { field: "tenant_id", value: tenantId },
+          ],
+          { autoExcludeDeleted: true },
+        ),
+      });
+      const partners = normalizeCrudList<{
+        id: string;
+        name?: string;
+        company_name?: string;
+      }>(nameRes.data);
+      for (const p of partners) {
+        partnerNames.set(p.id, p.name || p.company_name || "Parceiro");
+      }
+    } catch {
+      // Fallback: use generic names
+      for (const id of partnerIds) {
+        partnerNames.set(id, "Parceiro");
+      }
+    }
+
+    // Build a link map for custom duration/price
+    const linkMap = new Map<string, PartnerService>();
+    for (const link of activeLinks) {
+      linkMap.set(link.partner_id, link);
+    }
+
+    const defaultDuration =
+      serviceDurationMap.get(serviceId) ?? DEFAULT_SLOT_MINUTES;
+
+    // Load slots for each partner in parallel
+    const partnerSlotsPromises = partnerIds.map(async (partnerId) => {
+      const link = linkMap.get(partnerId);
+      const duration = link?.custom_duration_minutes ?? defaultDuration;
+      try {
+        const slots = await getAvailableSlots(tenantId, partnerId, duration);
+        return {
+          partnerId,
+          partnerName: partnerNames.get(partnerId) ?? "Parceiro",
+          customDuration: link?.custom_duration_minutes ?? null,
+          customPrice: link?.custom_price ?? null,
+          slots,
+        } satisfies PartnerWithSlots;
+      } catch {
+        return {
+          partnerId,
+          partnerName: partnerNames.get(partnerId) ?? "Parceiro",
+          customDuration: link?.custom_duration_minutes ?? null,
+          customPrice: link?.custom_price ?? null,
+          slots: [],
+        } satisfies PartnerWithSlots;
+      }
+    });
+
+    const partnerSlots = await Promise.all(partnerSlotsPromises);
+
+    // Sort partners by name for consistent display
+    partnerSlots.sort((a, b) => a.partnerName.localeCompare(b.partnerName));
+
+    results.push({
+      serviceId,
+      serviceName: serviceNameMap.get(serviceId) ?? "Serviço",
+      durationMinutes: defaultDuration,
+      partners: partnerSlots,
+    });
+  }
+
+  return results;
 }
 
 /* ═══════════════════════════════════════════════════════

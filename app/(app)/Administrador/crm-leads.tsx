@@ -254,6 +254,29 @@ export default function CrmLeadsScreen() {
     return normalizeCrudList<Row>(res.data).filter((item) => !item.deleted_at);
   };
 
+  const paginatedLoadItems = async ({
+    limit,
+    offset,
+  }: {
+    limit: number;
+    offset: number;
+  }): Promise<Row[]> => {
+    const filters = [{ field: "tenant_id", value: tenantId }];
+    if (showPartnerLeadsOnly) {
+      filters.push({ field: "source", value: PARTNER_LEAD_SOURCE });
+    }
+    const res = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "leads",
+      ...buildSearchParams(filters, {
+        sortColumn: "created_at DESC",
+        limit,
+        offset,
+      }),
+    });
+    return normalizeCrudList<Row>(res.data).filter((item) => !item.deleted_at);
+  };
+
   const createItem = async (payload: Record<string, unknown>) => {
     return api.post(CRUD_ENDPOINT, {
       action: "create",
@@ -543,6 +566,8 @@ export default function CrmLeadsScreen() {
       searchFields={["name", "email", "phone", "cpf", "company_name"]}
       fields={fields}
       loadItems={loadItems}
+      paginatedLoadItems={paginatedLoadItems}
+      pageSize={20}
       createItem={createItem}
       updateItem={updateItem}
       deleteItem={deleteItem}

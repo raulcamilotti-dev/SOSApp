@@ -7,6 +7,7 @@ import { isRadulUser } from "@/core/auth/auth.utils";
 import { useAuth } from "@/core/auth/AuthContext";
 import { ADMIN_PANEL_PERMISSIONS } from "@/core/auth/permissions";
 import { usePermissions } from "@/core/auth/usePermissions";
+import { useGuidedTour } from "@/core/context/GuidedTourContext";
 import { getAdminPageModule } from "@/core/modules/module-config";
 import { useTenantModules } from "@/core/modules/ModulesContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
@@ -250,6 +251,16 @@ export default function AdminHomeScreen() {
           </Text>
         </View>
 
+        {/* ---- Guided Tour Banner ---- */}
+        <TourBanner
+          tintColor={tintColor}
+          cardColor={cardColor}
+          borderColor={borderColor}
+          textColor={textColor}
+          mutedColor={mutedColor}
+          isDark={isDark}
+        />
+
         {/* ---- Quick Access ---- */}
         {quickPages.length > 0 && (
           <View style={{ marginBottom: 24 }}>
@@ -491,6 +502,95 @@ export default function AdminHomeScreen() {
         )}
       </View>
     </ScrollView>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tour Banner Component                                              */
+/* ------------------------------------------------------------------ */
+
+function TourBanner({
+  tintColor,
+  cardColor,
+  borderColor,
+  textColor,
+  mutedColor,
+  isDark,
+}: {
+  tintColor: string;
+  cardColor: string;
+  borderColor: string;
+  textColor: string;
+  mutedColor: string;
+  isDark: boolean;
+}) {
+  const tour = useGuidedTour();
+
+  // Don't show banner while tour is already active
+  if (tour.isActive) return null;
+
+  const gradientStart = isDark ? "#1e3a5f" : "#eff6ff";
+  const gradientEnd = isDark ? "#1a2744" : "#f0f4ff";
+  const accentColor = "#6366f1";
+
+  return (
+    <Pressable
+      onPress={() => tour.start()}
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? gradientEnd : gradientStart,
+        borderWidth: 1,
+        borderColor: isDark ? accentColor + "40" : accentColor + "30",
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 24,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
+      })}
+    >
+      {/* Icon container */}
+      <View
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 14,
+          backgroundColor: accentColor + "18",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Ionicons name="rocket-outline" size={24} color={accentColor} />
+      </View>
+
+      {/* Text */}
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{
+            fontSize: 15,
+            fontWeight: "700",
+            color: textColor,
+            marginBottom: 2,
+          }}
+        >
+          {tour.hasCompleted ? "Refazer Tour Guiado" : "Conhecer a Plataforma"}
+        </Text>
+        <Text
+          style={{
+            fontSize: 12,
+            color: mutedColor,
+            lineHeight: 16,
+          }}
+        >
+          {tour.hasCompleted
+            ? "Explore novamente todas as funcionalidades"
+            : "Tour interativo por todas as funcionalidades — 5 min"}
+        </Text>
+      </View>
+
+      {/* Chevron */}
+      <Ionicons name="chevron-forward" size={18} color={accentColor} />
+    </Pressable>
   );
 }
 

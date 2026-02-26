@@ -33,7 +33,7 @@
  * on the Radul tenant, with the buying tenant referenced in notes.
  */
 
-import { api } from "./api";
+import { api, getApiErrorMessage } from "./api";
 import {
     getReferralByTenantId,
     updateReferralStatus,
@@ -863,8 +863,7 @@ export async function subscribeToPlan(
     return {
       success: false,
       totalAmount: 0,
-      error:
-        err instanceof Error ? err.message : "Erro ao processar assinatura",
+      error: getApiErrorMessage(err, "Erro ao processar assinatura"),
     };
   }
 }
@@ -1018,7 +1017,7 @@ export async function purchaseExtraClients(
     return {
       success: false,
       totalAmount: 0,
-      error: err instanceof Error ? err.message : "Erro ao processar compra",
+      error: getApiErrorMessage(err, "Erro ao processar compra"),
     };
   }
 }
@@ -1210,7 +1209,7 @@ export async function confirmSeatPayment(
     console.error("[SaaS Billing] confirmSeatPayment error:", err);
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Erro ao confirmar pagamento",
+      error: getApiErrorMessage(err, "Erro ao confirmar pagamento"),
     };
   }
 }

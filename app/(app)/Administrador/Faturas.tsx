@@ -16,12 +16,18 @@ import { Platform, Pressable, Text, View } from "react-native";
 
 type Row = Record<string, unknown>;
 
-const loadItemsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
+const loadItemsForTenant = async (
+  tenantId?: string | null,
+  pagination?: { limit: number; offset: number },
+): Promise<Row[]> => {
   const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "invoices",
-    ...buildSearchParams(filters, { sortColumn: "created_at DESC" }),
+    ...buildSearchParams(filters, {
+      sortColumn: "created_at DESC",
+      ...pagination,
+    }),
   });
   return filterActive(normalizeCrudList<Row>(res.data));
 };
@@ -296,6 +302,12 @@ export default function FaturasScreen() {
     () => () => loadItemsForTenant(tenantId),
     [tenantId],
   );
+  const paginatedLoadItems = useMemo(
+    () =>
+      ({ limit, offset }: { limit: number; offset: number }) =>
+        loadItemsForTenant(tenantId, { limit, offset }),
+    [tenantId],
+  );
 
   const createItem = useCallback(
     (payload: Partial<Row>) => createItemBase(payload, tenantId),
@@ -323,6 +335,8 @@ export default function FaturasScreen() {
       searchFields={["title", "invoice_number", "description"]}
       fields={fields}
       loadItems={loadItems}
+      paginatedLoadItems={paginatedLoadItems}
+      pageSize={20}
       createItem={createItem}
       updateItem={updateItem}
       getId={(item) => String(item.id ?? "")}

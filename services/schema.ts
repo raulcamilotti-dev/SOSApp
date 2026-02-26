@@ -1,6 +1,8 @@
 import { api } from "@/services/api";
 import * as SecureStore from "expo-secure-store";
 
+const log = __DEV__ ? console.log : () => {};
+
 export type TableInfoRow = {
   column_name: string;
   data_type: string;
@@ -36,10 +38,10 @@ async function getAuthHeaders(): Promise<
 }
 
 export async function listTables(): Promise<string[]> {
-  console.log("[listTables] calling", ENDPOINTS.tables);
+  log("[listTables] calling", ENDPOINTS.tables);
   try {
     const headers = await getAuthHeaders();
-    console.log("[listTables] POST", ENDPOINTS.tables, "token?", !!headers);
+    log("[listTables] POST", ENDPOINTS.tables, "token?", !!headers);
     const response = await api.post(
       ENDPOINTS.tables,
       {},
@@ -60,18 +62,18 @@ export async function listTables(): Promise<string[]> {
         response?: { status?: number; data?: unknown; headers?: unknown };
         message?: string;
       };
-      console.log(
+      log(
         "[listTables] POST error",
         err.message,
         err.response?.status,
         err.response?.data,
       );
     } else {
-      console.log("[listTables] POST error", error);
+      log("[listTables] POST error", error);
     }
     try {
       const headers = await getAuthHeaders();
-      console.log("[listTables] GET", ENDPOINTS.tables, "token?", !!headers);
+      log("[listTables] GET", ENDPOINTS.tables, "token?", !!headers);
       const response = await api.get(ENDPOINTS.tables, {
         headers,
       });
@@ -88,16 +90,16 @@ export async function listTables(): Promise<string[]> {
           response?: { status?: number; data?: unknown; headers?: unknown };
           message?: string;
         };
-        console.log(
+        log(
           "[listTables] GET error",
           err.message,
           err.response?.status,
           err.response?.data,
         );
       } else {
-        console.log("[listTables] GET error", error);
+        log("[listTables] GET error", error);
       }
-      console.log("[listTables] fallback query_db");
+      log("[listTables] fallback query_db");
       const fallback = await executeQuery(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;",
       );

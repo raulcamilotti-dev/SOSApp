@@ -178,6 +178,15 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   parceiros: MODULE_KEYS.PARTNERS,
   ganhos_parceiros: MODULE_KEYS.PARTNERS,
   meus_trabalhos: MODULE_KEYS.PARTNERS,
+  disponibilidade_parceiro: MODULE_KEYS.PARTNERS,
+  folgas_parceiro: MODULE_KEYS.PARTNERS,
+  execucoes_servico: MODULE_KEYS.PARTNERS,
+  resumo_avaliacao_parceiro: MODULE_KEYS.PARTNERS,
+  logs_avaliacoes: MODULE_KEYS.PARTNERS,
+  logs_agendamentos: MODULE_KEYS.PARTNERS,
+  servicos_parceiro: MODULE_KEYS.PARTNERS,
+  channel_partners: MODULE_KEYS.PARTNERS,
+  channel_partner_dashboard: MODULE_KEYS.PARTNERS,
 
   // Documents module
   document_signatures: MODULE_KEYS.DOCUMENTS,
@@ -186,6 +195,7 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   document_templates: MODULE_KEYS.DOCUMENTS,
   document_generator: MODULE_KEYS.DOCUMENTS,
   generated_documents: MODULE_KEYS.DOCUMENTS,
+  template_editor: MODULE_KEYS.DOCUMENTS,
 
   // ONR & Cartório module (requires documents)
   onr_protocolos: MODULE_KEYS.ONR_CARTORIO,
@@ -202,6 +212,8 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   agent_handoff_policies: MODULE_KEYS.AI_AUTOMATION,
   agent_state_steps: MODULE_KEYS.AI_AUTOMATION,
   agent_channel_bindings: MODULE_KEYS.AI_AUTOMATION,
+  agent_states: MODULE_KEYS.AI_AUTOMATION,
+  automations: MODULE_KEYS.AI_AUTOMATION,
 
   // BI & Analytics module
   metabase: MODULE_KEYS.BI_ANALYTICS,
@@ -218,10 +230,12 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   inadimplentes: MODULE_KEYS.FINANCIAL,
   conciliador_bancario: MODULE_KEYS.FINANCIAL,
   fechamento_contabil: MODULE_KEYS.FINANCIAL,
+  customer_payments: MODULE_KEYS.FINANCIAL,
 
   // CRM module
   crm_kanban: MODULE_KEYS.CRM,
   crm_leads: MODULE_KEYS.CRM,
+  crm_lead_detail: MODULE_KEYS.CRM,
   campaigns: MODULE_KEYS.CRM,
   campaign_dashboard: MODULE_KEYS.CRM,
   campaign_items: MODULE_KEYS.CRM,
@@ -245,6 +259,8 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   composicoes: MODULE_KEYS.PDV,
   separacao: MODULE_KEYS.PDV,
   marketplace_config: MODULE_KEYS.PDV,
+  agendamentos_pendentes: MODULE_KEYS.PDV,
+  customer_sales: MODULE_KEYS.PDV,
 
   // Stock module
   estoque: MODULE_KEYS.STOCK,
@@ -252,6 +268,7 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
 
   // Purchases module
   solicitacoes_compras: MODULE_KEYS.PURCHASES,
+  solicitacao_compras: MODULE_KEYS.PURCHASES,
   compras: MODULE_KEYS.PURCHASES,
   fornecedores: MODULE_KEYS.PURCHASES,
 };

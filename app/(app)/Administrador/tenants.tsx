@@ -5,6 +5,7 @@ import { PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
+import { CRUD_ENDPOINT } from "@/services/crud";
 import {
     createTenant,
     listTenants as listTenantsService,
@@ -39,15 +40,15 @@ const listTenants = async (): Promise<Tenant[]> => {
   const [tenantsRaw, userTenantsResponse, usersResponse, rolesResponse] =
     await Promise.all([
       listTenantsService(),
-      api.post("https://n8n.sosescritura.com.br/webhook/api_crud", {
+      api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "user_tenants",
       }),
-      api.post("https://n8n.sosescritura.com.br/webhook/api_crud", {
+      api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "users",
       }),
-      api.post("https://n8n.sosescritura.com.br/webhook/api_crud", {
+      api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "roles",
       }),
@@ -99,16 +100,13 @@ const deleteTenant = async (
   if (!tenant.id) {
     throw new Error("Id obrigatorio para deletar");
   }
-  const response = await api.post(
-    "https://n8n.sosescritura.com.br/webhook/api_crud",
-    {
-      action: "delete",
-      table: "tenants",
-      payload: {
-        id: tenant.id,
-      },
+  const response = await api.post(CRUD_ENDPOINT, {
+    action: "delete",
+    table: "tenants",
+    payload: {
+      id: tenant.id,
     },
-  );
+  });
   return response.data;
 };
 

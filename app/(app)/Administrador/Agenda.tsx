@@ -188,22 +188,29 @@ export default function AgendaAdminScreen() {
     {
       key: "scheduled_start",
       label: "Início",
-      placeholder: "2026-02-11T10:00:00Z",
+      type: "datetime",
       required: true,
       visibleInList: true,
     },
     {
       key: "scheduled_end",
       label: "Fim",
-      placeholder: "2026-02-11T11:00:00Z",
+      type: "datetime",
       required: true,
       visibleInList: true,
     },
     {
       key: "status",
       label: "Status",
-      placeholder:
-        "scheduled / confirmed / in_progress / completed / cancelled / no_show",
+      type: "select",
+      options: [
+        { label: "Agendado", value: "scheduled" },
+        { label: "Confirmado", value: "confirmed" },
+        { label: "Em Andamento", value: "in_progress" },
+        { label: "Concluído", value: "completed" },
+        { label: "Cancelado", value: "cancelled" },
+        { label: "Não Compareceu", value: "no_show" },
+      ],
       required: true,
       visibleInList: true,
     },

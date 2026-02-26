@@ -12,7 +12,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import {
     buildSearchParams,
     CRUD_ENDPOINT,
@@ -205,7 +205,7 @@ export default function DocumentGeneratorScreen() {
       } catch (err) {
         Alert.alert(
           "Erro",
-          err instanceof Error ? err.message : "Falha ao carregar modelo",
+          getApiErrorMessage(err, "Falha ao carregar modelo"),
         );
       } finally {
         setLoading(false);
@@ -467,10 +467,7 @@ export default function DocumentGeneratorScreen() {
       setGeneratedPdf({ base64: result.pdf_base64, url: result.url });
       Alert.alert("PDF Gerado!", "O PDF foi gerado com sucesso.");
     } catch (err) {
-      Alert.alert(
-        "Erro",
-        err instanceof Error ? err.message : "Falha ao gerar PDF",
-      );
+      Alert.alert("Erro", getApiErrorMessage(err, "Falha ao gerar PDF"));
     } finally {
       setGenerating(false);
     }
@@ -522,7 +519,7 @@ export default function DocumentGeneratorScreen() {
         router.back();
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Falha ao salvar";
+      const msg = getApiErrorMessage(err, "Falha ao salvar");
       if (Platform.OS === "web") {
         window.alert("Erro: " + msg);
       } else {
@@ -1170,8 +1167,8 @@ export default function DocumentGeneratorScreen() {
                   outline: "none",
                   fontSize: 14,
                   lineHeight: 1.6,
-                  color: "#222",
-                  backgroundColor: "#fff",
+                  color: textColor,
+                  backgroundColor: cardBg,
                 }}
               />
             </View>
@@ -1393,16 +1390,16 @@ export default function DocumentGeneratorScreen() {
               }}
             >
               <ThemedText
-                style={{ fontSize: 17, fontWeight: "700", color: "#222" }}
+                style={{ fontSize: 17, fontWeight: "700", color: textColor }}
               >
                 Preview do Documento
               </ThemedText>
               <TouchableOpacity onPress={() => setPreviewVisible(false)}>
-                <Ionicons name="close" size={24} color="#666" />
+                <Ionicons name="close" size={24} color={mutedColor} />
               </TouchableOpacity>
             </View>
             <ThemedText
-              style={{ fontSize: 11, color: "#666", marginBottom: 8 }}
+              style={{ fontSize: 11, color: mutedColor, marginBottom: 8 }}
             >
               Campos preenchidos em{" "}
               <ThemedText style={{ color: "#065f46", fontWeight: "600" }}>
@@ -1424,12 +1421,12 @@ export default function DocumentGeneratorScreen() {
                   style={{
                     padding: 16,
                     borderWidth: 1,
-                    borderColor: "#e5e7eb",
+                    borderColor,
                     borderRadius: 8,
                   }}
                 >
                   <ThemedText
-                    style={{ color: "#222", fontSize: 13, lineHeight: 20 }}
+                    style={{ color: textColor, fontSize: 13, lineHeight: 20 }}
                   >
                     {filledHtml
                       .replace(/<[^>]*>/g, " ")

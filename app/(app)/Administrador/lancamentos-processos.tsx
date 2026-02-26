@@ -9,7 +9,7 @@ import {
     UNIVERSAL_AI_INSIGHT_PROMPT,
 } from "@/services/ai-insights";
 import { api, getApiErrorMessage } from "@/services/api";
-import { buildSearchParams } from "@/services/crud";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { createDocumentRequest } from "@/services/document-requests";
 import {
     type GeneratedDocument,
@@ -134,14 +134,11 @@ export default function ProcessoAdvogadoScreen() {
   const fetchServiceOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.post(
-        "https://n8n.sosescritura.com.br/webhook/api_crud",
-        {
-          action: "list",
-          table: "service_orders",
-          ...buildSearchParams([], { sortColumn: "created_at" }),
-        },
-      );
+      const response = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "service_orders",
+        ...buildSearchParams([], { sortColumn: "created_at" }),
+      });
       const body = response.data;
       const raw = Array.isArray(body)
         ? body
@@ -377,20 +374,17 @@ export default function ProcessoAdvogadoScreen() {
     setSubmitting(true);
     try {
       // 1. Create process_update via api_crud
-      const updateRes = await api.post(
-        "https://n8n.sosescritura.com.br/webhook/api_crud",
-        {
-          action: "create",
-          table: "process_updates",
-          payload: {
-            service_order_id: selectedOrderId,
-            title: title.trim(),
-            description: description.trim(),
-            is_client_visible: isClientVisible,
-            created_by: user?.id || null,
-          },
+      const updateRes = await api.post(CRUD_ENDPOINT, {
+        action: "create",
+        table: "process_updates",
+        payload: {
+          service_order_id: selectedOrderId,
+          title: title.trim(),
+          description: description.trim(),
+          is_client_visible: isClientVisible,
+          created_by: user?.id || null,
         },
-      );
+      });
 
       const rawData =
         updateRes.data?.data ?? updateRes.data?.value ?? updateRes.data;
@@ -444,7 +438,7 @@ export default function ProcessoAdvogadoScreen() {
           });
         }
 
-        await api.post("https://n8n.sosescritura.com.br/webhook/api_crud", {
+        await api.post(CRUD_ENDPOINT, {
           action: "create",
           table: "process_update_files",
           payload: {

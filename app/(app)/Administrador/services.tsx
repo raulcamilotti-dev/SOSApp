@@ -384,6 +384,40 @@ export default function ServicesScreen() {
       section: "Fulfillment",
     },
 
+    // ═══ Seção: Dimensões de Envio (produto) ═══
+    {
+      key: "weight_grams",
+      label: "Peso (gramas)",
+      type: "number",
+      placeholder: "0",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Dimensões de Envio",
+    },
+    {
+      key: "dimension_length_cm",
+      label: "Comprimento (cm)",
+      type: "number",
+      placeholder: "0",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Dimensões de Envio",
+    },
+    {
+      key: "dimension_width_cm",
+      label: "Largura (cm)",
+      type: "number",
+      placeholder: "0",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Dimensões de Envio",
+    },
+    {
+      key: "dimension_height_cm",
+      label: "Altura (cm)",
+      type: "number",
+      placeholder: "0",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Dimensões de Envio",
+    },
+
     // ═══ Seção: Composição ═══
     {
       key: "is_composition",

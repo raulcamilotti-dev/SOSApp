@@ -23,9 +23,10 @@ import {
     CRUD_ENDPOINT,
     normalizeCrudList,
 } from "@/services/crud";
+import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert } from "react-native";
+import { ActivityIndicator, Alert, TouchableOpacity, View } from "react-native";
 
 // Generic row type for CrudScreen compatibility
 type Row = Record<string, unknown>;
@@ -327,47 +328,55 @@ export default function ChannelPartnersScreen() {
         >
           Ações
         </ThemedText>
-        <button
-          onClick={() => {
-            router.push(`/(app)/Administrador/channel-partner-dashboard`);
-          }}
+        <View
           style={{
-            padding: "8px 12px",
-            backgroundColor: "#2563eb",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            fontSize: "12px",
-            fontWeight: "600",
-            cursor: "pointer",
-            marginRight: "8px",
+            flexDirection: "row",
+            gap: 8,
+            flexWrap: "wrap",
+            marginTop: 4,
           }}
         >
-          Ver Dashboard
-        </button>
-        <button
-          onClick={() => {
-            const link = `https://app.radul.com.br/registro?ref=${referralCode}`;
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(link);
-              Alert.alert("Copiado!", `Link de indicação copiado: ${link}`);
-            } else {
-              Alert.alert("Link de Indicação", link);
-            }
-          }}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: "#16a34a",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            fontSize: "12px",
-            fontWeight: "600",
-            cursor: "pointer",
-          }}
-        >
-          📋 Copiar Link de Indicação
-        </button>
+          <TouchableOpacity
+            onPress={() => {
+              router.push(`/(app)/Administrador/channel-partner-dashboard`);
+            }}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              backgroundColor: "#2563eb",
+              borderRadius: 6,
+            }}
+          >
+            <ThemedText
+              style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
+            >
+              Ver Dashboard
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              const link = `https://app.radul.com.br/registro?ref=${referralCode}`;
+              try {
+                await Clipboard.setStringAsync(link);
+                Alert.alert("Copiado!", `Link de indicação copiado: ${link}`);
+              } catch {
+                Alert.alert("Link de Indicação", link);
+              }
+            }}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              backgroundColor: "#16a34a",
+              borderRadius: 6,
+            }}
+          >
+            <ThemedText
+              style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
+            >
+              📋 Copiar Link
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
       </>
     );
   }, []);

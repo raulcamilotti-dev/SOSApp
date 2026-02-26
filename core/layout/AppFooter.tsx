@@ -104,7 +104,11 @@ export function AppFooter() {
         return (
           <Pressable
             key={item.path}
-            onPress={() => router.push(item.path as Href)}
+            onPress={() => {
+              // Avoid stacking same tab or re-pushing current route
+              if (isActive(item) && pathname === item.path) return;
+              router.replace(item.path as Href);
+            }}
             style={({ pressed }) => [
               styles.navButton,
               active && { backgroundColor: activeColor + "15" },

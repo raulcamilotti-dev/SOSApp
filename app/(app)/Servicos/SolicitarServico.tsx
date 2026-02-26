@@ -4,7 +4,7 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
-import {  buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { notifyAppointmentScheduled } from "@/services/notification-events";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -126,6 +126,7 @@ export default function SolicitarServicoScreen() {
   const [partnerAvailability, setPartnerAvailability] = useState<Row[]>([]);
   const [partnerTimeOff, setPartnerTimeOff] = useState<Row[]>([]);
   const [activeAppointments, setActiveAppointments] = useState<Row[]>([]);
+  const [partnerServiceLinks, setPartnerServiceLinks] = useState<Row[]>([]);
 
   const [search, setSearch] = useState("");
   const [step, setStep] = useState<"service" | "partner" | "confirm">(
@@ -237,19 +238,24 @@ export default function SolicitarServicoScreen() {
   const resolveTenantAndCustomer = useCallback(async () => {
     if (!user?.id) return;
 
-    // tenant
-    try {
-      const ut = await api.post(CRUD_ENDPOINT, {
-        action: "list",
-        table: "user_tenants",
-        ...buildSearchParams([{ field: "user_id", value: String(user.id) }]),
-      });
-      const rows = normalizeList<Row>(ut.data);
-      const first = rows[0];
-      const tId = getValue(first, ["tenant_id", "id_tenant"]);
-      if (tId) setTenantId(tId);
-    } catch {
-      // ignore
+    // tenant — prefer user.tenant_id from AuthContext (already resolved correctly).
+    // Only fall back to user_tenants if tenant_id is not set on the user.
+    if (user?.tenant_id) {
+      setTenantId(String(user.tenant_id));
+    } else {
+      try {
+        const ut = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "user_tenants",
+          ...buildSearchParams([{ field: "user_id", value: String(user.id) }]),
+        });
+        const rows = normalizeList<Row>(ut.data);
+        const first = rows[0];
+        const tId = getValue(first, ["tenant_id", "id_tenant"]);
+        if (tId) setTenantId(tId);
+      } catch {
+        // ignore
+      }
     }
 
     if (isAdminUser && contextCustomerId) {
@@ -301,9 +307,18 @@ export default function SolicitarServicoScreen() {
     } catch {
       // ignore
     }
-  }, [contextCustomerId, contextPropertyId, isAdminUser, user?.id]);
+  }, [
+    contextCustomerId,
+    contextPropertyId,
+    isAdminUser,
+    user?.id,
+    user?.tenant_id,
+  ]);
 
   const loadCatalog = useCallback(async () => {
+    // Don't load until we have a tenant context — prevents loading ALL services
+    if (!tenantId) return;
+
     try {
       setLoading(true);
       setError(null);
@@ -315,6 +330,7 @@ export default function SolicitarServicoScreen() {
         availabilityRes,
         timeOffRes,
         appointmentsRes,
+        partnerServicesRes,
       ] = await Promise.all([
         api.post(CRUD_ENDPOINT, {
           action: "list",
@@ -332,12 +348,22 @@ export default function SolicitarServicoScreen() {
             { sortColumn: "display_name" },
           ),
         }),
-        api.post(CRUD_ENDPOINT, { action: "list", table: "partner_availability" }),
+        api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "partner_availability",
+        }),
         api.post(CRUD_ENDPOINT, { action: "list", table: "partner_time_off" }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "service_appointments",
           ...buildSearchParams([], { sortColumn: "scheduled_start" }),
+        }),
+        api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "partner_services",
+          ...buildSearchParams(
+            tenantId ? [{ field: "tenant_id", value: tenantId }] : [],
+          ),
         }),
       ]);
 
@@ -366,11 +392,16 @@ export default function SolicitarServicoScreen() {
           ),
       );
 
+      const partnerServiceList = normalizeList<Row>(
+        partnerServicesRes.data,
+      ).filter((r) => !r.deleted_at && r.is_active !== false);
+
       setServices(serviceList);
       setPartners(partnerList);
       setPartnerAvailability(availabilityList);
       setPartnerTimeOff(timeOffList);
       setActiveAppointments(appointmentsList);
+      setPartnerServiceLinks(partnerServiceList);
     } catch (loadError) {
       setError("Não foi possível carregar serviços/profissionais.");
       setErrorDiagnostic(
@@ -390,6 +421,7 @@ export default function SolicitarServicoScreen() {
       setPartnerAvailability([]);
       setPartnerTimeOff([]);
       setActiveAppointments([]);
+      setPartnerServiceLinks([]);
     } finally {
       setLoading(false);
     }
@@ -412,15 +444,29 @@ export default function SolicitarServicoScreen() {
   }, [search, services]);
 
   const filteredPartners = useMemo(() => {
+    // Filter by partner_services links — only partners linked to the selected service
+    let base = partners;
+    if (selectedServiceId && partnerServiceLinks.length > 0) {
+      const linkedPartnerIds = new Set(
+        partnerServiceLinks
+          .filter((l) => String(l.service_id ?? "") === selectedServiceId)
+          .map((l) => String(l.partner_id ?? "")),
+      );
+      // If there are links defined for this service, filter; otherwise show all (graceful fallback)
+      if (linkedPartnerIds.size > 0) {
+        base = partners.filter((p) => linkedPartnerIds.has(String(p.id ?? "")));
+      }
+    }
+
     const term = search.trim().toLowerCase();
-    if (!term) return partners;
-    return partners.filter((p) => {
+    if (!term) return base;
+    return base.filter((p) => {
       const text = [p.display_name, p.name, p.user_id]
         .map((v) => String(v ?? "").toLowerCase())
         .join(" ");
       return text.includes(term);
     });
-  }, [search, partners]);
+  }, [search, partners, selectedServiceId, partnerServiceLinks]);
 
   const selectedService = useMemo(
     () =>

@@ -14,6 +14,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { Alert, TouchableOpacity, View } from "react-native";
 
+const log = __DEV__ ? console.log : () => {};
+const logError = __DEV__ ? console.error : () => {};
+
 type Row = Record<string, unknown>;
 
 const normalizeList = (data: unknown): Row[] => {
@@ -93,11 +96,9 @@ const createRow = async (payload: Partial<Row>): Promise<unknown> => {
         String(createdRole.id),
         String(payload.name),
       );
-      console.log(
-        `[Roles] Auto-atribuídas permissões padrão ao role: ${payload.name}`,
-      );
+      log(`[Roles] Auto-atribuídas permissões padrão ao role: ${payload.name}`);
     } catch (err) {
-      console.error("[Roles] Falha ao auto-atribuir permissões:", err);
+      logError("[Roles] Falha ao auto-atribuir permissões:", err);
     }
   }
 

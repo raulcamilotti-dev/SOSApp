@@ -12,30 +12,30 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { usePartnerScope } from "@/hooks/use-partner-scope";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import {
-  CRUD_ENDPOINT,
-  buildSearchParams,
-  normalizeCrudList,
+    CRUD_ENDPOINT,
+    buildSearchParams,
+    normalizeCrudList,
 } from "@/services/crud";
 import { generatePixPayload, generatePixQRCodeBase64 } from "@/services/pix";
 import {
-  generateReceipt,
-  isReceiptAutomationEnabled,
-  logAutomationExecution,
+    generateReceipt,
+    isReceiptAutomationEnabled,
+    logAutomationExecution,
 } from "@/services/receipt-generator";
 import { confirmSeatPayment } from "@/services/saas-billing";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    Pressable,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 type Row = Record<string, unknown>;
@@ -44,12 +44,18 @@ type Row = Record<string, unknown>;
 /*  CRUD handlers                                                      */
 /* ------------------------------------------------------------------ */
 
-const loadItemsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
+const loadItemsForTenant = async (
+  tenantId?: string | null,
+  pagination?: { limit: number; offset: number },
+): Promise<Row[]> => {
   const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "accounts_receivable",
-    ...buildSearchParams(filters, { sortColumn: "due_date ASC" }),
+    ...buildSearchParams(filters, {
+      sortColumn: "due_date ASC",
+      ...pagination,
+    }),
   });
   return filterActive(normalizeCrudList<Row>(res.data));
 };
@@ -435,6 +441,18 @@ export default function ContasAReceberScreen() {
     },
     [tenantId, isPartnerUser, customerIds],
   );
+  const paginatedLoadItems = useMemo(
+    () =>
+      async ({ limit, offset }: { limit: number; offset: number }) => {
+        const items = await loadItemsForTenant(tenantId, { limit, offset });
+        if (!isPartnerUser || customerIds.length === 0) return items;
+        const allowedSet = new Set(customerIds);
+        return items.filter((item) =>
+          allowedSet.has(String(item.customer_id ?? "")),
+        );
+      },
+    [tenantId, isPartnerUser, customerIds],
+  );
 
   const fileToBase64Web = (uri: string): Promise<string> =>
     fetch(uri)
@@ -483,8 +501,7 @@ export default function ContasAReceberScreen() {
           attachment_name: file.name ?? "documento",
         }));
       } catch (err) {
-        const msg =
-          err instanceof Error ? err.message : "Erro ao anexar arquivo";
+        const msg = getApiErrorMessage(err, "Erro ao anexar arquivo");
         if (Platform.OS === "web") window.alert?.(msg);
         else Alert.alert("Erro", msg);
       } finally {
@@ -736,6 +753,8 @@ export default function ContasAReceberScreen() {
       searchFields={["description", "category", "notes"]}
       fields={fields}
       loadItems={loadItems}
+      paginatedLoadItems={paginatedLoadItems}
+      pageSize={20}
       createItem={createItem}
       updateItem={updateItem}
       deleteItem={deleteItem}

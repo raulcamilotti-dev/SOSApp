@@ -2,6 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { syncPermissions } from "@/core/auth/permissions.sync";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { getApiErrorMessage } from "@/services/api";
 import { useState } from "react";
 import { ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
 import { styles } from "../../theme/styles";
@@ -30,9 +31,7 @@ export default function PermissionsSyncScreen() {
       setResult({
         created: 0,
         existing: 0,
-        errors: [
-          `Erro ao sincronizar: ${err instanceof Error ? err.message : String(err)}`,
-        ],
+        errors: [`Erro ao sincronizar: ${getApiErrorMessage(err)}`],
       });
     } finally {
       setLoading(false);

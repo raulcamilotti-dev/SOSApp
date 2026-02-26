@@ -10,7 +10,7 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import {
     CONTRACT_STATUSES,
     CONTRACT_TYPES,
@@ -278,7 +278,7 @@ export default function ContractsScreen() {
       await renewContract(contractId);
       setRefreshKey((k) => k + 1);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao renovar";
+      const msg = getApiErrorMessage(err, "Erro ao renovar");
       if (Platform.OS === "web") {
         window.alert(msg);
       } else {

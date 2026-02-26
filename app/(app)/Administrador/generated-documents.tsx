@@ -815,7 +815,7 @@ export default function GeneratedDocumentsScreen() {
         >
           <View
             style={{
-              backgroundColor: "#fff",
+              backgroundColor: cardBg,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               padding: 20,
@@ -834,13 +834,13 @@ export default function GeneratedDocumentsScreen() {
             >
               <View style={{ flex: 1 }}>
                 <ThemedText
-                  style={{ fontSize: 16, fontWeight: "700", color: "#222" }}
+                  style={{ fontSize: 16, fontWeight: "700", color: textColor }}
                   numberOfLines={1}
                 >
                   {previewDoc?.name}
                 </ThemedText>
                 <ThemedText
-                  style={{ fontSize: 11, color: "#888", marginTop: 2 }}
+                  style={{ fontSize: 11, color: mutedColor, marginTop: 2 }}
                 >
                   {previewDoc
                     ? formatDate(previewDoc.updated_at || previewDoc.created_at)
@@ -851,7 +851,7 @@ export default function GeneratedDocumentsScreen() {
                 </ThemedText>
               </View>
               <TouchableOpacity onPress={() => setPreviewDoc(null)}>
-                <Ionicons name="close" size={24} color="#666" />
+                <Ionicons name="close" size={24} color={mutedColor} />
               </TouchableOpacity>
             </View>
 
@@ -881,13 +881,13 @@ export default function GeneratedDocumentsScreen() {
                     style={{
                       padding: 16,
                       borderWidth: 1,
-                      borderColor: "#e5e7eb",
+                      borderColor,
                       borderRadius: 8,
                     }}
                   >
                     <ThemedText
                       style={{
-                        color: "#222",
+                        color: textColor,
                         fontSize: 13,
                         lineHeight: 20,
                       }}
@@ -912,7 +912,7 @@ export default function GeneratedDocumentsScreen() {
                   marginTop: 12,
                   paddingTop: 12,
                   borderTopWidth: 1,
-                  borderTopColor: "#e5e7eb",
+                  borderTopColor: borderColor,
                 }}
               >
                 {previewDoc.status === "draft" && (

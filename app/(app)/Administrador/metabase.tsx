@@ -55,13 +55,10 @@ export default function MetabaseScreen() {
 
   /*  Theme  */
   const bg = useThemeColor({}, "background");
-  const card = useThemeColor({ light: "#fff", dark: "#1c1c1e" }, "background");
-  const border = useThemeColor(
-    { light: "#e5e7eb", dark: "#333" },
-    "background",
-  );
-  const tint = useThemeColor({ light: "#0a7ea4", dark: "#4dabcf" }, "tint");
-  const subtle = useThemeColor({ light: "#6b7280", dark: "#9ca3af" }, "text");
+  const card = useThemeColor({}, "card");
+  const border = useThemeColor({}, "border");
+  const tint = useThemeColor({}, "tint");
+  const subtle = useThemeColor({}, "muted");
   const textColor = useThemeColor({}, "text");
 
   /*  State  */
