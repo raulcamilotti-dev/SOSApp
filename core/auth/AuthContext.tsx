@@ -430,88 +430,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * LOGIN
    * ====================================================== */
   async function login(cpf: string, password: string): Promise<User> {
-    const tenantContext = buildTenantContextPayload();
-    const res = await fetch("https://n8n.sosescritura.com.br/webhook/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Api-Key": N8N_API_KEY },
-      body: JSON.stringify({
-        cpf,
-        password,
-        tenant_slug: tenantContext.tenant_slug,
-        tenant_subdomain: tenantContext.tenant_subdomain,
-        tenant_hint: tenantContext.tenant_hint,
-        app_slug: tenantContext.app_slug,
-        host: tenantContext.host,
-        hostname: tenantContext.hostname,
-        pathname: tenantContext.pathname,
-        partner_id: tenantContext.partner_id,
-        referral_code: tenantContext.referral_code,
-        utm_source: tenantContext.utm_source,
-        utm_campaign: tenantContext.utm_campaign,
-        tenant_context: tenantContext,
-      }),
-    });
-
-    if (!res.ok) {
-      let errorMessage = "Erro ao fazer login";
-      try {
-        const errData = await res.json();
-        if (errData?.message) errorMessage = errData.message;
-      } catch {
-        // empty body — use default error
-      }
-      throw new Error(errorMessage);
-    }
-
-    let data: LoginResponse | User[] | any;
+    // Signal that tenant resolution is in progress BEFORE setUser is called,
+    // preventing AuthGate from flashing the onboarding screen.
+    setTenantLoading(true);
     try {
-      data = await res.json();
-    } catch {
-      throw new Error("Resposta inválida do servidor");
-    }
-
-    const { userPayload, tokenPayload } = extractAuthPayload(data);
-    const loggedUser: User | undefined = userPayload;
-    const token: string | undefined = tokenPayload;
-
-    if (!loggedUser || !token) {
-      throw new Error("Usuário ou token inválido");
-    }
-
-    await saveToken(token);
-    setAuthToken(token);
-
-    const mergedUser = await checkAndMergeUserData(loggedUser);
-
-    // Auto-resolve tenant from domain context (e.g. cartorio.radul.com.br)
-    if (!mergedUser.tenant_id && mergedUser.id) {
-      const resolvedTenantId = await tryAutoResolveTenant(
-        String(mergedUser.id),
-        tenantContext,
-      );
-      if (resolvedTenantId) mergedUser.tenant_id = resolvedTenantId;
-    }
-
-    const { userWithTenant } = await loadAvailableTenants(mergedUser);
-    tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
-    return userWithTenant;
-  }
-
-  /* ======================================================
-   * GOOGLE LOGIN
-   * ====================================================== */
-  async function googleLogin(idToken: string): Promise<User> {
-    const tenantContext = buildTenantContextPayload();
-    const res = await fetch(
-      "https://n8n.sosescritura.com.br/webhook/google_login",
-      {
+      const tenantContext = buildTenantContextPayload();
+      const res = await fetch("https://n8n.sosescritura.com.br/webhook/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Api-Key": N8N_API_KEY,
         },
         body: JSON.stringify({
-          id_token: idToken,
+          cpf,
+          password,
           tenant_slug: tenantContext.tenant_slug,
           tenant_subdomain: tenantContext.tenant_subdomain,
           tenant_hint: tenantContext.tenant_hint,
@@ -525,40 +457,127 @@ export function AuthProvider({ children }: AuthProviderProps) {
           utm_campaign: tenantContext.utm_campaign,
           tenant_context: tenantContext,
         }),
-      },
-    );
+      });
 
-    if (!res.ok) {
-      throw new Error("Erro ao fazer login com Google");
+      if (!res.ok) {
+        let errorMessage = "Erro ao fazer login";
+        try {
+          const errData = await res.json();
+          if (errData?.message) errorMessage = errData.message;
+        } catch {
+          // empty body — use default error
+        }
+        throw new Error(errorMessage);
+      }
+
+      let data: LoginResponse | User[] | any;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error("Resposta inválida do servidor");
+      }
+
+      const { userPayload, tokenPayload } = extractAuthPayload(data);
+      const loggedUser: User | undefined = userPayload;
+      const token: string | undefined = tokenPayload;
+
+      if (!loggedUser || !token) {
+        throw new Error("Usuário ou token inválido");
+      }
+
+      await saveToken(token);
+      setAuthToken(token);
+
+      const mergedUser = await checkAndMergeUserData(loggedUser);
+
+      // Auto-resolve tenant from domain context (e.g. cartorio.radul.com.br)
+      if (!mergedUser.tenant_id && mergedUser.id) {
+        const resolvedTenantId = await tryAutoResolveTenant(
+          String(mergedUser.id),
+          tenantContext,
+        );
+        if (resolvedTenantId) mergedUser.tenant_id = resolvedTenantId;
+      }
+
+      const { userWithTenant } = await loadAvailableTenants(mergedUser);
+      tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
+      return userWithTenant;
+    } catch (err) {
+      setTenantLoading(false);
+      throw err;
     }
+  }
 
-    const data: LoginResponse | User[] | any = await res.json();
-
-    const { userPayload, tokenPayload } = extractAuthPayload(data);
-    const loggedUser: User | undefined = userPayload;
-    const token: string | undefined = tokenPayload;
-
-    if (!loggedUser || !token) {
-      throw new Error("Usuário ou token inválido");
-    }
-
-    await saveToken(token);
-    setAuthToken(token);
-
-    const mergedUser = await checkAndMergeUserData(loggedUser);
-
-    // Auto-resolve tenant from domain context (e.g. tenant subdomain or custom domain)
-    if (!mergedUser.tenant_id && mergedUser.id) {
-      const resolvedTenantId = await tryAutoResolveTenant(
-        String(mergedUser.id),
-        tenantContext,
+  /* ======================================================
+   * GOOGLE LOGIN
+   * ====================================================== */
+  async function googleLogin(idToken: string): Promise<User> {
+    // Signal that tenant resolution is in progress BEFORE setUser is called,
+    // preventing AuthGate from flashing the onboarding screen.
+    setTenantLoading(true);
+    try {
+      const tenantContext = buildTenantContextPayload();
+      const res = await fetch(
+        "https://n8n.sosescritura.com.br/webhook/google_login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": N8N_API_KEY,
+          },
+          body: JSON.stringify({
+            id_token: idToken,
+            tenant_slug: tenantContext.tenant_slug,
+            tenant_subdomain: tenantContext.tenant_subdomain,
+            tenant_hint: tenantContext.tenant_hint,
+            app_slug: tenantContext.app_slug,
+            host: tenantContext.host,
+            hostname: tenantContext.hostname,
+            pathname: tenantContext.pathname,
+            partner_id: tenantContext.partner_id,
+            referral_code: tenantContext.referral_code,
+            utm_source: tenantContext.utm_source,
+            utm_campaign: tenantContext.utm_campaign,
+            tenant_context: tenantContext,
+          }),
+        },
       );
-      if (resolvedTenantId) mergedUser.tenant_id = resolvedTenantId;
-    }
 
-    const { userWithTenant } = await loadAvailableTenants(mergedUser);
-    tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
-    return userWithTenant;
+      if (!res.ok) {
+        throw new Error("Erro ao fazer login com Google");
+      }
+
+      const data: LoginResponse | User[] | any = await res.json();
+
+      const { userPayload, tokenPayload } = extractAuthPayload(data);
+      const loggedUser: User | undefined = userPayload;
+      const token: string | undefined = tokenPayload;
+
+      if (!loggedUser || !token) {
+        throw new Error("Usuário ou token inválido");
+      }
+
+      await saveToken(token);
+      setAuthToken(token);
+
+      const mergedUser = await checkAndMergeUserData(loggedUser);
+
+      // Auto-resolve tenant from domain context (e.g. tenant subdomain or custom domain)
+      if (!mergedUser.tenant_id && mergedUser.id) {
+        const resolvedTenantId = await tryAutoResolveTenant(
+          String(mergedUser.id),
+          tenantContext,
+        );
+        if (resolvedTenantId) mergedUser.tenant_id = resolvedTenantId;
+      }
+
+      const { userWithTenant } = await loadAvailableTenants(mergedUser);
+      tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
+      return userWithTenant;
+    } catch (err) {
+      setTenantLoading(false);
+      throw err;
+    }
   }
 
   /* ======================================================
@@ -568,41 +587,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
     code: string,
     codeVerifier?: string,
   ): Promise<User> {
-    const { completeGovBrAuth, loginViaGovBrBackend } =
-      await import("@/services/gov-br");
+    // Signal that tenant resolution is in progress BEFORE setUser is called,
+    // preventing AuthGate from flashing the onboarding screen.
+    setTenantLoading(true);
+    try {
+      const { completeGovBrAuth, loginViaGovBrBackend } =
+        await import("@/services/gov-br");
 
-    // 1. Exchange code for tokens + fetch user info from Gov.br
-    const authResult = await completeGovBrAuth(code, codeVerifier);
+      // 1. Exchange code for tokens + fetch user info from Gov.br
+      const authResult = await completeGovBrAuth(code, codeVerifier);
 
-    // 2. Send to our backend (N8N) to create/login user
-    const backendResult = await loginViaGovBrBackend(authResult);
+      // 2. Send to our backend (N8N) to create/login user
+      const backendResult = await loginViaGovBrBackend(authResult);
 
-    const { userPayload, tokenPayload } = extractAuthPayload(backendResult);
-    const loggedUser: User | undefined = userPayload;
-    const token: string | undefined = tokenPayload;
+      const { userPayload, tokenPayload } = extractAuthPayload(backendResult);
+      const loggedUser: User | undefined = userPayload;
+      const token: string | undefined = tokenPayload;
 
-    if (!loggedUser || !token) {
-      throw new Error("Usuário ou token inválido (Gov.br)");
+      if (!loggedUser || !token) {
+        throw new Error("Usuário ou token inválido (Gov.br)");
+      }
+
+      await saveToken(token);
+      setAuthToken(token);
+
+      const mergedUser = await checkAndMergeUserData(loggedUser);
+
+      // Auto-resolve tenant from domain context (Gov.br login)
+      const govBrTenantContext = buildTenantContextPayload();
+      if (!mergedUser.tenant_id && mergedUser.id) {
+        const resolvedTenantId = await tryAutoResolveTenant(
+          String(mergedUser.id),
+          govBrTenantContext,
+        );
+        if (resolvedTenantId) mergedUser.tenant_id = resolvedTenantId;
+      }
+
+      const { userWithTenant } = await loadAvailableTenants(mergedUser);
+      tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
+      return userWithTenant;
+    } catch (err) {
+      setTenantLoading(false);
+      throw err;
     }
-
-    await saveToken(token);
-    setAuthToken(token);
-
-    const mergedUser = await checkAndMergeUserData(loggedUser);
-
-    // Auto-resolve tenant from domain context (Gov.br login)
-    const govBrTenantContext = buildTenantContextPayload();
-    if (!mergedUser.tenant_id && mergedUser.id) {
-      const resolvedTenantId = await tryAutoResolveTenant(
-        String(mergedUser.id),
-        govBrTenantContext,
-      );
-      if (resolvedTenantId) mergedUser.tenant_id = resolvedTenantId;
-    }
-
-    const { userWithTenant } = await loadAvailableTenants(mergedUser);
-    tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
-    return userWithTenant;
   }
 
   /* ======================================================

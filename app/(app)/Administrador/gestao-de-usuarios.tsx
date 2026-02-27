@@ -143,10 +143,94 @@ export default function UsersManagementScreen() {
 
   const createWithContext = useMemo(() => {
     return async (payload: Partial<User>): Promise<unknown> => {
+      const effectiveTenantId = tenantIdParam ?? payload.tenant_id;
+      const effectiveRoleId = roleIdParam ?? payload.role_id;
+      const email = String(payload.email ?? "")
+        .trim()
+        .toLowerCase();
+
+      // Check if a user with this email already exists (global unique constraint)
+      if (email) {
+        const existingRes = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "users",
+          ...buildSearchParams([{ field: "email", value: email }]),
+        });
+        const existingList = Array.isArray(existingRes.data)
+          ? existingRes.data
+          : (existingRes.data?.data ?? []);
+        const existingUser = Array.isArray(existingList)
+          ? existingList.find(
+              (u: any) =>
+                String(u?.email ?? "")
+                  .trim()
+                  .toLowerCase() === email,
+            )
+          : null;
+
+        if (existingUser) {
+          const existingUserId = String(existingUser.id ?? "");
+
+          // Link existing user to the current tenant via user_tenants
+          if (effectiveTenantId && existingUserId) {
+            // Check if link already exists
+            const linkRes = await api.post(CRUD_ENDPOINT, {
+              action: "list",
+              table: "user_tenants",
+              ...buildSearchParams([
+                { field: "user_id", value: existingUserId },
+                { field: "tenant_id", value: String(effectiveTenantId) },
+              ]),
+            });
+            const linkList = Array.isArray(linkRes.data)
+              ? linkRes.data
+              : (linkRes.data?.data ?? []);
+            const alreadyLinked =
+              Array.isArray(linkList) && linkList.length > 0;
+
+            if (!alreadyLinked) {
+              await api.post(CRUD_ENDPOINT, {
+                action: "create",
+                table: "user_tenants",
+                payload: {
+                  user_id: existingUserId,
+                  tenant_id: String(effectiveTenantId),
+                  role_id: effectiveRoleId
+                    ? String(effectiveRoleId)
+                    : undefined,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+              });
+            }
+          }
+
+          // Update user fields if needed (tenant_id, role_id, name, etc.)
+          const updatePayload: Record<string, unknown> = {
+            id: existingUserId,
+            updated_at: new Date().toISOString(),
+          };
+          if (effectiveTenantId) updatePayload.tenant_id = effectiveTenantId;
+          if (effectiveRoleId) updatePayload.role_id = effectiveRoleId;
+          if (payload.fullname) updatePayload.fullname = payload.fullname;
+          if (payload.cpf) updatePayload.cpf = payload.cpf;
+          if (payload.phone) updatePayload.phone = payload.phone;
+
+          await api.post(CRUD_ENDPOINT, {
+            action: "update",
+            table: "users",
+            payload: updatePayload,
+          });
+
+          return [existingUser];
+        }
+      }
+
+      // No existing user — create normally
       return createUser({
         ...payload,
-        tenant_id: tenantIdParam ?? payload.tenant_id,
-        role_id: roleIdParam ?? payload.role_id,
+        tenant_id: effectiveTenantId,
+        role_id: effectiveRoleId,
       });
     };
   }, [roleIdParam, tenantIdParam]);
