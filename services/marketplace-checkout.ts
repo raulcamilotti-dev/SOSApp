@@ -22,11 +22,9 @@
 import { api } from "./api";
 import { explodeComposition, type ExplodedItem } from "./compositions";
 import {
-    API_DINAMICO,
     buildSearchParams,
     CRUD_ENDPOINT,
     normalizeCrudList,
-    normalizeCrudOne,
     type CrudFilter,
 } from "./crud";
 import { getMarketplaceConfig, type MarketplaceConfig } from "./marketplace";
@@ -41,7 +39,6 @@ import {
     getCartWithItems,
     type CartWithItems,
 } from "./shopping-cart";
-import { recordStockMovement } from "./stock";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -186,7 +183,8 @@ const toIsoNow = () => new Date().toISOString();
 
 /**
  * Resolve or create a customer for the online order.
- * Tries: id → cpf search → create with provided name/email/phone.
+ * Uses dedicated Worker endpoint with parametrized queries.
+ * Priority: user_id > cpf > email.
  */
 async function resolveOnlineCustomer(
   tenantId: string,
@@ -198,66 +196,17 @@ async function resolveOnlineCustomer(
     phone?: string;
   },
 ): Promise<string> {
-  // Build a single SQL query with OR conditions instead of 3 sequential lookups
-  const conditions: string[] = [];
-  if (input.userId) {
-    conditions.push(`user_id = '${input.userId}'`);
-  }
-  if (input.cpf) {
-    conditions.push(`cpf = '${input.cpf}'`);
-  }
-  if (input.email) {
-    conditions.push(`email = '${input.email}'`);
-  }
-
-  if (conditions.length > 0) {
-    try {
-      const res = await api.post(API_DINAMICO, {
-        sql: `
-          SELECT id, user_id, cpf, email
-          FROM customers
-          WHERE tenant_id = '${tenantId}'
-            AND deleted_at IS NULL
-            AND (${conditions.join(" OR ")})
-          ORDER BY
-            CASE
-              WHEN user_id = '${input.userId || ""}' THEN 1
-              WHEN cpf = '${input.cpf || ""}' THEN 2
-              WHEN email = '${input.email || ""}' THEN 3
-              ELSE 4
-            END
-          LIMIT 1
-        `,
-      });
-      const rows = Array.isArray(res.data) ? res.data : [];
-      if (rows.length > 0 && rows[0]?.id) {
-        return String(rows[0].id);
-      }
-    } catch {
-      // Fallback: if SQL fails, continue to create
-    }
-  }
-
-  // Create new customer
-  const customerPayload: Record<string, unknown> = {
+  const res = await api.post("/marketplace/resolve-customer", {
     tenant_id: tenantId,
-    name: input.name || "Cliente Online",
-    email: input.email || null,
-    phone: input.phone || null,
-    cpf: input.cpf || null,
     user_id: input.userId || null,
-    created_at: toIsoNow(),
-    updated_at: toIsoNow(),
-  };
-
-  const createRes = await api.post(CRUD_ENDPOINT, {
-    action: "create",
-    table: "customers",
-    payload: customerPayload,
+    cpf: input.cpf || null,
+    email: input.email || null,
+    name: input.name || null,
+    phone: input.phone || null,
   });
-  const created = normalizeCrudOne<{ id: string }>(createRes.data);
-  if (!created?.id) throw new Error("Falha ao criar cliente");
-  return created.id;
+  const data = res.data as { customer_id?: string };
+  if (!data?.customer_id) throw new Error("Falha ao resolver cliente");
+  return data.customer_id;
 }
 
 /**
@@ -545,7 +494,11 @@ export async function createOnlineOrder(
     config.default_partner_id ||
     null;
 
-  // ── Step 7: Create sale record ──
+  // ── Steps 7-12: Create all records via dedicated marketplace endpoint ──
+  // Single transactional API call replaces ~20+ sequential CRUD calls.
+  // Worker handles: sale + items + invoice + invoice_items + AR + earnings +
+  //                 appointments + stock_movements — all atomically.
+
   const salePayload: Record<string, unknown> = {
     tenant_id: tenantId,
     customer_id: customerId,
@@ -563,32 +516,15 @@ export async function createOnlineOrder(
     paid_at: null,
     shipping_address: shippingAddress,
     shipping_cost: effectiveShippingCost,
-    has_pending_services: false,
-    has_pending_products: false,
     notes: notes || null,
-    created_at: toIsoNow(),
-    updated_at: toIsoNow(),
   };
 
-  const saleRes = await api.post(CRUD_ENDPOINT, {
-    action: "create",
-    table: "sales",
-    payload: salePayload,
-  });
-  const sale = normalizeCrudOne<OnlineOrder>(saleRes.data);
-  if (!sale?.id) throw new Error("Falha ao criar pedido");
-
-  // ── Step 8: Create sale_items with fulfillment statuses ──
-  let parentItemIdMap: Record<string, string> = {};
+  // Build items for the Worker
   let itemSort = 0;
-  let hasPendingProducts = false;
-  let hasPendingServices = false;
-
-  for (const fi of finalItems) {
+  const workerItems = finalItems.map((fi) => {
     const itemSubtotal = fi.unitPrice * fi.quantity;
     const commissionAmount = itemSubtotal * (fi.commissionPercent / 100);
 
-    // Determine fulfillment statuses for online orders
     let separationStatus = "not_required";
     let deliveryStatus = "not_required";
     let fulfillmentStatus = "completed";
@@ -596,87 +532,123 @@ export async function createOnlineOrder(
     if (fi.isCompositionParent) {
       fulfillmentStatus = "pending";
     } else if (fi.itemKind === "product") {
-      // All online products require separation and delivery
       separationStatus = "pending";
       deliveryStatus = "pending";
       fulfillmentStatus = "pending";
-      hasPendingProducts = true;
-    } else if (fi.itemKind === "service") {
-      if (fi.requiresScheduling) {
-        fulfillmentStatus = "pending";
-        hasPendingServices = true;
-      }
+    } else if (fi.itemKind === "service" && fi.requiresScheduling) {
+      fulfillmentStatus = "pending";
     }
 
-    const itemPayload: Record<string, unknown> = {
-      sale_id: sale.id,
-      service_id: fi.serviceId,
-      item_kind: fi.itemKind,
-      description: fi.name,
-      quantity: fi.quantity,
-      unit_id: fi.unitId || null,
-      unit_price: fi.unitPrice,
-      cost_price: fi.costPrice,
-      discount_amount: 0,
-      subtotal: fi.isCompositionParent ? itemSubtotal : itemSubtotal,
-      commission_percent: fi.commissionPercent,
-      commission_amount: commissionAmount,
-      separation_status: separationStatus,
-      delivery_status: deliveryStatus,
-      fulfillment_status: fulfillmentStatus,
-      is_composition_parent: fi.isCompositionParent,
-      parent_sale_item_id: null,
-      sort_order: itemSort++,
-      created_at: toIsoNow(),
-    };
-
-    const itemRes = await api.post(CRUD_ENDPOINT, {
-      action: "create",
-      table: "sale_items",
-      payload: itemPayload,
-    });
-    const createdItem = normalizeCrudOne<{ id: string }>(itemRes.data);
-
-    if (fi.isCompositionParent && createdItem?.id) {
-      parentItemIdMap[fi.serviceId] = createdItem.id;
-    }
-
-    // Link composition children to their parent
-    if (!fi.isCompositionParent && createdItem?.id) {
-      // Find if this item is a child of a composition
+    // Determine composition parent reference
+    let compositionParentServiceId: string | null = null;
+    if (!fi.isCompositionParent) {
       for (const parent of finalItems.filter((p) => p.isCompositionParent)) {
-        const isChild = parent.compositionChildren?.some(
-          (c) => c.serviceId === fi.serviceId,
-        );
-        if (isChild && parentItemIdMap[parent.serviceId]) {
-          await api.post(CRUD_ENDPOINT, {
-            action: "update",
-            table: "sale_items",
-            payload: {
-              id: createdItem.id,
-              parent_sale_item_id: parentItemIdMap[parent.serviceId],
-            },
-          });
+        if (
+          parent.compositionChildren?.some((c) => c.serviceId === fi.serviceId)
+        ) {
+          compositionParentServiceId = parent.serviceId;
           break;
         }
       }
     }
-  }
 
-  // Update sale pending flags if changed
-  if (hasPendingProducts || hasPendingServices) {
-    await api.post(CRUD_ENDPOINT, {
-      action: "update",
-      table: "sales",
+    return {
       payload: {
-        id: sale.id,
-        has_pending_products: hasPendingProducts,
-        has_pending_services: hasPendingServices,
+        service_id: fi.serviceId,
+        item_kind: fi.itemKind,
+        description: fi.name,
+        quantity: fi.quantity,
+        unit_id: fi.unitId || null,
+        unit_price: fi.unitPrice,
+        cost_price: fi.costPrice,
+        discount_amount: 0,
+        subtotal: itemSubtotal,
+        commission_percent: fi.commissionPercent,
+        commission_amount: commissionAmount,
+        separation_status: separationStatus,
+        delivery_status: deliveryStatus,
+        fulfillment_status: fulfillmentStatus,
+        is_composition_parent: fi.isCompositionParent,
+        parent_sale_item_id: null,
+        sort_order: itemSort++,
       },
-    });
+      is_composition_parent: fi.isCompositionParent,
+      service_id: fi.serviceId,
+      composition_parent_service_id: compositionParentServiceId,
+      track_stock:
+        fi.trackStock && !fi.isCompositionParent && fi.itemKind === "product",
+      item_kind: fi.itemKind,
+      quantity: fi.quantity,
+    };
+  });
+
+  // Build invoice payload (title set by Worker using sale_id)
+  const invoicePayload: Record<string, unknown> = {
+    tenant_id: tenantId,
+    customer_id: customerId,
+    status: "sent",
+    subtotal,
+    discount_amount: discountAmount,
+    tax_amount: 0,
+    total,
+    issued_at: toIsoNow(),
+    due_at: toIsoNow(),
+    paid_at: null,
+  };
+
+  // Build invoice items (non-composition-parent items)
+  const workerInvoiceItems = finalItems
+    .filter((fi) => !fi.isCompositionParent)
+    .map((fi) => ({
+      service_id: fi.serviceId,
+      description: fi.name,
+      quantity: fi.quantity,
+      unit_price: fi.unitPrice,
+      subtotal: fi.unitPrice * fi.quantity,
+    }));
+
+  // Build AR payload (description & notes set by Worker using sale_id)
+  const arPayload: Record<string, unknown> = {
+    tenant_id: tenantId,
+    customer_id: customerId,
+    type: "invoice",
+    amount: total,
+    amount_received: 0,
+    status: "pending",
+    currency: "BRL",
+    due_date: toIsoNow().slice(0, 10),
+    recurrence: "none",
+    payment_method: "pix",
+  };
+
+  // Build partner earning (if applicable)
+  let workerPartnerEarning: Record<string, unknown> | null = null;
+  if (partnerId) {
+    const totalCommission = finalItems
+      .filter((fi) => !fi.isCompositionParent)
+      .reduce((sum, fi) => {
+        const itemSub = fi.unitPrice * fi.quantity;
+        return sum + itemSub * (fi.commissionPercent / 100);
+      }, 0);
+
+    const commissionPercent = config.commission_percent ?? 0;
+    const marketplaceCommission =
+      commissionPercent > 0
+        ? subtotal * (commissionPercent / 100)
+        : totalCommission;
+
+    if (marketplaceCommission > 0) {
+      workerPartnerEarning = {
+        tenant_id: tenantId,
+        partner_id: partnerId,
+        amount: marketplaceCommission,
+        type: "commission",
+        status: "pending",
+      };
+    }
   }
 
-  // ── Step 8b: Create service_appointments for scheduled services ──
+  // Build appointments
   const schedules = params.serviceScheduling?.length
     ? params.serviceScheduling
     : params.scheduledDate &&
@@ -695,180 +667,57 @@ export async function createOnlineOrder(
         ]
       : [];
 
-  for (const sched of schedules) {
-    try {
-      await api.post(CRUD_ENDPOINT, {
-        action: "create",
-        table: "service_appointments",
-        payload: {
-          tenant_id: tenantId,
-          sale_id: sale.id,
-          partner_id: sched.partnerId,
-          customer_id: customerId,
-          service_id: sched.serviceId || null,
-          scheduled_date: sched.scheduledDate,
-          scheduled_time_start: sched.scheduledTimeStart,
-          scheduled_time_end: sched.scheduledTimeEnd,
-          status: "scheduled",
-          notes: sched.serviceName
-            ? `Agendamento: ${sched.serviceName} — pedido #${sale.id.slice(0, 8)}`
-            : `Agendamento pedido online #${sale.id.slice(0, 8)}`,
-          created_at: toIsoNow(),
-          updated_at: toIsoNow(),
-        },
-      });
-    } catch (appointmentErr) {
-      // Non-critical — order still proceeds, appointment can be created manually
-      console.warn("Failed to create service_appointment:", appointmentErr);
-    }
-  }
-
-  // ── Step 9: Deduct stock for products ──
-  for (const fi of finalItems) {
-    if (!fi.isCompositionParent && fi.trackStock && fi.itemKind === "product") {
-      try {
-        await recordStockMovement({
-          tenantId,
-          serviceId: fi.serviceId,
-          movementType: "sale",
-          quantity: -fi.quantity,
-          saleId: sale.id,
-          userId,
-        });
-      } catch (err) {
-        console.warn(
-          `[Checkout] Stock deduction failed for ${fi.serviceId}:`,
-          err,
-        );
-        // Continue — don't block the order for stock tracking issues
-      }
-    }
-  }
-
-  // ── Step 10: Create invoice (status: "sent" — unpaid) ──
-  const invoicePayload: Record<string, unknown> = {
+  const workerAppointments = schedules.map((sched) => ({
     tenant_id: tenantId,
+    partner_id: sched.partnerId,
     customer_id: customerId,
-    title: `Pedido Online #${sale.id.slice(0, 8)}`,
-    status: "sent",
-    subtotal,
-    discount_amount: discountAmount,
-    tax_amount: 0,
-    total,
-    issued_at: toIsoNow(),
-    due_at: toIsoNow(), // PIX: immediate payment expected
-    paid_at: null,
-    created_at: toIsoNow(),
-    updated_at: toIsoNow(),
+    service_id: sched.serviceId || null,
+    scheduled_date: sched.scheduledDate,
+    scheduled_time_start: sched.scheduledTimeStart,
+    scheduled_time_end: sched.scheduledTimeEnd,
+    status: "scheduled",
+    notes: sched.serviceName
+      ? `Agendamento: ${sched.serviceName}`
+      : "Agendamento pedido online",
+  }));
+
+  // Build stock deductions
+  const stockDeductions = finalItems
+    .filter(
+      (fi) =>
+        fi.trackStock && !fi.isCompositionParent && fi.itemKind === "product",
+    )
+    .map((fi) => ({
+      service_id: fi.serviceId,
+      quantity: -fi.quantity,
+    }));
+
+  // ── Single API call for all database writes ──
+  const orderRes = await api.post("/marketplace/create-order-records", {
+    sale: salePayload,
+    items: workerItems,
+    invoice: invoicePayload,
+    invoice_items: workerInvoiceItems,
+    accounts_receivable: arPayload,
+    partner_earning: workerPartnerEarning,
+    appointments: workerAppointments,
+    stock_deductions: stockDeductions,
+    stock_user_id: userId,
+  });
+
+  const orderResult = orderRes.data as {
+    sale_id: string;
+    invoice_id: string;
+    ar_id: string;
+    earning_id: string | null;
   };
-
-  const invoiceRes = await api.post(CRUD_ENDPOINT, {
-    action: "create",
-    table: "invoices",
-    payload: invoicePayload,
-  });
-  const invoice = normalizeCrudOne<{ id: string }>(invoiceRes.data);
-  if (!invoice?.id) throw new Error("Falha ao criar fatura");
-
-  // Create invoice items (non-parent items only)
-  const invoiceItems = finalItems.filter((fi) => !fi.isCompositionParent);
-  for (const fi of invoiceItems) {
-    await api.post(CRUD_ENDPOINT, {
-      action: "create",
-      table: "invoice_items",
-      payload: {
-        invoice_id: invoice.id,
-        service_id: fi.serviceId,
-        description: fi.name,
-        quantity: fi.quantity,
-        unit_price: fi.unitPrice,
-        subtotal: fi.unitPrice * fi.quantity,
-        created_at: toIsoNow(),
-      },
-    });
-  }
-
-  // Link invoice to sale
-  await api.post(CRUD_ENDPOINT, {
-    action: "update",
-    table: "sales",
-    payload: { id: sale.id, invoice_id: invoice.id },
-  });
-
-  // ── Step 11: Create accounts_receivable ──
-  const arPayload: Record<string, unknown> = {
-    tenant_id: tenantId,
-    customer_id: customerId,
-    invoice_id: invoice.id,
-    description: `Pedido Online #${sale.id.slice(0, 8)}`,
-    type: "invoice",
-    amount: total,
-    amount_received: 0,
-    status: "pending",
-    currency: "BRL",
-    due_date: toIsoNow().slice(0, 10),
-    recurrence: "none",
-    payment_method: "pix",
-    notes: JSON.stringify({
-      sale_id: sale.id,
-      channel: "online",
-      order_type: "marketplace",
-    }),
-    created_at: toIsoNow(),
-    updated_at: toIsoNow(),
-  };
-
-  const arRes = await api.post(CRUD_ENDPOINT, {
-    action: "create",
-    table: "accounts_receivable",
-    payload: arPayload,
-  });
-  const ar = normalizeCrudOne<{ id: string }>(arRes.data);
-  if (!ar?.id) throw new Error("Falha ao criar conta a receber");
-
-  // ── Step 12: Create partner_earnings (if partner) ──
-  let earningId: string | undefined;
-  if (partnerId) {
-    const totalCommission = finalItems
-      .filter((fi) => !fi.isCompositionParent)
-      .reduce((sum, fi) => {
-        const itemSub = fi.unitPrice * fi.quantity;
-        return sum + itemSub * (fi.commissionPercent / 100);
-      }, 0);
-
-    // Apply marketplace commission override if configured
-    const commissionPercent = config.commission_percent ?? 0;
-    const marketplaceCommission =
-      commissionPercent > 0
-        ? subtotal * (commissionPercent / 100)
-        : totalCommission;
-
-    if (marketplaceCommission > 0) {
-      const earningRes = await api.post(CRUD_ENDPOINT, {
-        action: "create",
-        table: "partner_earnings",
-        payload: {
-          tenant_id: tenantId,
-          partner_id: partnerId,
-          sale_id: sale.id,
-          amount: marketplaceCommission,
-          type: "commission",
-          status: "pending",
-          notes: `Comissão pedido online #${sale.id.slice(0, 8)}`,
-          created_at: toIsoNow(),
-          updated_at: toIsoNow(),
-        },
-      });
-      const earning = normalizeCrudOne<{ id: string }>(earningRes.data);
-      earningId = earning?.id;
-    }
-  }
+  if (!orderResult?.sale_id) throw new Error("Falha ao criar pedido");
 
   // ── Step 13: Generate PIX payment ──
   const pixData = await generateOrderPix(
     config,
     total,
-    sale.id,
+    orderResult.sale_id,
     customer,
     shippingAddress,
   );
@@ -884,15 +733,33 @@ export async function createOnlineOrder(
 
   return {
     sale: {
-      ...sale,
+      id: orderResult.sale_id,
+      tenant_id: tenantId,
+      customer_id: customerId,
+      partner_id: partnerId,
+      subtotal,
+      discount_amount: discountAmount,
+      discount_percent: discountPercent,
       shipping_cost: effectiveShippingCost,
-      shipping_address: shippingAddress,
-      online_status: "pending_payment" as OnlineOrderStatus,
+      tax_amount: 0,
+      total,
+      status: "open",
       channel: "online",
-    },
-    invoiceId: invoice.id,
-    arId: ar.id,
-    earningId,
+      online_status: "pending_payment" as OnlineOrderStatus,
+      has_pending_services: workerItems.some(
+        (i) =>
+          i.item_kind === "service" &&
+          i.payload.fulfillment_status === "pending",
+      ),
+      has_pending_products: workerItems.some(
+        (i) => i.item_kind === "product" && !i.is_composition_parent,
+      ),
+      shipping_address: shippingAddress,
+      notes: notes || null,
+    } as OnlineOrder,
+    invoiceId: orderResult.invoice_id,
+    arId: orderResult.ar_id,
+    earningId: orderResult.earning_id ?? undefined,
     pixBrCode: pixData.brCode,
     pixQrCodeBase64: pixData.qrBase64,
     pixKey: pixData.pixKey,
@@ -912,94 +779,10 @@ export async function confirmOrderPayment(
   orderId: string,
   confirmedByUserId?: string,
 ): Promise<void> {
-  // Load the order
-  const saleRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "sales",
-    ...buildSearchParams([{ field: "id", value: orderId }]),
+  await api.post("/marketplace/confirm-payment", {
+    order_id: orderId,
+    confirmed_by_user_id: confirmedByUserId || null,
   });
-  const sale = normalizeCrudList<Record<string, unknown>>(saleRes.data)[0];
-  if (!sale) throw new Error("Pedido não encontrado");
-
-  const currentStatus = String(sale.online_status ?? "");
-  if (currentStatus !== "pending_payment") {
-    throw new Error(
-      `Pedido não está aguardando pagamento (status atual: ${currentStatus})`,
-    );
-  }
-
-  const now = toIsoNow();
-  const total = Number(sale.total ?? 0);
-  const tenantId = String(sale.tenant_id);
-
-  // Update sale: paid, status transitions
-  await api.post(CRUD_ENDPOINT, {
-    action: "update",
-    table: "sales",
-    payload: {
-      id: orderId,
-      online_status: "payment_confirmed",
-      status: "completed",
-      paid_at: now,
-      updated_at: now,
-    },
-  });
-
-  // Create payment record
-  await api.post(CRUD_ENDPOINT, {
-    action: "create",
-    table: "payments",
-    payload: {
-      tenant_id: tenantId,
-      sale_id: orderId,
-      invoice_id: sale.invoice_id || null,
-      payment_method: "pix",
-      amount: total,
-      status: "confirmed",
-      paid_at: now,
-      confirmed_by: confirmedByUserId || null,
-      created_at: now,
-      updated_at: now,
-    },
-  });
-
-  // Update invoice to paid
-  if (sale.invoice_id) {
-    await api.post(CRUD_ENDPOINT, {
-      action: "update",
-      table: "invoices",
-      payload: {
-        id: String(sale.invoice_id),
-        status: "paid",
-        paid_at: now,
-        updated_at: now,
-      },
-    });
-  }
-
-  // Update accounts_receivable to paid
-  const arRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "accounts_receivable",
-    ...buildSearchParams([
-      { field: "invoice_id", value: String(sale.invoice_id || "") },
-      { field: "tenant_id", value: tenantId },
-    ]),
-  });
-  const arRecords = normalizeCrudList<{ id: string }>(arRes.data);
-  for (const ar of arRecords) {
-    await api.post(CRUD_ENDPOINT, {
-      action: "update",
-      table: "accounts_receivable",
-      payload: {
-        id: ar.id,
-        status: "paid",
-        amount_received: total,
-        paid_at: now,
-        updated_at: now,
-      },
-    });
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1080,163 +863,11 @@ export async function cancelOnlineOrder(
   reason?: string,
   userId?: string,
 ): Promise<void> {
-  const saleRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "sales",
-    ...buildSearchParams([{ field: "id", value: orderId }]),
+  await api.post("/marketplace/cancel-order", {
+    order_id: orderId,
+    reason: reason || null,
+    user_id: userId || null,
   });
-  const sale = normalizeCrudList<Record<string, unknown>>(saleRes.data)[0];
-  if (!sale) throw new Error("Pedido não encontrado");
-
-  const currentStatus = String(sale.online_status ?? "");
-  const cancellableStatuses = [
-    "pending_payment",
-    "payment_confirmed",
-    "processing",
-  ];
-  if (!cancellableStatuses.includes(currentStatus)) {
-    throw new Error(
-      `Não é possível cancelar pedido com status: ${currentStatus}`,
-    );
-  }
-
-  const tenantId = String(sale.tenant_id);
-  const now = toIsoNow();
-
-  // Load sale items
-  const itemsRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "sale_items",
-    ...buildSearchParams([{ field: "sale_id", value: orderId }]),
-  });
-  const items = normalizeCrudList<Record<string, unknown>>(itemsRes.data);
-
-  // Reverse stock movements for products
-  for (const item of items) {
-    if (
-      item.item_kind === "product" &&
-      !item.is_composition_parent &&
-      Number(item.quantity) > 0
-    ) {
-      try {
-        // Check if service tracks stock
-        const svcRes = await api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "services",
-          ...buildSearchParams([
-            { field: "id", value: String(item.service_id) },
-          ]),
-        });
-        const svc = normalizeCrudList<Record<string, unknown>>(svcRes.data)[0];
-        if (svc?.track_stock) {
-          await recordStockMovement({
-            tenantId,
-            serviceId: String(item.service_id),
-            movementType: "return",
-            quantity: Math.abs(Number(item.quantity)),
-            saleId: orderId,
-            userId: userId || undefined,
-            reason: reason || "Cancelamento de pedido online",
-          });
-        }
-      } catch (err) {
-        console.warn(
-          `[Checkout] Stock reversal failed for ${item.service_id}:`,
-          err,
-        );
-      }
-    }
-
-    // Cancel fulfillment statuses
-    await api.post(CRUD_ENDPOINT, {
-      action: "update",
-      table: "sale_items",
-      payload: {
-        id: String(item.id),
-        fulfillment_status: "cancelled",
-        separation_status:
-          item.separation_status !== "not_required"
-            ? "cancelled"
-            : "not_required",
-        delivery_status:
-          item.delivery_status !== "not_required"
-            ? "cancelled"
-            : "not_required",
-      },
-    });
-  }
-
-  // Update sale
-  await api.post(CRUD_ENDPOINT, {
-    action: "update",
-    table: "sales",
-    payload: {
-      id: orderId,
-      status: "cancelled",
-      online_status: "cancelled",
-      notes: reason ? `Cancelado: ${reason}` : "Cancelado",
-      updated_at: now,
-    },
-  });
-
-  // Cancel invoice
-  if (sale.invoice_id) {
-    await api.post(CRUD_ENDPOINT, {
-      action: "update",
-      table: "invoices",
-      payload: {
-        id: String(sale.invoice_id),
-        status: "cancelled",
-        updated_at: now,
-      },
-    });
-  }
-
-  // Cancel accounts_receivable
-  if (sale.invoice_id) {
-    const arRes = await api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "accounts_receivable",
-      ...buildSearchParams([
-        { field: "invoice_id", value: String(sale.invoice_id) },
-        { field: "tenant_id", value: tenantId },
-      ]),
-    });
-    const arRecords = normalizeCrudList<{ id: string }>(arRes.data);
-    for (const ar of arRecords) {
-      await api.post(CRUD_ENDPOINT, {
-        action: "update",
-        table: "accounts_receivable",
-        payload: {
-          id: ar.id,
-          status: "cancelled",
-          updated_at: now,
-        },
-      });
-    }
-  }
-
-  // Cancel partner earnings
-  const earningsRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "partner_earnings",
-    ...buildSearchParams([
-      { field: "sale_id", value: orderId },
-      { field: "tenant_id", value: tenantId },
-    ]),
-  });
-  const earnings = normalizeCrudList<{ id: string }>(earningsRes.data);
-  for (const earning of earnings) {
-    await api.post(CRUD_ENDPOINT, {
-      action: "update",
-      table: "partner_earnings",
-      payload: {
-        id: earning.id,
-        status: "cancelled",
-        updated_at: now,
-      },
-    });
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1428,17 +1059,9 @@ export async function getOnlineOrderSummary(
   const summary: Record<string, number> = {};
   for (const s of statuses) summary[s] = 0;
 
-  // Single GROUP BY query instead of 8 sequential count queries
   try {
-    const res = await api.post(API_DINAMICO, {
-      sql: `
-        SELECT online_status, COUNT(*)::int AS count
-        FROM sales
-        WHERE tenant_id = '${tenantId}'
-          AND channel = 'online'
-          AND deleted_at IS NULL
-        GROUP BY online_status
-      `,
+    const res = await api.post("/marketplace/order-summary", {
+      tenant_id: tenantId,
     });
     const rows = Array.isArray(res.data) ? res.data : [];
     for (const row of rows) {

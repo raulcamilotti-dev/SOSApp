@@ -8,9 +8,17 @@
 /*    POST /tables_info   — Table schema introspection                 */
 /*    GET  /tables        — List all public tables                     */
 /*    GET  /health        — Health check                               */
+/*    POST /marketplace/* — Dedicated marketplace checkout endpoints   */
 /* ================================================================== */
 
 import { executeQuery } from "./db";
+import {
+    handleCancelOrder,
+    handleConfirmPayment,
+    handleCreateOrderRecords,
+    handleOrderSummary,
+    handleResolveCustomer,
+} from "./marketplace";
 import {
     buildAggregate,
     buildBatchCreate,
@@ -433,6 +441,25 @@ export default {
       if (request.method === "POST" && path === "/dns/create-subdomain") {
         const body = (await request.json()) as Record<string, unknown>;
         return handleDnsCreateSubdomain(body, env);
+      }
+
+      // Route: POST /marketplace/* — dedicated marketplace endpoints
+      if (request.method === "POST" && path.startsWith("/marketplace/")) {
+        const body = (await request.json()) as Record<string, unknown>;
+        switch (path) {
+          case "/marketplace/resolve-customer":
+            return handleResolveCustomer(body, env);
+          case "/marketplace/order-summary":
+            return handleOrderSummary(body, env);
+          case "/marketplace/create-order-records":
+            return handleCreateOrderRecords(body, env);
+          case "/marketplace/confirm-payment":
+            return handleConfirmPayment(body, env);
+          case "/marketplace/cancel-order":
+            return handleCancelOrder(body, env);
+          default:
+            return errorResponse(404, "Not found: " + path);
+        }
       }
 
       return errorResponse(404, "Not found: " + path);

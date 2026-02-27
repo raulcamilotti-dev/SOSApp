@@ -262,7 +262,7 @@ export async function handleCreateOrderRecords(
     }
 
     // ── 2. Create sale ──
-    const salePayload = {
+    const salePayload: Record<string, unknown> = {
       ...sale,
       has_pending_products: hasPendingProducts,
       has_pending_services: hasPendingServices,
