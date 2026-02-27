@@ -6,6 +6,17 @@ import { isUserProfileComplete } from "./auth.utils";
 import { ADMIN_PANEL_PERMISSIONS } from "./permissions";
 import { usePermissions } from "./usePermissions";
 
+/**
+ * Check if the current web URL is a public route that should bypass auth redirects.
+ * Uses window.location.pathname (ground truth) instead of useSegments() which may
+ * have timing issues during SPA hydration / full page reloads.
+ */
+const PUBLIC_PATH_REGEX = /^\/(loja|p|q|f|blog|lp)(\/|$)/;
+function isPublicWebRoute(): boolean {
+  if (typeof window === "undefined") return false;
+  return PUBLIC_PATH_REGEX.test(window.location.pathname);
+}
+
 type Props = {
   children: ReactNode;
 };
@@ -67,6 +78,10 @@ export function AuthGate({ children }: Props) {
 
   useEffect(() => {
     if (loading || permissionsLoading) return;
+
+    // On web, check actual browser URL — more reliable than useSegments()
+    // during SPA hydration or full page reloads to public routes.
+    if (isPublicWebRoute()) return;
 
     if (!user && !inAuthGroup && !inPublicGroup) {
       router.replace("/(auth)/login");
@@ -179,7 +194,8 @@ export function AuthGate({ children }: Props) {
 
   if (loading || permissionsLoading) return null;
 
-  if (!user && !inAuthGroup && !inPublicGroup) return null;
+  if (!user && !inAuthGroup && !inPublicGroup && !isPublicWebRoute())
+    return null;
 
   return <>{children}</>;
 }

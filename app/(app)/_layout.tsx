@@ -22,6 +22,13 @@ export default function AppLayout() {
   }
 
   if (!user) {
+    // Don't redirect to login when browser URL is a public route
+    if (
+      typeof window !== "undefined" &&
+      /^\/(loja|p|q|f|blog|lp)(\/|$)/.test(window.location.pathname)
+    ) {
+      return null;
+    }
     return <Redirect href="/(auth)/login" />;
   }
 

@@ -11,6 +11,16 @@ export default function HomeScreen() {
 
   if (loading) return null;
 
+  // Prevent redirect when browser URL is actually a public route.
+  // This can happen briefly during SPA hydration before Expo Router
+  // fully resolves the URL to the (public) group.
+  if (
+    typeof window !== "undefined" &&
+    /^\/(loja|p|q|f|blog|lp)(\/|$)/.test(window.location.pathname)
+  ) {
+    return null;
+  }
+
   if (hasAnyPermission(ADMIN_PANEL_PERMISSIONS)) {
     return <Redirect href="/Administrador" />;
   }
