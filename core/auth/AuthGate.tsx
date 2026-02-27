@@ -3,7 +3,7 @@ import { useRouter, useSegments } from "expo-router";
 import { ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { isUserProfileComplete } from "./auth.utils";
-import { ADMIN_PANEL_PERMISSIONS, PERMISSIONS } from "./permissions";
+import { ADMIN_PANEL_PERMISSIONS } from "./permissions";
 import { usePermissions } from "./usePermissions";
 
 type Props = {
@@ -20,7 +20,6 @@ export function AuthGate({ children }: Props) {
   } = useAuth();
   const {
     hasAnyPermission,
-    hasPermission,
     loading: permissionsLoading,
   } = usePermissions();
   const router = useRouter();
@@ -46,11 +45,10 @@ export function AuthGate({ children }: Props) {
   const canAccessCurrentAdminPage = currentAdminPage
     ? currentAdminPage.requiredAnyPermissions?.length
       ? hasAnyPermission(currentAdminPage.requiredAnyPermissions)
-      : currentAdminPage.module === "admin"
-        ? hasPermission(PERMISSIONS.ADMIN_FULL)
-        : currentAdminPage.module === "operacao"
-          ? hasPermission(PERMISSIONS.TASK_READ)
-          : hasPermission(PERMISSIONS.CUSTOMER_READ)
+      : // Pages without explicit permissions: allow if user can access
+        // the admin panel at all. Individual pages use ProtectedRoute
+        // for fine-grained access control.
+        canAccessAdmin
     : true;
   const isProfileCompletionRoute = segments.some(
     (segment) => segment === "complete-profile",
@@ -157,7 +155,6 @@ export function AuthGate({ children }: Props) {
     isTenantSelectionRoute,
     isOnboardingRoute,
     tenantLoading,
-    hasPermission,
     hasAnyPermission,
   ]);
 

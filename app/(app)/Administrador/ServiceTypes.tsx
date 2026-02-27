@@ -1,7 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
-import { PERMISSIONS } from "@/core/auth/permissions";
+import { ADMIN_PANEL_PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
@@ -161,7 +161,7 @@ export default function ServiceTypesScreen() {
   const mutedColor = useThemeColor({}, "muted");
 
   return (
-    <ProtectedRoute requiredPermission={PERMISSIONS.ADMIN_FULL}>
+    <ProtectedRoute requiredPermission={ADMIN_PANEL_PERMISSIONS}>
       <CrudScreen<ServiceType>
         title="Tipos de Serviço"
         subtitle="Gestão de tipos de serviços"

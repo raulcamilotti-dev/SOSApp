@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import {
+    Alert,
     Appearance,
     Platform,
     Pressable,
@@ -55,23 +56,31 @@ export default function ModuleDetailScreen() {
 
   const accent = moduleCard?.color ?? "#3b82f6";
 
-  // ---- Page access check ----
-  const canAccessPage = useCallback(
+  // ---- Page visibility check (can this page be shown at all?) ----
+  const isPageVisible = useCallback(
     (page: AdminPageItem) => {
       if (page.superAdminOnly && !isRadul) return false;
       if (page.hidden) return false;
+      return true;
+    },
+    [isRadul],
+  );
+
+  // ---- Page access check (does user have permission?) ----
+  const isPageLocked = useCallback(
+    (page: AdminPageItem) => {
       if (
         !page.requiredAnyPermissions ||
         page.requiredAnyPermissions.length === 0
       )
-        return true;
-      return hasAnyPermission(page.requiredAnyPermissions);
+        return false;
+      return !hasAnyPermission(page.requiredAnyPermissions);
     },
-    [isRadul, hasAnyPermission],
+    [hasAnyPermission],
   );
 
-  // ---- Build accessible pages for this module ----
-  const accessiblePages = useMemo(() => {
+  // ---- Build ALL visible pages for this module (including locked) ----
+  const allVisiblePages = useMemo(() => {
     if (!moduleCard) return [];
 
     const pageMap = new Map<string, AdminPageItem>();
@@ -83,14 +92,22 @@ export default function ModuleDetailScreen() {
     for (const pageId of moduleCard.pageIds) {
       const page = pageMap.get(pageId);
       if (!page) continue;
-      if (!canAccessPage(page)) continue;
+      if (!isPageVisible(page)) continue;
       const pageModule = getAdminPageModule(pageId);
       if (!isModuleEnabled(pageModule)) continue;
       result.push(page);
     }
 
     return result;
-  }, [moduleCard, canAccessPage, isModuleEnabled]);
+  }, [moduleCard, isPageVisible, isModuleEnabled]);
+
+  const lockedCount = useMemo(
+    () => allVisiblePages.filter((p) => isPageLocked(p)).length,
+    [allVisiblePages, isPageLocked],
+  );
+
+  // Keep accessiblePages alias for backward compat (badge count, empty state)
+  const accessiblePages = allVisiblePages;
 
   // ---- Group pages by their original group from admin-pages.ts ----
   const groupedPages = useMemo(() => {
@@ -194,6 +211,7 @@ export default function ModuleDetailScreen() {
             alignItems: "center",
             gap: 8,
             marginTop: 14,
+            flexWrap: "wrap",
           }}
         >
           <View
@@ -211,6 +229,34 @@ export default function ModuleDetailScreen() {
                 : "funcionalidades"}
             </Text>
           </View>
+          {lockedCount > 0 && (
+            <View
+              style={{
+                backgroundColor: isDark ? "#fbbf2420" : "#fbbf2415",
+                borderRadius: 10,
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <Ionicons
+                name="lock-closed"
+                size={10}
+                color={isDark ? "#fbbf24" : "#d97706"}
+              />
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "600",
+                  color: isDark ? "#fbbf24" : "#d97706",
+                }}
+              >
+                {lockedCount} {lockedCount === 1 ? "bloqueada" : "bloqueadas"}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -255,67 +301,115 @@ export default function ModuleDetailScreen() {
             )}
 
             {/* Page items */}
-            {pages.map((page) => (
-              <Pressable
-                key={page.id}
-                onPress={() => router.push(page.route as any)}
-                style={({ pressed }) => ({
-                  backgroundColor: pressed
-                    ? isDark
-                      ? accent + "18"
-                      : accent + "0C"
-                    : cardColor,
-                  borderRadius: 14,
-                  marginBottom: 8,
-                  padding: 16,
-                  borderWidth: 1,
-                  borderColor: pressed ? accent + "40" : borderColor,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 14,
-                  transform: [{ scale: pressed ? 0.985 : 1 }],
-                  ...Platform.select({
-                    web: {
-                      cursor: "pointer",
-                      transition: "all 0.12s ease",
-                    } as any,
-                    default: {},
-                  }),
-                })}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
-                    backgroundColor: isDark ? accent + "25" : accent + "12",
-                    justifyContent: "center",
-                    alignItems: "center",
+            {pages.map((page) => {
+              const locked = isPageLocked(page);
+              return (
+                <Pressable
+                  key={page.id}
+                  onPress={() => {
+                    if (locked) {
+                      if (Platform.OS === "web") {
+                        window.alert(
+                          "Você não tem permissão para acessar esta funcionalidade. Solicite acesso ao administrador.",
+                        );
+                      } else {
+                        Alert.alert(
+                          "Acesso restrito",
+                          "Você não tem permissão para acessar esta funcionalidade. Solicite acesso ao administrador.",
+                        );
+                      }
+                      return;
+                    }
+                    router.push(page.route as any);
                   }}
+                  style={({ pressed }) => ({
+                    backgroundColor: locked
+                      ? isDark
+                        ? cardColor + "80"
+                        : cardColor
+                      : pressed
+                        ? isDark
+                          ? accent + "18"
+                          : accent + "0C"
+                        : cardColor,
+                    borderRadius: 14,
+                    marginBottom: 8,
+                    padding: 16,
+                    borderWidth: 1,
+                    borderColor: locked
+                      ? isDark
+                        ? borderColor + "80"
+                        : borderColor
+                      : pressed
+                        ? accent + "40"
+                        : borderColor,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 14,
+                    opacity: locked ? 0.55 : 1,
+                    transform: [{ scale: pressed && !locked ? 0.985 : 1 }],
+                    ...Platform.select({
+                      web: {
+                        cursor: locked ? "not-allowed" : "pointer",
+                        transition: "all 0.12s ease",
+                      } as any,
+                      default: {},
+                    }),
+                  })}
                 >
-                  <Ionicons name={page.icon} size={20} color={accent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
+                  <View
                     style={{
-                      color: textColor,
-                      fontSize: 16,
-                      fontWeight: "600",
-                      marginBottom: 2,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      backgroundColor: locked
+                        ? isDark
+                          ? mutedColor + "20"
+                          : mutedColor + "15"
+                        : isDark
+                          ? accent + "25"
+                          : accent + "12",
+                      justifyContent: "center",
+                      alignItems: "center",
                     }}
                   >
-                    {page.title}
-                  </Text>
-                  <Text
-                    style={{ color: mutedColor, fontSize: 13 }}
-                    numberOfLines={2}
-                  >
-                    {page.description}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={mutedColor} />
-              </Pressable>
-            ))}
+                    <Ionicons
+                      name={locked ? "lock-closed" : page.icon}
+                      size={20}
+                      color={locked ? mutedColor : accent}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        color: locked ? mutedColor : textColor,
+                        fontSize: 16,
+                        fontWeight: "600",
+                        marginBottom: 2,
+                      }}
+                    >
+                      {page.title}
+                    </Text>
+                    <Text
+                      style={{
+                        color: mutedColor,
+                        fontSize: 13,
+                      }}
+                      numberOfLines={2}
+                    >
+                      {locked
+                        ? "Sem permissão de acesso"
+                        : page.description}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={locked ? "lock-closed-outline" : "chevron-forward"}
+                    size={18}
+                    color={mutedColor}
+                  />
+                </Pressable>
+              );
+            })}
           </View>
         ))}
 

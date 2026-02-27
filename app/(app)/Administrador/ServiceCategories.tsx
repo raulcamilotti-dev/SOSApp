@@ -2,7 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
-import { PERMISSIONS } from "@/core/auth/permissions";
+import { ADMIN_PANEL_PERMISSIONS } from "@/core/auth/permissions";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
@@ -160,7 +160,7 @@ export default function ServiceCategoriesScreen() {
   }, []);
 
   return (
-    <ProtectedRoute requiredPermission={PERMISSIONS.ADMIN_FULL}>
+    <ProtectedRoute requiredPermission={ADMIN_PANEL_PERMISSIONS}>
       <CrudScreen<CategoryWithRelations>
         title="Categorias de Serviço"
         subtitle="Gestão de categorias (tipos macro) de serviços"
