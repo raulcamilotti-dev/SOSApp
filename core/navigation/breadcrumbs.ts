@@ -58,6 +58,7 @@ export const breadcrumbMap: Record<string, string> = {
   "customer-sales": "Vendas do Cliente",
   customers: "Clientes",
   DashboardFinanceiro: "Dashboard Financeiro",
+  DashboardAtendimento: "Dashboard Atendimento",
   DisponibilidadeParceiro: "Disponibilidade do Parceiro",
   "document-generator": "Gerador de Documentos",
   "document-signatures": "Assinaturas Digitais",
@@ -127,6 +128,7 @@ export const breadcrumbMap: Record<string, string> = {
   atendimento: "Atendimento",
   Imoveis: "Imóveis",
   MeusServicos: "Meus Serviços",
+  MeusContratos: "Meus Contratos",
   MeusTrabalhos: "Meus Trabalhos",
   MinhaAgenda: "Minha Agenda",
   MinhasAssinaturas: "Minhas Assinaturas",
@@ -152,6 +154,7 @@ export const breadcrumbMap: Record<string, string> = {
   Preferencias: "Preferências",
 
   /* ---- Kanban sub-rotas ---- */
+  "contract-detail": "Detalhes do Contrato",
   "task-detail": "Detalhe da Tarefa",
 
   /* ---- Genéricos (modais, ações) ---- */

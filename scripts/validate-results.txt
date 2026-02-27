@@ -1,0 +1,264 @@
+﻿[1m
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ[0m
+[1m  RADUL API VALIDATION SCRIPT[0m
+[1mΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+[0m
+  API:     [36mhttps://sos-api-crud.raulcamilotti-c44.workers.dev[0m
+  Tenant:  [36m0bc867c7-082b-4d6f-a240-405f01b2941e[0m
+  Tables:  [36m101[0m
+  Verbose: [2mOFF[0m
+
+  Health:  [32mOK[0m (200)
+
+[1m[36m≡ƒôï tenants[0m[0m
+
+[1m[36m≡ƒôï users[0m[0m
+
+[1m[36m≡ƒôï user_tenants[0m[0m
+
+[1m[36m≡ƒôï roles[0m[0m
+
+[1m[36m≡ƒôï role_permissions[0m[0m
+  [31mΓ£ù[0m sort ΓÇö [31mInvalid identifier: 1[0m
+
+[1m[36m≡ƒôï permissions[0m[0m
+  [31mΓ£ù[0m sort ΓÇö [31mInvalid identifier: 1[0m
+
+[1m[36m≡ƒôï auth_codes[0m[0m
+
+[1m[36m≡ƒôï auth_tokens[0m[0m
+
+[1m[36m≡ƒôï customers[0m[0m
+
+[1m[36m≡ƒôï companies[0m[0m
+  [31mΓ£ù[0m create ΓÇö [31mCREATE failed: value too long for type character varying(14)[0m
+  [31mΓ£ù[0m jsonb_array(cnaes_secundarios) ΓÇö [31mJSONB array CREATE failed: value too long for type character varying(14)[0m
+  [31mΓ£ù[0m jsonb_array(qsa) ΓÇö [31mJSONB array CREATE failed: value too long for type character varying(14)[0m
+
+[1m[36m≡ƒôï company_members[0m[0m
+
+[1m[36m≡ƒôï partners[0m[0m
+
+[1m[36m≡ƒôï properties[0m[0m
+  [31mΓ£ù[0m create ΓÇö [31mCREATE failed: value too long for type character varying(14)[0m
+
+[1m[36m≡ƒôï services[0m[0m
+
+[1m[36m≡ƒôï service_types[0m[0m
+
+[1m[36m≡ƒôï service_categories[0m[0m
+
+[1m[36m≡ƒôï service_orders[0m[0m
+
+[1m[36m≡ƒôï service_order_context[0m[0m
+
+[1m[36m≡ƒôï workflow_templates[0m[0m
+
+[1m[36m≡ƒôï workflow_steps[0m[0m
+
+[1m[36m≡ƒôï workflow_step_transitions[0m[0m
+
+[1m[36m≡ƒôï tasks[0m[0m
+
+[1m[36m≡ƒôï step_forms[0m[0m
+
+[1m[36m≡ƒôï step_form_responses[0m[0m
+
+[1m[36m≡ƒôï step_task_templates[0m[0m
+
+[1m[36m≡ƒôï process_updates[0m[0m
+
+[1m[36m≡ƒôï process_update_files[0m[0m
+
+[1m[36m≡ƒôï process_deadlines[0m[0m
+
+[1m[36m≡ƒôï process_document_requests[0m[0m
+
+[1m[36m≡ƒôï process_document_responses[0m[0m
+
+[1m[36m≡ƒôï process_logs[0m[0m
+
+[1m[36m≡ƒôï process_reviews[0m[0m
+  [31mΓ£ù[0m create ΓÇö [31mCREATE failed: new row for relation "process_reviews" violates check constraint "process_reviews_rating_check"[0m
+
+[1m[36m≡ƒôï invoices[0m[0m
+
+[1m[36m≡ƒôï invoice_items[0m[0m
+
+[1m[36m≡ƒôï payments[0m[0m
+
+[1m[36m≡ƒôï accounts_receivable[0m[0m
+
+[1m[36m≡ƒôï accounts_payable[0m[0m
+
+[1m[36m≡ƒôï quotes[0m[0m
+
+[1m[36m≡ƒôï quote_items[0m[0m
+
+[1m[36m≡ƒôï quote_templates[0m[0m
+
+[1m[36m≡ƒôï partner_earnings[0m[0m
+
+[1m[36m≡ƒôï partner_availability[0m[0m
+
+[1m[36m≡ƒôï partner_time_off[0m[0m
+
+[1m[36m≡ƒôï partner_rating_summary[0m[0m
+  [31mΓ£ù[0m sort ΓÇö [31mInvalid identifier: 1[0m
+
+[1m[36m≡ƒôï partner_services[0m[0m
+
+[1m[36m≡ƒôï service_appointments[0m[0m
+
+[1m[36m≡ƒôï appointment_logs[0m[0m
+
+[1m[36m≡ƒôï service_executions[0m[0m
+
+[1m[36m≡ƒôï service_reviews[0m[0m
+
+[1m[36m≡ƒôï review_logs[0m[0m
+
+[1m[36m≡ƒôï document_templates[0m[0m
+
+[1m[36m≡ƒôï document_signatures[0m[0m
+
+[1m[36m≡ƒôï generated_documents[0m[0m
+
+[1m[36m≡ƒôï client_files[0m[0m
+
+[1m[36m≡ƒôï leads[0m[0m
+
+[1m[36m≡ƒôï campaigns[0m[0m
+
+[1m[36m≡ƒôï campaign_items[0m[0m
+
+[1m[36m≡ƒôï lead_forms[0m[0m
+
+[1m[36m≡ƒôï agents[0m[0m
+
+[1m[36m≡ƒôï agent_states[0m[0m
+
+[1m[36m≡ƒôï agent_playbooks[0m[0m
+
+[1m[36m≡ƒôï agent_playbook_rules[0m[0m
+
+[1m[36m≡ƒôï agent_playbook_tables[0m[0m
+
+[1m[36m≡ƒôï agent_handoff_policies[0m[0m
+
+[1m[36m≡ƒôï agent_state_steps[0m[0m
+
+[1m[36m≡ƒôï agent_channel_bindings[0m[0m
+
+[1m[36m≡ƒôï automations[0m[0m
+
+[1m[36m≡ƒôï automation_executions[0m[0m
+
+[1m[36m≡ƒôï ocr_config[0m[0m
+
+[1m[36m≡ƒôï ocr_results[0m[0m
+
+[1m[36m≡ƒôï notifications[0m[0m
+
+[1m[36m≡ƒôï notification_preferences[0m[0m
+
+[1m[36m≡ƒôï tenant_modules[0m[0m
+
+[1m[36m≡ƒôï public_access_tokens[0m[0m
+
+[1m[36m≡ƒôï onr_protocolos[0m[0m
+
+[1m[36m≡ƒôï onr_certidoes[0m[0m
+
+[1m[36m≡ƒôï cartorios[0m[0m
+
+[1m[36m≡ƒôï brasil_api_cache[0m[0m
+  [31mΓ£ù[0m sort ΓÇö [31mInvalid identifier: 1[0m
+  [31mΓ£ù[0m create ΓÇö [31mCREATE failed: value too long for type character varying(10)[0m
+  [31mΓ£ù[0m jsonb_array(dados) ΓÇö [31mJSONB array CREATE failed: value too long for type character varying(10)[0m
+
+[1m[36m≡ƒôï calendar_sync_settings[0m[0m
+
+[1m[36m≡ƒôï controle_atendimento[0m[0m
+  [31mΓ£ù[0m sort ΓÇö [31mInvalid identifier: 1[0m
+
+[1m[36m≡ƒôï contracts[0m[0m
+
+[1m[36m≡ƒôï content_pages[0m[0m
+
+[1m[36m≡ƒôï channel_partners[0m[0m
+  [31mΓ£ù[0m create ΓÇö [31mCREATE failed: new row for relation "channel_partners" violates check constraint "channel_partners_type_check"[0m
+  [31mΓ£ù[0m jsonb_array(config) ΓÇö [31mJSONB array CREATE failed: new row for relation "channel_partners" violates check constraint "channel_partners_type_check"[0m
+
+[1m[36m≡ƒôï channel_partner_referrals[0m[0m
+
+[1m[36m≡ƒôï channel_partner_commissions[0m[0m
+
+[1m[36m≡ƒôï bank_reconciliation_imports[0m[0m
+
+[1m[36m≡ƒôï bank_reconciliation_items[0m[0m
+
+[1m[36m≡ƒôï discount_rules[0m[0m
+
+[1m[36m≡ƒôï measurement_units[0m[0m
+
+[1m[36m≡ƒôï stock_movements[0m[0m
+
+[1m[36m≡ƒôï suppliers[0m[0m
+
+[1m[36m≡ƒôï sales[0m[0m
+
+[1m[36m≡ƒôï sale_items[0m[0m
+
+[1m[36m≡ƒôï purchase_orders[0m[0m
+
+[1m[36m≡ƒôï purchase_order_items[0m[0m
+
+[1m[36m≡ƒôï shopping_carts[0m[0m
+
+[1m[36m≡ƒôï shopping_cart_items[0m[0m
+
+[1m[36m≡ƒôï deadline_rules[0m[0m
+
+[1m[36m≡ƒôï property_process_updates[0m[0m
+
+[1m[36m≡ƒôï property_process_update_files[0m[0m
+
+[1m[36m≡ƒôï service_compositions[0m[0m
+[1m
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ[0m
+[1m  SUMMARY[0m
+[1mΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+[0m
+  [32mΓ£ô Passed:[0m   578
+  [31mΓ£ù Failed:[0m   14
+  [33mΓÜá Warnings:[0m 0
+  [2mΓùï Skipped:[0m  55
+  Total:      647 tests in 641.7s
+[1m[31m
+  ΓöÇΓöÇΓöÇ FAILURES ΓöÇΓöÇΓöÇ
+[0m[0m
+  [1mrole_permissions[0m:
+    [31mΓ£ù[0m sort: Invalid identifier: 1
+  [1mpermissions[0m:
+    [31mΓ£ù[0m sort: Invalid identifier: 1
+  [1mcompanies[0m:
+    [31mΓ£ù[0m create: CREATE failed: value too long for type character varying(14)
+    [31mΓ£ù[0m jsonb_array(cnaes_secundarios): JSONB array CREATE failed: value too long for type character varying(14)
+    [31mΓ£ù[0m jsonb_array(qsa): JSONB array CREATE failed: value too long for type character varying(14)
+  [1mproperties[0m:
+    [31mΓ£ù[0m create: CREATE failed: value too long for type character varying(14)
+  [1mprocess_reviews[0m:
+    [31mΓ£ù[0m create: CREATE failed: new row for relation "process_reviews" violates check constraint "process_reviews_rating_check"
+  [1mpartner_rating_summary[0m:
+    [31mΓ£ù[0m sort: Invalid identifier: 1
+  [1mbrasil_api_cache[0m:
+    [31mΓ£ù[0m sort: Invalid identifier: 1
+    [31mΓ£ù[0m create: CREATE failed: value too long for type character varying(10)
+    [31mΓ£ù[0m jsonb_array(dados): JSONB array CREATE failed: value too long for type character varying(10)
+  [1mcontrole_atendimento[0m:
+    [31mΓ£ù[0m sort: Invalid identifier: 1
+  [1mchannel_partners[0m:
+    [31mΓ£ù[0m create: CREATE failed: new row for relation "channel_partners" violates check constraint "channel_partners_type_check"
+    [31mΓ£ù[0m jsonb_array(config): JSONB array CREATE failed: new row for relation "channel_partners" violates check constraint "channel_partners_type_check"
+

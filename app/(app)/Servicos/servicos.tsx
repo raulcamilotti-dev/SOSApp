@@ -67,6 +67,14 @@ const SERVICE_GROUPS: ServiceGroup[] = [
         icon: "calendar-outline",
         route: "/Servicos/MinhaAgenda",
       },
+      {
+        id: "meus_contratos",
+        title: "Meus Contratos",
+        description:
+          "Veja seus contratos ativos e acompanhe vigência e valores",
+        icon: "reader-outline",
+        route: "/Servicos/MeusContratos",
+      },
     ],
   },
   {

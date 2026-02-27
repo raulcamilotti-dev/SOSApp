@@ -2,9 +2,9 @@
  * CONTRATOS — Admin CrudScreen
  *
  * Gerencia contratos de serviço com SLA, renovação automática,
- * vínculo com ordens de serviço e assinatura digital.
+ * vínculo com ordens de serviço, cobrança e assinatura digital.
  *
- * Status: draft → active → (expired | cancelled | renewed)
+ * Status: draft → active → suspended → (completed | cancelled | expired | renewed)
  */
 
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
@@ -12,9 +12,11 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import {
+    BILLING_MODELS,
     CONTRACT_STATUSES,
     CONTRACT_TYPES,
     formatContractCurrency,
+    getBillingModelLabel,
     getContractStatusConfig,
     getContractTypeLabel,
     renewContract,
@@ -25,6 +27,7 @@ import {
     normalizeCrudList,
 } from "@/services/crud";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, Platform, Text, TouchableOpacity, View } from "react-native";
 
@@ -35,6 +38,7 @@ export default function ContractsScreen() {
   const { user } = useAuth();
   const tintColor = useThemeColor({}, "tint");
   const tenantId = user?.tenant_id ?? "";
+  const router = useRouter();
   const [refreshKey, setRefreshKey] = useState(0);
 
   /* ─── Fields ─── */
@@ -107,6 +111,71 @@ export default function ContractsScreen() {
       visibleInForm: true,
     },
     {
+      key: "billing_model",
+      label: "Modelo de Cobrança",
+      type: "select",
+      options: BILLING_MODELS.map((m) => ({
+        label: m.label,
+        value: m.value,
+      })),
+      visibleInList: false,
+      visibleInForm: true,
+      section: "Cobrança",
+    },
+    {
+      key: "hourly_rate",
+      label: "Valor por Hora (R$)",
+      type: "currency",
+      placeholder: "0,00",
+      visibleInList: false,
+      visibleInForm: true,
+      showWhen: (state) =>
+        state.billing_model === "hourly" ||
+        state.billing_model === "fixed_plus_excess",
+    },
+    {
+      key: "included_hours_monthly",
+      label: "Horas Incluídas/Mês",
+      type: "number",
+      placeholder: "0",
+      visibleInList: false,
+      visibleInForm: true,
+      showWhen: (state) => state.billing_model === "fixed_plus_excess",
+    },
+    {
+      key: "excess_hourly_rate",
+      label: "Valor Hora Excedente (R$)",
+      type: "currency",
+      placeholder: "0,00",
+      visibleInList: false,
+      visibleInForm: true,
+      showWhen: (state) => state.billing_model === "fixed_plus_excess",
+    },
+    {
+      key: "contact_name",
+      label: "Contato Principal",
+      placeholder: "Nome do contato...",
+      visibleInList: false,
+      visibleInForm: true,
+      section: "Contato",
+    },
+    {
+      key: "contact_email",
+      label: "Email do Contato",
+      type: "email",
+      placeholder: "contato@empresa.com",
+      visibleInList: false,
+      visibleInForm: true,
+    },
+    {
+      key: "contact_phone",
+      label: "Telefone do Contato",
+      type: "phone",
+      placeholder: "(00) 00000-0000",
+      visibleInList: false,
+      visibleInForm: true,
+    },
+    {
       key: "start_date",
       label: "Data Início",
       type: "date",
@@ -168,14 +237,24 @@ export default function ContractsScreen() {
     },
     {
       key: "document_template_id",
-      label: "Template de Documento",
+      label: "Template do Contrato",
       type: "reference",
       referenceTable: "document_templates",
       referenceLabelField: "name",
       referenceSearchField: "name",
       visibleInList: false,
       visibleInForm: true,
-      section: "Documento",
+      section: "Documentos",
+    },
+    {
+      key: "report_template_id",
+      label: "Template de Relatório Mensal",
+      type: "reference",
+      referenceTable: "document_templates",
+      referenceLabelField: "name",
+      referenceSearchField: "name",
+      visibleInList: false,
+      visibleInForm: true,
     },
     {
       key: "terms",
@@ -304,6 +383,14 @@ export default function ContractsScreen() {
       ),
     });
 
+    if (item.billing_model) {
+      details.push({
+        label: "Cobrança",
+        value: getBillingModelLabel(
+          item.billing_model as import("@/services/contracts").BillingModel,
+        ),
+      });
+    }
     if (item.total_value) {
       details.push({
         label: "Valor Total",
@@ -314,6 +401,12 @@ export default function ContractsScreen() {
       details.push({
         label: "Valor Mensal",
         value: formatContractCurrency(item.monthly_value as number),
+      });
+    }
+    if (item.hourly_rate) {
+      details.push({
+        label: "Valor/Hora",
+        value: formatContractCurrency(item.hourly_rate as number),
       });
     }
     if (item.start_date) {
@@ -333,6 +426,9 @@ export default function ContractsScreen() {
         label: "SLA Resolução",
         value: `${item.sla_resolution_hours}h`,
       });
+    }
+    if (item.contact_name) {
+      details.push({ label: "Contato", value: String(item.contact_name) });
     }
     const autoRenew = item.auto_renew === true || item.auto_renew === "true";
     if (autoRenew) {
@@ -453,10 +549,33 @@ export default function ContractsScreen() {
               </Text>
             </TouchableOpacity>
           ) : null}
+
+          {/* Detail page */}
+          <TouchableOpacity
+            onPress={() =>
+              router.push(
+                `/Administrador/contract-detail?id=${String(item.id)}` as any,
+              )
+            }
+            style={{
+              backgroundColor: tintColor + "15",
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <Ionicons name="open-outline" size={14} color={tintColor} />
+            <Text style={{ color: tintColor, fontSize: 12, fontWeight: "600" }}>
+              Detalhes
+            </Text>
+          </TouchableOpacity>
         </View>
       );
     },
-    [tintColor, handleRenew],
+    [tintColor, handleRenew, router],
   );
 
   return (

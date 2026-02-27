@@ -126,6 +126,11 @@ export const PERMISSIONS = {
 
   // ===== DISCOUNT =====
   DISCOUNT_APPROVE: "discount.approve",
+
+  // ===== ATENDIMENTO =====
+  ATENDIMENTO_READ: "atendimento.read",
+  ATENDIMENTO_WRITE: "atendimento.write",
+  ATENDIMENTO_DASHBOARD: "atendimento.dashboard",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -393,6 +398,18 @@ export const PERMISSION_METADATA: Record<
     description: "Aprovar descontos acima do limite do role",
     category: "PDV",
   },
+  [PERMISSIONS.ATENDIMENTO_READ]: {
+    description: "Visualizar atendimentos e conversas",
+    category: "Atendimento",
+  },
+  [PERMISSIONS.ATENDIMENTO_WRITE]: {
+    description: "Enviar mensagens e gerenciar atendimentos",
+    category: "Atendimento",
+  },
+  [PERMISSIONS.ATENDIMENTO_DASHBOARD]: {
+    description: "Visualizar dashboard de atendimento e KPIs",
+    category: "Atendimento",
+  },
 };
 
 /**
@@ -463,6 +480,9 @@ export const PERMISSION_DISPLAY_NAMES: Record<Permission, string> = {
   [PERMISSIONS.PURCHASE_WRITE]: "Gerenciar Compras",
   [PERMISSIONS.PURCHASE_RECEIVE]: "Receber Mercadoria",
   [PERMISSIONS.DISCOUNT_APPROVE]: "Aprovar Descontos",
+  [PERMISSIONS.ATENDIMENTO_READ]: "Ver Atendimentos",
+  [PERMISSIONS.ATENDIMENTO_WRITE]: "Gerenciar Atendimentos",
+  [PERMISSIONS.ATENDIMENTO_DASHBOARD]: "Dashboard Atendimento",
 };
 
 /**
@@ -522,6 +542,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.PURCHASE_WRITE,
     PERMISSIONS.PURCHASE_RECEIVE,
     PERMISSIONS.DISCOUNT_APPROVE,
+    PERMISSIONS.ATENDIMENTO_READ,
+    PERMISSIONS.ATENDIMENTO_WRITE,
+    PERMISSIONS.ATENDIMENTO_DASHBOARD,
   ],
   manager: [
     PERMISSIONS.CUSTOMER_READ,
@@ -550,6 +573,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.SALE_WRITE,
     PERMISSIONS.STOCK_READ,
     PERMISSIONS.PURCHASE_READ,
+    PERMISSIONS.ATENDIMENTO_READ,
+    PERMISSIONS.ATENDIMENTO_DASHBOARD,
   ],
   client: [
     PERMISSIONS.CUSTOMER_READ,
@@ -615,6 +640,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.PURCHASE_READ,
     PERMISSIONS.PURCHASE_WRITE,
     PERMISSIONS.PURCHASE_RECEIVE,
+    PERMISSIONS.ATENDIMENTO_READ,
+    PERMISSIONS.ATENDIMENTO_WRITE,
+    PERMISSIONS.ATENDIMENTO_DASHBOARD,
   ],
   operador_parceiro: [
     // ── Permissões de leitura do cliente ──
@@ -662,6 +690,8 @@ export const ADMIN_PANEL_PERMISSIONS: Permission[] = [
   PERMISSIONS.SALE_READ,
   PERMISSIONS.STOCK_READ,
   PERMISSIONS.PURCHASE_READ,
+  PERMISSIONS.ATENDIMENTO_READ,
+  PERMISSIONS.ATENDIMENTO_DASHBOARD,
 ];
 
 /**

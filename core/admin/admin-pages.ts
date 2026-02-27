@@ -392,9 +392,21 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "chatbubbles-outline",
     route: "/Administrador/atendimento-operador",
     requiredAnyPermissions: [
-      PERMISSIONS.CUSTOMER_READ,
-      PERMISSIONS.CUSTOMER_WRITE,
-      PERMISSIONS.TASK_READ,
+      PERMISSIONS.ATENDIMENTO_READ,
+      PERMISSIONS.ATENDIMENTO_WRITE,
+    ],
+  },
+  {
+    id: "dashboard_atendimento",
+    group: "Clientes & Usuários",
+    module: "cliente",
+    title: "Dashboard Atendimento",
+    description: "KPIs e métricas de atendimento ao cliente",
+    icon: "bar-chart-outline",
+    route: "/Administrador/DashboardAtendimento",
+    requiredAnyPermissions: [
+      PERMISSIONS.ATENDIMENTO_DASHBOARD,
+      PERMISSIONS.ATENDIMENTO_READ,
     ],
   },
   {
@@ -1169,5 +1181,15 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de contratos, SLA e renovações automáticas",
     icon: "reader-outline",
     route: "/Administrador/contracts",
+  },
+  {
+    id: "contract-detail",
+    group: "Contratos",
+    module: "operacao",
+    title: "Detalhes do Contrato",
+    description: "Dashboard detalhado do contrato",
+    icon: "reader-outline",
+    route: "/Administrador/contract-detail",
+    hidden: true,
   },
 ];

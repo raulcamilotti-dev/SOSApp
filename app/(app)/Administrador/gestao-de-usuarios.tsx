@@ -6,7 +6,7 @@ import { PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import {  buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
 import { TouchableOpacity, View } from "react-native";
@@ -202,6 +202,12 @@ export default function UsersManagementScreen() {
       referenceIdField: "id",
       visibleInList: true,
       visibleInForm: !roleIdParam,
+      referenceFilter: (item) => {
+        // Filter roles by the tenant context (tenantIdParam or form's tenant_id)
+        const targetTenantId = tenantIdParam;
+        if (!targetTenantId) return true; // No tenant context — show all
+        return String(item.tenant_id ?? "") === targetTenantId;
+      },
     },
     {
       key: "tenant_id",

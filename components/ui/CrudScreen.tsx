@@ -1750,7 +1750,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
           continue;
         }
         try {
-          payload[field.key] = JSON.parse(rawValue);
+          JSON.parse(rawValue); // Validate JSON syntax
+          // Keep as string — pg library converts JS arrays to PG array format
+          // instead of JSON, which breaks JSONB columns.
+          payload[field.key] = rawValue.trim();
         } catch {
           setQuickCreateError(`Configuração inválida em ${field.label}.`);
           return;
@@ -1907,7 +1910,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
           continue;
         }
         try {
-          payload[field.key] = JSON.parse(rawValue);
+          JSON.parse(rawValue); // Validate JSON syntax
+          // Keep as string — pg library converts JS arrays to PG array format
+          // instead of JSON, which breaks JSONB columns.
+          payload[field.key] = rawValue.trim();
         } catch {
           setFormError(`Configuração inválida em ${field.label}.`);
           setFormErrorDiagnostic(null);
