@@ -31,7 +31,11 @@ import {
 type AdminPageItem = (typeof ADMIN_PAGES)[number];
 
 interface VisibleModule extends AdminModuleCard {
+  /** All pages visible to this user (including locked ones) */
+  visiblePages: AdminPageItem[];
+  /** Pages the user actually has permission to access */
   accessiblePages: AdminPageItem[];
+  /** Total visible page count (for display on module card) */
   pageCount: number;
 }
 
@@ -100,11 +104,20 @@ export default function AdminHomeScreen() {
     })();
   }, []);
 
-  // ---- Page access check ----
-  const canAccessPage = useCallback(
+  // ---- Page visibility check (can this page be shown at all?) ----
+  const isPageVisible = useCallback(
     (page: AdminPageItem) => {
       if (page.superAdminOnly && !isRadul) return false;
       if (page.hidden) return false;
+      return true;
+    },
+    [isRadul],
+  );
+
+  // ---- Page access check (does user have permission?) ----
+  const canAccessPage = useCallback(
+    (page: AdminPageItem) => {
+      if (!isPageVisible(page)) return false;
       if (
         !page.requiredAnyPermissions ||
         page.requiredAnyPermissions.length === 0
@@ -112,10 +125,10 @@ export default function AdminHomeScreen() {
         return true;
       return hasAnyPermission(page.requiredAnyPermissions);
     },
-    [isRadul, hasAnyPermission],
+    [isPageVisible, hasAnyPermission],
   );
 
-  // ---- Build visible modules ----
+  // ---- Build visible modules (show ALL tenant-enabled, even if all pages locked) ----
   const allModules = useMemo(() => {
     const pageMap = new Map<string, AdminPageItem>();
     for (const page of ADMIN_PAGES) {
@@ -125,31 +138,38 @@ export default function AdminHomeScreen() {
     const result: VisibleModule[] = [];
 
     for (const card of ADMIN_MODULE_CARDS) {
+      const visiblePages: AdminPageItem[] = [];
       const accessiblePages: AdminPageItem[] = [];
 
       for (const pageId of card.pageIds) {
         const page = pageMap.get(pageId);
         if (!page) continue;
-        if (!canAccessPage(page)) continue;
+        if (!isPageVisible(page)) continue;
 
         // Check page's module is enabled
         const pageModule = getAdminPageModule(pageId);
         if (!isModuleEnabled(pageModule)) continue;
 
-        accessiblePages.push(page);
+        visiblePages.push(page);
+
+        if (canAccessPage(page)) {
+          accessiblePages.push(page);
+        }
       }
 
-      if (accessiblePages.length === 0) continue;
+      // Show module as long as it has at least 1 visible page (even if all locked)
+      if (visiblePages.length === 0) continue;
 
       result.push({
         ...card,
+        visiblePages,
         accessiblePages,
-        pageCount: accessiblePages.length,
+        pageCount: visiblePages.length,
       });
     }
 
     return result;
-  }, [canAccessPage, isModuleEnabled]);
+  }, [isPageVisible, canAccessPage, isModuleEnabled]);
 
   // Visible modules (respecting hidden list, unless in edit mode)
   const visibleModules = useMemo(() => {
