@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Appearance,
     Platform,
@@ -35,7 +36,11 @@ type AdminPageItem = (typeof ADMIN_PAGES)[number];
 export default function ModuleDetailScreen() {
   const { moduleKey } = useLocalSearchParams<{ moduleKey: string }>();
   const { user } = useAuth();
-  const { hasAnyPermission } = usePermissions();
+  const {
+    hasAnyPermission,
+    loading: permissionsLoading,
+    isAdmin: isPermissionAdmin,
+  } = usePermissions();
   const isRadul = isRadulUser(user);
   const { isModuleEnabled } = useTenantModules();
   const router = useRouter();
@@ -69,14 +74,21 @@ export default function ModuleDetailScreen() {
   // ---- Page access check (does user have permission?) ----
   const isPageLocked = useCallback(
     (page: AdminPageItem) => {
+      // While permissions are loading, don't show lock indicators (prevents flash)
+      if (permissionsLoading) return false;
+
+      // Pages with explicit permissions: check them
       if (
-        !page.requiredAnyPermissions ||
-        page.requiredAnyPermissions.length === 0
-      )
-        return false;
-      return !hasAnyPermission(page.requiredAnyPermissions);
+        page.requiredAnyPermissions &&
+        page.requiredAnyPermissions.length > 0
+      ) {
+        return !hasAnyPermission(page.requiredAnyPermissions);
+      }
+
+      // Safety net: pages WITHOUT explicit permissions → locked for non-admin users
+      return !isPermissionAdmin;
     },
-    [hasAnyPermission],
+    [hasAnyPermission, permissionsLoading, isPermissionAdmin],
   );
 
   // ---- Build ALL visible pages for this module (including locked) ----
@@ -229,7 +241,7 @@ export default function ModuleDetailScreen() {
                 : "funcionalidades"}
             </Text>
           </View>
-          {lockedCount > 0 && (
+          {!permissionsLoading && lockedCount > 0 && (
             <View
               style={{
                 backgroundColor: isDark ? "#fbbf2420" : "#fbbf2415",
@@ -264,7 +276,23 @@ export default function ModuleDetailScreen() {
       <View
         style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 }}
       >
-        {groupedPages.map(([groupName, pages], gIdx) => (
+        {/* Loading skeleton while permissions resolve */}
+        {permissionsLoading && (
+          <View
+            style={{
+              paddingVertical: 32,
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <ActivityIndicator size="small" color={accent} />
+            <Text style={{ fontSize: 13, color: mutedColor }}>
+              Verificando permissões...
+            </Text>
+          </View>
+        )}
+
+        {!permissionsLoading && groupedPages.map(([groupName, pages], gIdx) => (
           <View key={groupName}>
             {/* Group header — only show if multiple groups */}
             {groupedPages.length > 1 && (
@@ -397,9 +425,7 @@ export default function ModuleDetailScreen() {
                       }}
                       numberOfLines={2}
                     >
-                      {locked
-                        ? "Sem permissão de acesso"
-                        : page.description}
+                      {locked ? "Sem permissão de acesso" : page.description}
                     </Text>
                   </View>
                   <Ionicons
@@ -413,7 +439,7 @@ export default function ModuleDetailScreen() {
           </View>
         ))}
 
-        {accessiblePages.length === 0 && (
+        {!permissionsLoading && accessiblePages.length === 0 && (
           <View
             style={{
               backgroundColor: cardColor,

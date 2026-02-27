@@ -1,4 +1,8 @@
-import { PERMISSIONS, type Permission } from "@/core/auth/permissions";
+import {
+    ADMIN_PANEL_PERMISSIONS,
+    PERMISSIONS,
+    type Permission,
+} from "@/core/auth/permissions";
 import { Ionicons } from "@expo/vector-icons";
 
 export type AdminPage = {
@@ -44,6 +48,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Ativar/desativar módulos por tenant",
     icon: "extension-puzzle-outline",
     route: "/Administrador/modulos",
+    requiredAnyPermissions: [PERMISSIONS.TENANT_MANAGE],
   },
   {
     id: "template_packs",
@@ -53,6 +58,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Configurar categorias, workflows e papéis com packs prontos",
     icon: "rocket-outline",
     route: "/Administrador/template-packs",
+    requiredAnyPermissions: [PERMISSIONS.TENANT_MANAGE],
   },
   {
     id: "gestao_tenant",
@@ -62,6 +68,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Plano, uso de clientes, faturamento e configurações",
     icon: "business-outline",
     route: "/Administrador/gestao-tenant",
+    requiredAnyPermissions: [PERMISSIONS.TENANT_MANAGE],
   },
   {
     id: "saas_dashboard",
@@ -81,6 +88,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Perfis e papéis de acesso",
     icon: "shield-outline",
     route: "/Administrador/roles",
+    requiredAnyPermissions: [PERMISSIONS.ROLE_MANAGE],
   },
   {
     id: "permissions",
@@ -110,6 +118,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Atribuir permissões a cada papel de acesso",
     icon: "shield-checkmark-outline",
     route: "/Administrador/role_permissions",
+    requiredAnyPermissions: [PERMISSIONS.ROLE_MANAGE, PERMISSIONS.PERMISSION_MANAGE],
   },
   {
     id: "role_permissions_matrix",
@@ -119,6 +128,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Visão consolidada de permissões por papel",
     icon: "grid-outline",
     route: "/Administrador/role_permissions_matrix",
+    requiredAnyPermissions: [PERMISSIONS.ROLE_MANAGE, PERMISSIONS.PERMISSION_MANAGE],
   },
   {
     id: "auth_codes",
@@ -158,6 +168,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Adicionar vagas de usuários ao plano",
     icon: "person-add-outline",
     route: "/Administrador/comprar-usuarios",
+    requiredAnyPermissions: [PERMISSIONS.TENANT_MANAGE],
   },
   {
     id: "edit_favorites",
@@ -178,6 +189,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "extension-puzzle-outline",
     route: "/Administrador/module-detail",
     hidden: true,
+    requiredAnyPermissions: ADMIN_PANEL_PERMISSIONS,
   },
   {
     id: "services_crud",
@@ -187,6 +199,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Catálogo de serviços e produtos oferecidos",
     icon: "construct-outline",
     route: "/Administrador/services",
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
   },
   {
     id: "composicoes",
@@ -337,6 +350,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de categorias de serviços e produtos",
     icon: "albums-outline",
     route: "/Administrador/ServiceCategories",
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
   },
   {
     id: "service_types",
@@ -346,6 +360,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Tipos de serviços dentro das categorias",
     icon: "list-outline",
     route: "/Administrador/ServiceTypes",
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
   },
   {
     id: "agenda",
@@ -355,6 +370,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Visão consolidada de todos os eventos e agendamentos",
     icon: "calendar",
     route: "/Administrador/admin-calendar",
+    requiredAnyPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.APPOINTMENT_READ],
   },
   {
     id: "avaliacoes",
@@ -364,6 +380,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de reviews de serviços e produtos",
     icon: "star-outline",
     route: "/Administrador/AvaliacoesServico",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "customers",
@@ -373,6 +390,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de clientes e imóveis vinculados",
     icon: "people-outline",
     route: "/Administrador/customers",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "companies",
@@ -382,6 +400,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de empresas (CNPJ) e membros",
     icon: "business-outline",
     route: "/Administrador/companies",
+    requiredAnyPermissions: [PERMISSIONS.COMPANY_READ, PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "atendimento_operador",
@@ -803,6 +822,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Clientes e imóveis vinculados",
     icon: "people-outline",
     route: "/Administrador/gestao-de-usuarios",
+    requiredAnyPermissions: [PERMISSIONS.USER_READ, PERMISSIONS.USER_MANAGE],
   },
   {
     id: "processos",
@@ -823,6 +843,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Configurar agentes, playbooks e estados com packs prontos",
     icon: "sparkles-outline",
     route: "/Administrador/agent-packs",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agents",
@@ -832,6 +853,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de agentes de atendimento",
     icon: "boat-outline",
     route: "/Administrador/Agents",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agent_playbooks",
@@ -841,6 +863,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Comportamento do robô por tenant e canal",
     icon: "book-outline",
     route: "/Administrador/agent-playbooks",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agent_playbook_rules",
@@ -850,6 +873,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Instruções e regras de execução do robô",
     icon: "list-circle-outline",
     route: "/Administrador/agent-playbook-rules",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agent_playbook_tables",
@@ -859,6 +883,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Escopo de tabelas configuráveis no módulo IA",
     icon: "server-outline",
     route: "/Administrador/agent-playbook-tables",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agent_handoff_policies",
@@ -868,6 +893,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Transição bot ↔ operador e retorno ao state",
     icon: "swap-horizontal-outline",
     route: "/Administrador/agent-handoff-policies",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agent_state_steps",
@@ -877,6 +903,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Sequência guiada por state_key do atendimento",
     icon: "footsteps-outline",
     route: "/Administrador/agent-state-steps",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agent_channel_bindings",
@@ -886,6 +913,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Webhook por canal para cada agent",
     icon: "link-outline",
     route: "/Administrador/agent-channel-bindings",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agent_dashboard",
@@ -895,6 +923,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Visão geral dos agentes IA, estados e métricas",
     icon: "analytics-outline",
     route: "/Administrador/agent-dashboard",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "agent_states",
@@ -904,6 +933,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Configuração de estados e máquina de estados dos agentes",
     icon: "toggle-outline",
     route: "/Administrador/agent_states",
+    requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
   },
   {
     id: "automations",
@@ -913,6 +943,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Regras de automação e execuções programadas",
     icon: "flash-outline",
     route: "/Administrador/automations",
+    requiredAnyPermissions: [PERMISSIONS.AUTOMATION_MANAGE],
   },
   {
     id: "workflow_templates",
@@ -922,6 +953,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de templates de workflow",
     icon: "git-branch-outline",
     route: "/Administrador/workflow_templates",
+    requiredAnyPermissions: [PERMISSIONS.WORKFLOW_READ],
   },
   {
     id: "workflow_editor",
@@ -931,6 +963,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Editor visual de etapas, transições, formulários e tarefas",
     icon: "git-network-outline",
     route: "/Administrador/workflow-editor",
+    requiredAnyPermissions: [PERMISSIONS.WORKFLOW_READ, PERMISSIONS.WORKFLOW_WRITE],
   },
   {
     id: "workflow_steps",
@@ -940,6 +973,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de etapas do workflow (lista)",
     icon: "list-outline",
     route: "/Administrador/workflow_steps",
+    requiredAnyPermissions: [PERMISSIONS.WORKFLOW_READ],
   },
   {
     id: "servicos_workflow",
@@ -949,6 +983,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Vínculo entre tipos de serviço e templates de workflow",
     icon: "git-merge-outline",
     route: "/Administrador/ServicosWorkflow",
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ, PERMISSIONS.WORKFLOW_READ],
   },
   {
     id: "kanban_processos",
@@ -958,6 +993,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de processos, tarefas, avanço de etapas e lançamentos",
     icon: "grid-outline",
     route: "/Administrador/kanban-processos",
+    requiredAnyPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.WORKFLOW_READ],
   },
   {
     id: "metabase",
@@ -967,6 +1003,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Relatórios e dashboards do tenant",
     icon: "bar-chart-outline",
     route: "/Administrador/metabase",
+    requiredAnyPermissions: [PERMISSIONS.FINANCIAL_DASHBOARD],
   },
   {
     id: "notifications",
@@ -985,6 +1022,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Documentação consolidada para envio ao cartório",
     icon: "receipt-outline",
     route: "/Administrador/onr-protocolos",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
   },
   {
     id: "onr_certidoes",
@@ -994,6 +1032,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Documentos finais e certidões emitidas pelo cartório",
     icon: "ribbon-outline",
     route: "/Administrador/onr-certidoes",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
   },
   {
     id: "cartorios",
@@ -1003,6 +1042,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Cadastro de cartórios e serventias",
     icon: "storefront-outline",
     route: "/Administrador/cartorios",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
   },
   {
     id: "document_signatures",
@@ -1012,6 +1052,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de assinaturas via Documenso",
     icon: "document-text-outline",
     route: "/Administrador/document-signatures",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
   },
   {
     id: "ocr_config",
@@ -1021,6 +1062,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Regras de análise automática de documentos",
     icon: "scan-outline",
     route: "/Administrador/ocr-config",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
   },
   {
     id: "ocr_results",
@@ -1030,6 +1072,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Textos e dados extraídos de documentos",
     icon: "eye-outline",
     route: "/Administrador/ocr-results",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
   },
   {
     id: "document_templates",
@@ -1039,6 +1082,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Criar e gerenciar modelos de documentos com variáveis",
     icon: "document-outline",
     route: "/Administrador/document-templates",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
   },
   {
     id: "generated_documents",
@@ -1048,6 +1092,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Ver, editar rascunhos e gerenciar documentos gerados",
     icon: "library-outline",
     route: "/Administrador/generated-documents",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
   },
   {
     id: "document_generator",
@@ -1057,6 +1102,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Preencher variáveis e gerar PDF a partir de modelo",
     icon: "print-outline",
     route: "/Administrador/document-generator",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ, PERMISSIONS.DOCUMENT_WRITE],
   },
   {
     id: "template_editor",
@@ -1066,6 +1112,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Edição visual de modelos de documentos com variáveis",
     icon: "create-outline",
     route: "/Administrador/template-editor",
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ, PERMISSIONS.DOCUMENT_WRITE],
   },
 
   // ---- CRM & Leads ----
@@ -1077,6 +1124,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Kanban do funil de vendas com etapas do pipeline",
     icon: "funnel-outline",
     route: "/Administrador/crm-kanban",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "crm_lead_detail",
@@ -1096,6 +1144,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Lista completa de leads com busca e filtros",
     icon: "people-circle-outline",
     route: "/Administrador/crm-leads",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "campaigns",
@@ -1105,6 +1154,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de campanhas de marketing e divulgação",
     icon: "megaphone-outline",
     route: "/Administrador/campaigns",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "campaign_dashboard",
@@ -1114,6 +1164,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Funil de marketing, ROI e desempenho por canal",
     icon: "bar-chart-outline",
     route: "/Administrador/campaign-dashboard",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "campaign_items",
@@ -1123,6 +1174,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Posts, blogs, anúncios e conteúdos das campanhas",
     icon: "documents-outline",
     route: "/Administrador/campaign-items",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "lead_forms",
@@ -1132,6 +1184,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Formulários públicos para captar leads automaticamente",
     icon: "document-text-outline",
     route: "/Administrador/lead-forms",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "content_pages",
@@ -1141,6 +1194,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Blog público e landing pages com CTA de captação",
     icon: "newspaper-outline",
     route: "/Administrador/content-pages",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "perfil_marketing",
@@ -1150,6 +1204,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Configure o perfil da marca para gerar conteúdo com IA",
     icon: "color-palette-outline",
     route: "/Administrador/perfil-marketing",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
 
   // ---- Orçamentos ----
@@ -1161,6 +1216,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Modelos reutilizáveis para criar orçamentos rapidamente",
     icon: "copy-outline",
     route: "/Administrador/quote-templates",
+    requiredAnyPermissions: [PERMISSIONS.FINANCIAL_READ],
   },
   {
     id: "quotes",
@@ -1170,6 +1226,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gerencie orçamentos enviados e acompanhe aprovações",
     icon: "document-text-outline",
     route: "/Administrador/orcamentos",
+    requiredAnyPermissions: [PERMISSIONS.FINANCIAL_READ],
   },
 
   // ---- Contratos ----
@@ -1181,6 +1238,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de contratos, SLA e renovações automáticas",
     icon: "reader-outline",
     route: "/Administrador/contracts",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ, PERMISSIONS.FINANCIAL_READ],
   },
   {
     id: "contract-detail",
