@@ -107,6 +107,7 @@ export function AuthGate({ children }: Props) {
 
     if (
       user &&
+      !inPublicGroup &&
       !isProfileComplete &&
       !isProfileCompletionRoute &&
       !isOnboardingRoute
@@ -115,13 +116,20 @@ export function AuthGate({ children }: Props) {
       return;
     }
 
-    if (user && isProfileComplete && requiresOnboarding && !isOnboardingRoute) {
+    if (
+      user &&
+      !inPublicGroup &&
+      isProfileComplete &&
+      requiresOnboarding &&
+      !isOnboardingRoute
+    ) {
       router.replace("/(app)/Usuario/onboarding");
       return;
     }
 
     if (
       user &&
+      !inPublicGroup &&
       requiresTenantSelection &&
       !isTenantSelectionRoute &&
       !isOnboardingRoute
