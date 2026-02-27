@@ -1,9 +1,19 @@
-import { useAuth } from "@/core/auth/AuthContext";
-import { isUserAdmin } from "@/core/auth/auth.utils";
-import { api } from "@/services/api";
-import {  buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
-import { useCallback, useEffect, useState } from "react";
-import { PERMISSIONS, type Permission } from "./permissions";
+/**
+ * usePermissions — thin wrapper over PermissionsContext.
+ *
+ * Before (slow): every component calling usePermissions() independently
+ * fired 2-3 API requests to load user → role → permissions chain.
+ * With 8 consumers, that meant up to 24 redundant API calls on navigation.
+ *
+ * After (fast): PermissionsProvider (mounted once at root layout) fetches
+ * permissions a single time. This hook just consumes the shared context.
+ *
+ * All existing imports (`import { usePermissions } from "@/core/auth/usePermissions"`)
+ * continue working — zero changes needed in consumer components.
+ */
+
+import { usePermissionsContext } from "./PermissionsContext";
+import type { Permission } from "./permissions";
 
 type UserPermissions = {
   permissions: string[];
@@ -14,181 +24,14 @@ type UserPermissions = {
   isAdmin: boolean;
 };
 
-/**
- * Hook para verificar permissões do usuário atual
- */
 export function usePermissions(): UserPermissions {
-  const { user } = useAuth();
-  const [permissions, setPermissions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const normalizeList = useCallback((data: unknown): any[] => {
-    const body = data as any;
-    const list = Array.isArray(data)
-      ? data
-      : (body?.data ?? body?.value ?? body?.items ?? []);
-    return Array.isArray(list) ? list : [];
-  }, []);
-
-  useEffect(() => {
-    if (!user?.id) {
-      setPermissions([]);
-      setLoading(false);
-      return;
-    }
-
-    // Fallback imediato: admin por perfil/flag sempre tem acesso total
-    if (isUserAdmin(user)) {
-      setPermissions([PERMISSIONS.ADMIN_FULL]);
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadUserPermissions() {
-      try {
-        setLoading(true);
-
-        // 1. Buscar user_tenants do usuário
-        const userTenantsRes = await api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "user_tenants",
-          ...buildSearchParams([{ field: "user_id", value: String(user.id) }]),
-        });
-
-        const userTenantsList = normalizeList(userTenantsRes.data);
-
-        const userTenants = userTenantsList.filter(
-          (ut: any) =>
-            String(ut?.user_id ?? ut?.id_user ?? "") === String(user.id),
-        );
-
-        if (userTenants.length === 0) {
-          setPermissions([]);
-          setLoading(false);
-          return;
-        }
-
-        // 2. Coletar role_ids
-        const roleIds = userTenants
-          .map((ut: any) => ut?.role_id ?? ut?.id_role)
-          .filter(Boolean);
-
-        if (roleIds.length === 0) {
-          setPermissions([]);
-          setLoading(false);
-          return;
-        }
-
-        // 3. Buscar role_permissions
-        const rolePermissionsRes = await api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "role_permissions",
-        });
-
-        const rolePermissionsList = normalizeList(rolePermissionsRes.data);
-
-        const userRolePermissions = rolePermissionsList.filter((rp: any) =>
-          roleIds.includes(String(rp?.role_id ?? rp?.id_role)),
-        );
-
-        const permissionIds = [
-          ...new Set(
-            userRolePermissions
-              .map((rp: any) => rp?.permission_id ?? rp?.id_permission)
-              .filter(Boolean),
-          ),
-        ];
-
-        if (permissionIds.length === 0) {
-          setPermissions([]);
-          setLoading(false);
-          return;
-        }
-
-        // 4. Buscar permissões
-        const permissionsRes = await api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "permissions",
-        });
-
-        const permissionsList = normalizeList(permissionsRes.data);
-
-        const userPermissionObjects = permissionsList.filter((p: any) =>
-          permissionIds.includes(String(p?.id ?? p?.id_permission)),
-        );
-
-        const codes = userPermissionObjects
-          .map((p: any) => p?.code ?? p?.permission_code ?? p?.codigo)
-          .filter(Boolean);
-
-        if (cancelled) return;
-        setPermissions(codes);
-      } catch (err) {
-        console.error("[usePermissions] Failed to load permissions", err);
-        if (!cancelled) {
-          setPermissions([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadUserPermissions();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [normalizeList, user]);
-
-  const hasPermission = useCallback(
-    (permission: Permission | Permission[]): boolean => {
-      // Admin tem tudo
-      if (permissions.includes(PERMISSIONS.ADMIN_FULL)) {
-        return true;
-      }
-
-      if (Array.isArray(permission)) {
-        return permission.every((p) => permissions.includes(p));
-      }
-
-      return permissions.includes(permission);
-    },
-    [permissions],
-  );
-
-  const hasAnyPermission = useCallback(
-    (requiredPermissions: Permission[]): boolean => {
-      if (permissions.includes(PERMISSIONS.ADMIN_FULL)) {
-        return true;
-      }
-      return requiredPermissions.some((p) => permissions.includes(p));
-    },
-    [permissions],
-  );
-
-  const hasAllPermissions = useCallback(
-    (requiredPermissions: Permission[]): boolean => {
-      if (permissions.includes(PERMISSIONS.ADMIN_FULL)) {
-        return true;
-      }
-      return requiredPermissions.every((p) => permissions.includes(p));
-    },
-    [permissions],
-  );
-
-  const isAdmin =
-    permissions.includes(PERMISSIONS.ADMIN_FULL) || isUserAdmin(user);
-
+  const ctx = usePermissionsContext();
   return {
-    permissions,
-    loading,
-    hasPermission,
-    hasAnyPermission,
-    hasAllPermissions,
-    isAdmin,
+    permissions: ctx.permissions,
+    loading: ctx.loading,
+    hasPermission: ctx.hasPermission,
+    hasAnyPermission: ctx.hasAnyPermission,
+    hasAllPermissions: ctx.hasAllPermissions,
+    isAdmin: ctx.isAdmin,
   };
 }

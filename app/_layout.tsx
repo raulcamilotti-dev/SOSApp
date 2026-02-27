@@ -1,5 +1,6 @@
 import { AuthProvider } from "@/core/auth/AuthContext";
 import { AuthGate } from "@/core/auth/AuthGate";
+import { PermissionsProvider } from "@/core/auth/PermissionsContext";
 import { TenantThemeProvider } from "@/core/context/TenantThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
@@ -22,11 +23,13 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <TenantThemeProvider>
-        <AuthGate>
-          <Slot />
-        </AuthGate>
-      </TenantThemeProvider>
+      <PermissionsProvider>
+        <TenantThemeProvider>
+          <AuthGate>
+            <Slot />
+          </AuthGate>
+        </TenantThemeProvider>
+      </PermissionsProvider>
     </AuthProvider>
   );
 }
