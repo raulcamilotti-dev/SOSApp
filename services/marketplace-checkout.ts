@@ -22,6 +22,7 @@
 import { api } from "./api";
 import { explodeComposition, type ExplodedItem } from "./compositions";
 import {
+    API_DINAMICO,
     buildSearchParams,
     CRUD_ENDPOINT,
     normalizeCrudList,
@@ -197,52 +198,44 @@ async function resolveOnlineCustomer(
     phone?: string;
   },
 ): Promise<string> {
-  // Search by user_id (auth user linked to a customer record)
+  // Build a single SQL query with OR conditions instead of 3 sequential lookups
+  const conditions: string[] = [];
   if (input.userId) {
-    const res = await api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "customers",
-      ...buildSearchParams([
-        { field: "tenant_id", value: tenantId },
-        { field: "user_id", value: input.userId },
-      ]),
-    });
-    const existing = normalizeCrudList<{ id: string }>(res.data).filter(
-      (c) => !(c as Record<string, unknown>).deleted_at,
-    );
-    if (existing.length > 0) return existing[0].id;
+    conditions.push(`user_id = '${input.userId}'`);
   }
-
-  // Search by CPF
   if (input.cpf) {
-    const res = await api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "customers",
-      ...buildSearchParams([
-        { field: "tenant_id", value: tenantId },
-        { field: "cpf", value: input.cpf },
-      ]),
-    });
-    const existing = normalizeCrudList<{ id: string }>(res.data).filter(
-      (c) => !(c as Record<string, unknown>).deleted_at,
-    );
-    if (existing.length > 0) return existing[0].id;
+    conditions.push(`cpf = '${input.cpf}'`);
+  }
+  if (input.email) {
+    conditions.push(`email = '${input.email}'`);
   }
 
-  // Search by email
-  if (input.email) {
-    const res = await api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "customers",
-      ...buildSearchParams([
-        { field: "tenant_id", value: tenantId },
-        { field: "email", value: input.email },
-      ]),
-    });
-    const existing = normalizeCrudList<{ id: string }>(res.data).filter(
-      (c) => !(c as Record<string, unknown>).deleted_at,
-    );
-    if (existing.length > 0) return existing[0].id;
+  if (conditions.length > 0) {
+    try {
+      const res = await api.post(API_DINAMICO, {
+        sql: `
+          SELECT id, user_id, cpf, email
+          FROM customers
+          WHERE tenant_id = '${tenantId}'
+            AND deleted_at IS NULL
+            AND (${conditions.join(" OR ")})
+          ORDER BY
+            CASE
+              WHEN user_id = '${input.userId || ""}' THEN 1
+              WHEN cpf = '${input.cpf || ""}' THEN 2
+              WHEN email = '${input.email || ""}' THEN 3
+              ELSE 4
+            END
+          LIMIT 1
+        `,
+      });
+      const rows = Array.isArray(res.data) ? res.data : [];
+      if (rows.length > 0 && rows[0]?.id) {
+        return String(rows[0].id);
+      }
+    } catch {
+      // Fallback: if SQL fails, continue to create
+    }
   }
 
   // Create new customer
@@ -1431,28 +1424,31 @@ export async function getOnlineOrderSummary(
     "return_requested",
   ];
 
+  // Initialize all statuses to 0
   const summary: Record<string, number> = {};
+  for (const s of statuses) summary[s] = 0;
 
-  // Use individual count queries per status
-  for (const status of statuses) {
-    try {
-      const res = await api.post(CRUD_ENDPOINT, {
-        action: "count",
-        table: "sales",
-        ...buildSearchParams(
-          [
-            { field: "tenant_id", value: tenantId },
-            { field: "channel", value: "online" },
-            { field: "online_status", value: status },
-          ],
-          { autoExcludeDeleted: true },
-        ),
-      });
-      const countData = normalizeCrudList<{ count: number }>(res.data);
-      summary[status] = Number(countData[0]?.count ?? 0);
-    } catch {
-      summary[status] = 0;
+  // Single GROUP BY query instead of 8 sequential count queries
+  try {
+    const res = await api.post(API_DINAMICO, {
+      sql: `
+        SELECT online_status, COUNT(*)::int AS count
+        FROM sales
+        WHERE tenant_id = '${tenantId}'
+          AND channel = 'online'
+          AND deleted_at IS NULL
+        GROUP BY online_status
+      `,
+    });
+    const rows = Array.isArray(res.data) ? res.data : [];
+    for (const row of rows) {
+      const status = String(row.online_status ?? "");
+      if (status in summary) {
+        summary[status] = Number(row.count ?? 0);
+      }
     }
+  } catch {
+    // Fallback: all zeros (already initialized)
   }
 
   return summary as Record<OnlineOrderStatus, number>;
