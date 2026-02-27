@@ -21,23 +21,23 @@ import { useMarketplaceTenant } from "@/hooks/use-marketplace-tenant";
 import { useShoppingCart } from "@/hooks/use-shopping-cart";
 import type { MarketplaceProduct } from "@/services/marketplace";
 import {
-    getMarketplaceProductBySlug,
-    getProductCompositionChildren,
+  getMarketplaceProductBySlug,
+  getProductCompositionChildren,
 } from "@/services/marketplace";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    useWindowDimensions,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
 } from "react-native";
 
 /* ── Constants ──────────────────────────────────────────────────── */
@@ -657,6 +657,83 @@ export default function PublicProductDetail() {
     );
   };
 
+  /* ═══ Render: Sticky Buy Bar (mobile only) ═══ */
+  const showStickyBar = !isWide && phase === "content" && !!product;
+
+  const renderStickyBuyBar = () => {
+    if (!showStickyBar || !product) return null;
+
+    const isQuote = product.pricing_type === "quote";
+    const stock = getStockStatus(product);
+
+    return (
+      <View style={st.stickyBar}>
+        <View style={st.stickyBarInner}>
+          {/* Price side */}
+          <View style={st.stickyBarPrice}>
+            {isQuote ? (
+              <Text style={[st.stickyBarPriceText, { color: primaryDark }]}>
+                Sob consulta
+              </Text>
+            ) : (
+              <>
+                <Text style={[st.stickyBarPriceText, { color: primaryDark }]}>
+                  {formatCurrency(product.price * quantity)}
+                </Text>
+                {quantity > 1 && (
+                  <Text style={st.stickyBarQty}>{quantity}x</Text>
+                )}
+              </>
+            )}
+          </View>
+
+          {/* Action button */}
+          {isQuote ? (
+            <TouchableOpacity
+              onPress={() => {
+                const quoteUrl = `${storeBase}/${product.slug}/orcamento`;
+                router.push(quoteUrl as any);
+              }}
+              style={[st.stickyBarBtn, { backgroundColor: primaryColor }]}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="document-text-outline" size={18} color="#fff" />
+              <Text style={st.stickyBarBtnText}>Orçamento</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={handleAddToCart}
+              disabled={!stock.canBuy || addingToCart}
+              style={[
+                st.stickyBarBtn,
+                {
+                  backgroundColor: stock.canBuy ? primaryColor : TEXT_MUTED,
+                  opacity: addingToCart ? 0.7 : 1,
+                },
+              ]}
+              activeOpacity={0.8}
+            >
+              {addingToCart ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="cart-outline" size={18} color="#fff" />
+                  <Text style={st.stickyBarBtnText}>
+                    {!stock.canBuy
+                      ? "Esgotado"
+                      : addedFeedback
+                        ? "Adicionado ✓"
+                        : "Adicionar"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   /* ═══ Main Render ═══ */
   if (phase !== "content") {
     return (
@@ -672,7 +749,10 @@ export default function PublicProductDetail() {
       {renderHeader()}
       <ScrollView
         style={st.scroll}
-        contentContainerStyle={st.scrollContent}
+        contentContainerStyle={[
+          st.scrollContent,
+          showStickyBar && { paddingBottom: 90 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Layout: wide = side-by-side, narrow = stacked */}
@@ -701,6 +781,9 @@ export default function PublicProductDetail() {
         {/* Bottom spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Sticky buy bar — mobile only, always visible at bottom */}
+      {renderStickyBuyBar()}
     </View>
   );
 }
@@ -1090,6 +1173,66 @@ const st = StyleSheet.create({
   stateButtonText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "700",
+  },
+
+  /* ── Sticky Buy Bar (mobile) ── */
+  stickyBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: CARD_BG,
+    borderTopWidth: 1,
+    borderTopColor: BORDER_COLOR,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "web" ? 12 : 28,
+    ...Platform.select({
+      web: { boxShadow: "0 -2px 12px rgba(0,0,0,0.08)" },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 12,
+      },
+    }),
+  } as any,
+  stickyBarInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  } as any,
+  stickyBarPrice: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+  } as any,
+  stickyBarPriceText: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  stickyBarQty: {
+    fontSize: 13,
+    color: TEXT_SECONDARY,
+    fontWeight: "600",
+  },
+  stickyBarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    minWidth: 140,
+  } as any,
+  stickyBarBtnText: {
+    color: "#fff",
+    fontSize: 15,
     fontWeight: "700",
   },
 });
