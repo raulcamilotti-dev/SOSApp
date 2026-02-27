@@ -118,7 +118,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Atribuir permissões a cada papel de acesso",
     icon: "shield-checkmark-outline",
     route: "/Administrador/role_permissions",
-    requiredAnyPermissions: [PERMISSIONS.ROLE_MANAGE, PERMISSIONS.PERMISSION_MANAGE],
+    requiredAnyPermissions: [
+      PERMISSIONS.ROLE_MANAGE,
+      PERMISSIONS.PERMISSION_MANAGE,
+    ],
   },
   {
     id: "role_permissions_matrix",
@@ -128,7 +131,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Visão consolidada de permissões por papel",
     icon: "grid-outline",
     route: "/Administrador/role_permissions_matrix",
-    requiredAnyPermissions: [PERMISSIONS.ROLE_MANAGE, PERMISSIONS.PERMISSION_MANAGE],
+    requiredAnyPermissions: [
+      PERMISSIONS.ROLE_MANAGE,
+      PERMISSIONS.PERMISSION_MANAGE,
+    ],
   },
   {
     id: "auth_codes",
@@ -370,7 +376,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Visão consolidada de todos os eventos e agendamentos",
     icon: "calendar",
     route: "/Administrador/admin-calendar",
-    requiredAnyPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.APPOINTMENT_READ],
+    requiredAnyPermissions: [
+      PERMISSIONS.TASK_READ,
+      PERMISSIONS.APPOINTMENT_READ,
+    ],
   },
   {
     id: "avaliacoes",
@@ -400,7 +409,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de empresas (CNPJ) e membros",
     icon: "business-outline",
     route: "/Administrador/companies",
-    requiredAnyPermissions: [PERMISSIONS.COMPANY_READ, PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [
+      PERMISSIONS.COMPANY_READ,
+      PERMISSIONS.CUSTOMER_READ,
+    ],
   },
   {
     id: "atendimento_operador",
@@ -963,7 +975,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Editor visual de etapas, transições, formulários e tarefas",
     icon: "git-network-outline",
     route: "/Administrador/workflow-editor",
-    requiredAnyPermissions: [PERMISSIONS.WORKFLOW_READ, PERMISSIONS.WORKFLOW_WRITE],
+    requiredAnyPermissions: [
+      PERMISSIONS.WORKFLOW_READ,
+      PERMISSIONS.WORKFLOW_WRITE,
+    ],
   },
   {
     id: "workflow_steps",
@@ -983,7 +998,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Vínculo entre tipos de serviço e templates de workflow",
     icon: "git-merge-outline",
     route: "/Administrador/ServicosWorkflow",
-    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ, PERMISSIONS.WORKFLOW_READ],
+    requiredAnyPermissions: [
+      PERMISSIONS.SERVICE_READ,
+      PERMISSIONS.WORKFLOW_READ,
+    ],
   },
   {
     id: "kanban_processos",
@@ -1102,7 +1120,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Preencher variáveis e gerar PDF a partir de modelo",
     icon: "print-outline",
     route: "/Administrador/document-generator",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ, PERMISSIONS.DOCUMENT_WRITE],
+    requiredAnyPermissions: [
+      PERMISSIONS.DOCUMENT_READ,
+      PERMISSIONS.DOCUMENT_WRITE,
+    ],
   },
   {
     id: "template_editor",
@@ -1112,7 +1133,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Edição visual de modelos de documentos com variáveis",
     icon: "create-outline",
     route: "/Administrador/template-editor",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ, PERMISSIONS.DOCUMENT_WRITE],
+    requiredAnyPermissions: [
+      PERMISSIONS.DOCUMENT_READ,
+      PERMISSIONS.DOCUMENT_WRITE,
+    ],
   },
 
   // ---- CRM & Leads ----
@@ -1238,7 +1262,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de contratos, SLA e renovações automáticas",
     icon: "reader-outline",
     route: "/Administrador/contracts",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ, PERMISSIONS.FINANCIAL_READ],
+    requiredAnyPermissions: [
+      PERMISSIONS.CUSTOMER_READ,
+      PERMISSIONS.FINANCIAL_READ,
+    ],
   },
   {
     id: "contract-detail",

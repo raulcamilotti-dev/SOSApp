@@ -9,7 +9,7 @@
  *   - contract_invoices: junction linking contracts to invoices with period/hours
  *   - Integrates with document_templates for contract/report generation
  *   - Integrates with document_signatures for digital signing (Documenso)
- *   - Status lifecycle: draft → active → suspended → (completed | cancelled | expired | renewed)
+ *   - Status lifecycle: draft → active → suspended → (completed | cancelled | expired)
  *
  * Billing models:
  *   - fixed_monthly: fixed monthly value, invoice generated every month
@@ -44,8 +44,7 @@ export type ContractStatus =
   | "suspended"
   | "completed"
   | "expired"
-  | "cancelled"
-  | "renewed";
+  | "cancelled";
 
 export type ContractType =
   | "prestacao_servico"
@@ -163,12 +162,6 @@ export const CONTRACT_STATUSES: {
     label: "Cancelado",
     color: "#ef4444",
     icon: "close-circle-outline",
-  },
-  {
-    value: "renewed",
-    label: "Renovado",
-    color: "#8b5cf6",
-    icon: "refresh-outline",
   },
 ];
 
@@ -360,7 +353,7 @@ export async function cancelContract(
 
 /**
  * Renew a contract.
- * Creates a new contract with extended dates, marking the old one as "renewed".
+ * Creates a new contract with extended dates, marking the old one as "completed".
  */
 export async function renewContract(
   contractId: string,
@@ -376,8 +369,8 @@ export async function renewContract(
   const renewalDate = new Date(newEnd);
   renewalDate.setDate(renewalDate.getDate() - (old.renewal_alert_days || 30));
 
-  // Mark old as renewed
-  const oldUpdated = await updateContract(contractId, { status: "renewed" });
+  // Mark old as completed (renewed into a new contract)
+  const oldUpdated = await updateContract(contractId, { status: "completed" });
 
   // Create new contract
   const newContract = await createContract({

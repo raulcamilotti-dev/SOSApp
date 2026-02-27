@@ -9,6 +9,8 @@ const stmts = [
   "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS excess_hourly_rate NUMERIC(10,2) DEFAULT 0",
   "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS report_template_id UUID REFERENCES document_templates(id)",
   "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS contact_name TEXT",
+  "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS contact_email TEXT",
+  "ALTER TABLE contracts ADD COLUMN IF NOT EXISTS contact_phone TEXT",
   "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS actual_hours NUMERIC(10,2) DEFAULT 0",
   `CREATE TABLE IF NOT EXISTS contract_invoices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

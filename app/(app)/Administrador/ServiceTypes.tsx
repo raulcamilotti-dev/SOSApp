@@ -5,16 +5,16 @@ import { ADMIN_PANEL_PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
+import { CRUD_ENDPOINT } from "@/services/crud";
 import {
-  createServiceType,
-  listServiceTypes,
-  updateServiceType,
-  type ServiceType,
+    createServiceType,
+    listServiceTypes,
+    updateServiceType,
+    type ServiceType,
 } from "@/services/service-types";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { TouchableOpacity, View } from "react-native";
-import { CRUD_ENDPOINT } from "@/services/crud";
 
 const normalize = <T,>(data: unknown): T[] => {
   const body = data as any;

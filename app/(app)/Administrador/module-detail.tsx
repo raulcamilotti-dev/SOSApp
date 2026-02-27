@@ -292,152 +292,153 @@ export default function ModuleDetailScreen() {
           </View>
         )}
 
-        {!permissionsLoading && groupedPages.map(([groupName, pages], gIdx) => (
-          <View key={groupName}>
-            {/* Group header — only show if multiple groups */}
-            {groupedPages.length > 1 && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  marginTop: gIdx > 0 ? 20 : 0,
-                  marginBottom: 10,
-                  paddingHorizontal: 4,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: "700",
-                    color: mutedColor,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  {groupName}
-                </Text>
+        {!permissionsLoading &&
+          groupedPages.map(([groupName, pages], gIdx) => (
+            <View key={groupName}>
+              {/* Group header — only show if multiple groups */}
+              {groupedPages.length > 1 && (
                 <View
                   style={{
-                    flex: 1,
-                    height: 1,
-                    backgroundColor: borderColor,
-                    marginLeft: 4,
-                  }}
-                />
-              </View>
-            )}
-
-            {/* Page items */}
-            {pages.map((page) => {
-              const locked = isPageLocked(page);
-              return (
-                <Pressable
-                  key={page.id}
-                  onPress={() => {
-                    if (locked) {
-                      if (Platform.OS === "web") {
-                        window.alert(
-                          "Você não tem permissão para acessar esta funcionalidade. Solicite acesso ao administrador.",
-                        );
-                      } else {
-                        Alert.alert(
-                          "Acesso restrito",
-                          "Você não tem permissão para acessar esta funcionalidade. Solicite acesso ao administrador.",
-                        );
-                      }
-                      return;
-                    }
-                    router.push(page.route as any);
-                  }}
-                  style={({ pressed }) => ({
-                    backgroundColor: locked
-                      ? isDark
-                        ? cardColor + "80"
-                        : cardColor
-                      : pressed
-                        ? isDark
-                          ? accent + "18"
-                          : accent + "0C"
-                        : cardColor,
-                    borderRadius: 14,
-                    marginBottom: 8,
-                    padding: 16,
-                    borderWidth: 1,
-                    borderColor: locked
-                      ? isDark
-                        ? borderColor + "80"
-                        : borderColor
-                      : pressed
-                        ? accent + "40"
-                        : borderColor,
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 14,
-                    opacity: locked ? 0.55 : 1,
-                    transform: [{ scale: pressed && !locked ? 0.985 : 1 }],
-                    ...Platform.select({
-                      web: {
-                        cursor: locked ? "not-allowed" : "pointer",
-                        transition: "all 0.12s ease",
-                      } as any,
-                      default: {},
-                    }),
-                  })}
+                    gap: 8,
+                    marginTop: gIdx > 0 ? 20 : 0,
+                    marginBottom: 10,
+                    paddingHorizontal: 4,
+                  }}
                 >
-                  <View
+                  <Text
                     style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 10,
-                      backgroundColor: locked
-                        ? isDark
-                          ? mutedColor + "20"
-                          : mutedColor + "15"
-                        : isDark
-                          ? accent + "25"
-                          : accent + "12",
-                      justifyContent: "center",
-                      alignItems: "center",
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: mutedColor,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
                     }}
                   >
-                    <Ionicons
-                      name={locked ? "lock-closed" : page.icon}
-                      size={20}
-                      color={locked ? mutedColor : accent}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        color: locked ? mutedColor : textColor,
-                        fontSize: 16,
-                        fontWeight: "600",
-                        marginBottom: 2,
-                      }}
-                    >
-                      {page.title}
-                    </Text>
-                    <Text
-                      style={{
-                        color: mutedColor,
-                        fontSize: 13,
-                      }}
-                      numberOfLines={2}
-                    >
-                      {locked ? "Sem permissão de acesso" : page.description}
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name={locked ? "lock-closed-outline" : "chevron-forward"}
-                    size={18}
-                    color={mutedColor}
+                    {groupName}
+                  </Text>
+                  <View
+                    style={{
+                      flex: 1,
+                      height: 1,
+                      backgroundColor: borderColor,
+                      marginLeft: 4,
+                    }}
                   />
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
+                </View>
+              )}
+
+              {/* Page items */}
+              {pages.map((page) => {
+                const locked = isPageLocked(page);
+                return (
+                  <Pressable
+                    key={page.id}
+                    onPress={() => {
+                      if (locked) {
+                        if (Platform.OS === "web") {
+                          window.alert(
+                            "Você não tem permissão para acessar esta funcionalidade. Solicite acesso ao administrador.",
+                          );
+                        } else {
+                          Alert.alert(
+                            "Acesso restrito",
+                            "Você não tem permissão para acessar esta funcionalidade. Solicite acesso ao administrador.",
+                          );
+                        }
+                        return;
+                      }
+                      router.push(page.route as any);
+                    }}
+                    style={({ pressed }) => ({
+                      backgroundColor: locked
+                        ? isDark
+                          ? cardColor + "80"
+                          : cardColor
+                        : pressed
+                          ? isDark
+                            ? accent + "18"
+                            : accent + "0C"
+                          : cardColor,
+                      borderRadius: 14,
+                      marginBottom: 8,
+                      padding: 16,
+                      borderWidth: 1,
+                      borderColor: locked
+                        ? isDark
+                          ? borderColor + "80"
+                          : borderColor
+                        : pressed
+                          ? accent + "40"
+                          : borderColor,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 14,
+                      opacity: locked ? 0.55 : 1,
+                      transform: [{ scale: pressed && !locked ? 0.985 : 1 }],
+                      ...Platform.select({
+                        web: {
+                          cursor: locked ? "not-allowed" : "pointer",
+                          transition: "all 0.12s ease",
+                        } as any,
+                        default: {},
+                      }),
+                    })}
+                  >
+                    <View
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        backgroundColor: locked
+                          ? isDark
+                            ? mutedColor + "20"
+                            : mutedColor + "15"
+                          : isDark
+                            ? accent + "25"
+                            : accent + "12",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Ionicons
+                        name={locked ? "lock-closed" : page.icon}
+                        size={20}
+                        color={locked ? mutedColor : accent}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          color: locked ? mutedColor : textColor,
+                          fontSize: 16,
+                          fontWeight: "600",
+                          marginBottom: 2,
+                        }}
+                      >
+                        {page.title}
+                      </Text>
+                      <Text
+                        style={{
+                          color: mutedColor,
+                          fontSize: 13,
+                        }}
+                        numberOfLines={2}
+                      >
+                        {locked ? "Sem permissão de acesso" : page.description}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={locked ? "lock-closed-outline" : "chevron-forward"}
+                      size={18}
+                      color={mutedColor}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
 
         {!permissionsLoading && accessiblePages.length === 0 && (
           <View

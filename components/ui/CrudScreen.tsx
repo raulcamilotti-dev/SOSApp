@@ -6,10 +6,10 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
-  AI_AGENT_ENDPOINT,
-  buildAiInsightMessage,
-  extractAiInsightText,
-  UNIVERSAL_AI_INSIGHT_PROMPT,
+    AI_AGENT_ENDPOINT,
+    buildAiInsightMessage,
+    extractAiInsightText,
+    UNIVERSAL_AI_INSIGHT_PROMPT,
 } from "@/services/ai-insights";
 import { api, getApiErrorMessage } from "@/services/api";
 import { getTableInfo, type TableInfoRow } from "@/services/schema";
@@ -17,26 +17,26 @@ import DateTimePickerMobile from "@react-native-community/datetimepicker";
 import { useIsFocused } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import {
-  createElement,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
+    createElement,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
 } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 
 export type CrudFieldType =
@@ -1533,8 +1533,8 @@ export function CrudScreen<T extends Record<string, unknown>>({
         let nextFilterIndex = 1;
         if (searchValue && searchField) {
           requestPayload[`search_field${nextFilterIndex}`] = searchField;
-          requestPayload[`search_value${nextFilterIndex}`] = searchValue;
-          requestPayload[`search_operator${nextFilterIndex}`] = "equal";
+          requestPayload[`search_value${nextFilterIndex}`] = `%${searchValue}%`;
+          requestPayload[`search_operator${nextFilterIndex}`] = "ilike";
           nextFilterIndex += 1;
         }
 

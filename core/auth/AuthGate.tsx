@@ -18,10 +18,7 @@ export function AuthGate({ children }: Props) {
     availableTenants,
     tenantLoading,
   } = useAuth();
-  const {
-    hasAnyPermission,
-    loading: permissionsLoading,
-  } = usePermissions();
+  const { hasAnyPermission, loading: permissionsLoading } = usePermissions();
   const router = useRouter();
   const segments = useSegments();
 

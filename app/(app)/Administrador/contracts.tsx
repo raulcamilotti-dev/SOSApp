@@ -4,7 +4,7 @@
  * Gerencia contratos de serviço com SLA, renovação automática,
  * vínculo com ordens de serviço, cobrança e assinatura digital.
  *
- * Status: draft → active → suspended → (completed | cancelled | expired | renewed)
+ * Status: draft → active → suspended → (completed | cancelled | expired)
  */
 
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";

@@ -120,8 +120,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const applyTenantToUser = useCallback(
-    async (baseUser: User, tenantId: string) => {
-      const nextUser = { ...baseUser, tenant_id: tenantId } as User;
+    async (baseUser: User, tenantId: string, roleName?: string) => {
+      const nextUser = {
+        ...baseUser,
+        tenant_id: tenantId,
+        ...(roleName ? { role: roleName } : {}),
+      } as User;
       setUser(nextUser);
       await saveUser(nextUser);
       if (nextUser.id) {
@@ -143,7 +147,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setTenantLoading(true);
       try {
-        const [userTenantsRes, tenantsRes] = await Promise.all([
+        const [userTenantsRes, tenantsRes, rolesRes] = await Promise.all([
           api.post(CRUD_ENDPOINT, {
             action: "list",
             table: "user_tenants",
@@ -155,6 +159,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             action: "list",
             table: "tenants",
           }),
+          api.post(CRUD_ENDPOINT, {
+            action: "list",
+            table: "roles",
+          }),
         ]);
 
         const userTenants = normalizeList(userTenantsRes.data).filter(
@@ -164,6 +172,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const tenants = normalizeList(tenantsRes.data);
         const tenantsById = new Map(
           tenants.map((tenant: any) => [String(tenant?.id ?? ""), tenant]),
+        );
+        const roles = normalizeList(rolesRes.data);
+        const rolesById = new Map(
+          roles.map((role: any) => [String(role?.id ?? ""), role]),
         );
 
         const options = Array.from(
@@ -176,6 +188,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 if (!id) return null;
 
                 const tenant = tenantsById.get(id);
+                const roleId =
+                  String(row?.role_id ?? row?.id_role ?? "").trim() ||
+                  undefined;
+                const role = roleId ? rolesById.get(roleId) : undefined;
+                const roleName =
+                  String(role?.name ?? role?.role_name ?? "").trim() ||
+                  undefined;
                 return [
                   id,
                   {
@@ -187,9 +206,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
                           tenant?.empresa ??
                           "",
                       ).trim() || undefined,
-                    role_id:
-                      String(row?.role_id ?? row?.id_role ?? "").trim() ||
-                      undefined,
+                    role_id: roleId,
+                    role_name: roleName,
                   } satisfies TenantOption,
                 ] as const;
               })
@@ -236,6 +254,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (baseUser.id) {
             await saveSelectedTenant(baseUser.id, String(baseUser.tenant_id));
           }
+          // Resolve role name from the current tenant option
+          const currentOption = mergedOptions.find(
+            (o) => String(o.id) === String(baseUser.tenant_id ?? ""),
+          );
+          if (
+            currentOption?.role_name &&
+            currentOption.role_name !== baseUser.role
+          ) {
+            const userWithRole = {
+              ...baseUser,
+              role: currentOption.role_name,
+            } as User;
+            setUser(userWithRole);
+            await saveUser(userWithRole);
+            return { options: mergedOptions, userWithTenant: userWithRole };
+          }
           return { options: mergedOptions, userWithTenant: baseUser };
         }
 
@@ -247,9 +281,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
 
         if (hasStoredTenant && storedTenantId) {
+          const storedOption = mergedOptions.find(
+            (o) => String(o.id) === String(storedTenantId),
+          );
           const userWithTenant = await applyTenantToUser(
             baseUser,
             storedTenantId,
+            storedOption?.role_name,
           );
           return { options: mergedOptions, userWithTenant };
         }
@@ -258,10 +296,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return { options: mergedOptions, userWithTenant: baseUser };
         }
 
-        const autoSelectedTenantId = mergedOptions[0].id;
+        const autoSelectedOption = mergedOptions[0];
         const userWithTenant = await applyTenantToUser(
           baseUser,
-          autoSelectedTenantId,
+          autoSelectedOption.id,
+          autoSelectedOption.role_name,
         );
         return { options: mergedOptions, userWithTenant };
       } catch (err) {
@@ -367,7 +406,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setAvailableTenants(cachedOptions);
       }
 
-      return applyTenantToUser(currentUser, normalizedTenantId);
+      // Resolve role name for the selected tenant
+      const tenantOption = availableTenants.find(
+        (t) => String(t.id) === normalizedTenantId,
+      );
+      return applyTenantToUser(
+        currentUser,
+        normalizedTenantId,
+        tenantOption?.role_name,
+      );
     },
     [applyTenantToUser, availableTenants, user],
   );

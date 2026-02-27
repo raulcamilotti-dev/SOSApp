@@ -20,6 +20,7 @@ export type TenantOption = {
   id: string;
   company_name?: string;
   role_id?: string;
+  role_name?: string;
 };
 
 export type RegisterPayload = {

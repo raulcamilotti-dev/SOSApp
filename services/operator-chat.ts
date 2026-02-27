@@ -622,3 +622,290 @@ export async function getAtendimentoRobotStatus(
 
   return true;
 }
+
+/* ================================================================== */
+/*  Dashboard Analytics                                                */
+/* ================================================================== */
+
+/** Full row shape for controle_atendimento dashboard analytics */
+export type AtendimentoFullRow = {
+  session_id: string;
+  ativo: boolean;
+  updated_at: string;
+  current_state_key: string | null;
+  paused_state_key: string | null;
+  return_state_key: string | null;
+  bot_paused: boolean;
+  handoff_channel: string | null;
+  handoff_updated_at: string | null;
+};
+
+/** State distribution for funnel/chart */
+export type StateDistribution = {
+  state_key: string;
+  count: number;
+  percentage: number;
+};
+
+/** Handoff analytics */
+export type HandoffStats = {
+  totalHandoffs: number;
+  byChannel: Record<string, number>;
+  botPausedCount: number;
+  botActiveCount: number;
+};
+
+/** Time-based conversation stats */
+export type ConversationTimeline = {
+  label: string; // e.g. "10/06", "11/06"
+  count: number;
+};
+
+/** Dashboard analytics summary */
+export type DashboardAnalytics = {
+  /** All controle_atendimento rows with full state data */
+  sessions: AtendimentoFullRow[];
+  /** Distribution of current_state_key values */
+  stateDistribution: StateDistribution[];
+  /** Handoff metrics */
+  handoffStats: HandoffStats;
+  /** Sessions updated in the last 24h */
+  activeLast24h: number;
+  /** Sessions updated in the last 7d */
+  activeLast7d: number;
+  /** Daily conversation counts for last 14 days */
+  timeline: ConversationTimeline[];
+  /** Average time between session updates (proxy for response time) */
+  avgUpdateGapMinutes: number | null;
+  /** Sessions with bot paused (waiting for human) */
+  waitingForHuman: AtendimentoFullRow[];
+};
+
+/**
+ * Fetch all controle_atendimento rows with full columns for analytics.
+ */
+export async function getAtendimentoFullRows(): Promise<AtendimentoFullRow[]> {
+  try {
+    const response = await api.post(OPERATOR_CHAT_ENDPOINTS.apiCrud, {
+      action: "list",
+      table: "controle_atendimento",
+      ...buildSearchParams([]),
+    });
+    const rows = normalizeRows(response.data);
+    return rows.map((row: any) => ({
+      session_id: String(row.session_id ?? ""),
+      ativo: toBoolean(row.ativo, true),
+      updated_at: String(row.updated_at ?? ""),
+      current_state_key: row.current_state_key
+        ? String(row.current_state_key)
+        : null,
+      paused_state_key: row.paused_state_key
+        ? String(row.paused_state_key)
+        : null,
+      return_state_key: row.return_state_key
+        ? String(row.return_state_key)
+        : null,
+      bot_paused: toBoolean(row.bot_paused, false),
+      handoff_channel: row.handoff_channel ? String(row.handoff_channel) : null,
+      handoff_updated_at: row.handoff_updated_at
+        ? String(row.handoff_updated_at)
+        : null,
+    }));
+  } catch (err) {
+    log("[OperatorChat] getAtendimentoFullRows error", err);
+    return [];
+  }
+}
+
+/**
+ * Compute state distribution from sessions.
+ */
+export function computeStateDistribution(
+  sessions: AtendimentoFullRow[],
+): StateDistribution[] {
+  const counts = new Map<string, number>();
+  for (const s of sessions) {
+    const key = s.current_state_key || "(sem estado)";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const total = sessions.length || 1;
+  return Array.from(counts.entries())
+    .map(([state_key, count]) => ({
+      state_key,
+      count,
+      percentage: Math.round((count / total) * 100),
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Compute handoff statistics from sessions.
+ */
+export function computeHandoffStats(
+  sessions: AtendimentoFullRow[],
+): HandoffStats {
+  const byChannel: Record<string, number> = {};
+  let totalHandoffs = 0;
+  let botPausedCount = 0;
+  let botActiveCount = 0;
+
+  for (const s of sessions) {
+    if (s.bot_paused) {
+      botPausedCount++;
+    } else {
+      botActiveCount++;
+    }
+    if (s.handoff_channel) {
+      totalHandoffs++;
+      byChannel[s.handoff_channel] = (byChannel[s.handoff_channel] ?? 0) + 1;
+    }
+  }
+
+  return { totalHandoffs, byChannel, botPausedCount, botActiveCount };
+}
+
+/**
+ * Build a 14-day conversation timeline from n8n_chat_histories.
+ */
+export async function getConversationTimeline(): Promise<
+  ConversationTimeline[]
+> {
+  try {
+    const sql = `
+      SELECT
+        TO_CHAR(DATE(update_message), 'DD/MM') AS label,
+        DATE(update_message) AS dt,
+        COUNT(DISTINCT session_id) AS count
+      FROM n8n_chat_histories
+      WHERE update_message >= NOW() - INTERVAL '14 days'
+      GROUP BY DATE(update_message), TO_CHAR(DATE(update_message), 'DD/MM')
+      ORDER BY dt ASC
+    `;
+    const result = await executeQuery(sql);
+    return (result.rows as any[]).map((row) => ({
+      label: String(row.label ?? ""),
+      count: Number(row.count ?? 0),
+    }));
+  } catch (err) {
+    log("[OperatorChat] getConversationTimeline error", err);
+    return [];
+  }
+}
+
+/**
+ * Get message counts by type (received/sent/manual) for the last 7 days.
+ */
+export async function getMessageTypeBreakdown(): Promise<
+  Record<string, number>
+> {
+  try {
+    const sql = `
+      SELECT
+        COALESCE(tipo, 'unknown') AS tipo,
+        COUNT(*) AS count
+      FROM n8n_chat_histories
+      WHERE update_message >= NOW() - INTERVAL '7 days'
+      GROUP BY tipo
+      ORDER BY count DESC
+    `;
+    const result = await executeQuery(sql);
+    const breakdown: Record<string, number> = {};
+    for (const row of result.rows as any[]) {
+      breakdown[String(row.tipo ?? "unknown")] = Number(row.count ?? 0);
+    }
+    return breakdown;
+  } catch (err) {
+    log("[OperatorChat] getMessageTypeBreakdown error", err);
+    return {};
+  }
+}
+
+/**
+ * Get peak hour distribution (0-23) for conversations in the last 7 days.
+ */
+export async function getPeakHours(): Promise<
+  { hour: number; count: number }[]
+> {
+  try {
+    const sql = `
+      SELECT
+        EXTRACT(HOUR FROM update_message AT TIME ZONE 'America/Sao_Paulo') AS hour,
+        COUNT(DISTINCT session_id) AS count
+      FROM n8n_chat_histories
+      WHERE update_message >= NOW() - INTERVAL '7 days'
+      GROUP BY EXTRACT(HOUR FROM update_message AT TIME ZONE 'America/Sao_Paulo')
+      ORDER BY hour ASC
+    `;
+    const result = await executeQuery(sql);
+    return (result.rows as any[]).map((row) => ({
+      hour: Number(row.hour ?? 0),
+      count: Number(row.count ?? 0),
+    }));
+  } catch (err) {
+    log("[OperatorChat] getPeakHours error", err);
+    return [];
+  }
+}
+
+/**
+ * Compute the full dashboard analytics.
+ */
+export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
+  const [sessions, timeline] = await Promise.all([
+    getAtendimentoFullRows(),
+    getConversationTimeline(),
+  ]);
+
+  const stateDistribution = computeStateDistribution(sessions);
+  const handoffStats = computeHandoffStats(sessions);
+
+  const now = Date.now();
+  const MS_24H = 24 * 60 * 60 * 1000;
+  const MS_7D = 7 * 24 * 60 * 60 * 1000;
+
+  const activeLast24h = sessions.filter((s) => {
+    const t = new Date(s.updated_at).getTime();
+    return !isNaN(t) && now - t < MS_24H;
+  }).length;
+
+  const activeLast7d = sessions.filter((s) => {
+    const t = new Date(s.updated_at).getTime();
+    return !isNaN(t) && now - t < MS_7D;
+  }).length;
+
+  // Compute average gap between updates as response time proxy
+  const updateTimestamps = sessions
+    .map((s) => new Date(s.updated_at).getTime())
+    .filter((t) => !isNaN(t))
+    .sort((a, b) => a - b);
+
+  let avgUpdateGapMinutes: number | null = null;
+  if (updateTimestamps.length >= 2) {
+    let totalGap = 0;
+    let gapCount = 0;
+    for (let i = 1; i < updateTimestamps.length; i++) {
+      const gap = updateTimestamps[i] - updateTimestamps[i - 1];
+      if (gap > 0 && gap < MS_24H) {
+        // ignore gaps > 24h (different days)
+        totalGap += gap;
+        gapCount++;
+      }
+    }
+    if (gapCount > 0) {
+      avgUpdateGapMinutes = Math.round(totalGap / gapCount / 60_000);
+    }
+  }
+
+  const waitingForHuman = sessions.filter((s) => s.bot_paused && !s.ativo);
+
+  return {
+    sessions,
+    stateDistribution,
+    handoffStats,
+    activeLast24h,
+    activeLast7d,
+    timeline,
+    avgUpdateGapMinutes,
+    waitingForHuman,
+  };
+}

@@ -58,7 +58,13 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
     description: "Gestão de clientes, empresas e atendimento",
     icon: "people-outline",
     color: "#3b82f6",
-    pageIds: ["customers", "companies", "atendimento_operador", "usuarios"],
+    pageIds: [
+      "customers",
+      "companies",
+      "atendimento_operador",
+      "dashboard_atendimento",
+      "usuarios",
+    ],
   },
   {
     key: "operacao",

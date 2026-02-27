@@ -5,11 +5,17 @@ import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
 import { PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
-import { TouchableOpacity, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type User = Record<string, unknown>;
 
@@ -85,6 +91,72 @@ export default function UsersManagementScreen() {
     : params.roleId;
   const tintColor = useThemeColor({}, "tint");
   const borderColor = useThemeColor({}, "border");
+  const cardColor = useThemeColor({}, "card");
+  const textColor = useThemeColor({}, "text");
+  const mutedColor = useThemeColor({}, "muted");
+  const inputBg = useThemeColor({}, "input");
+
+  // Admin set-password modal state
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordUserId, setPasswordUserId] = useState<string | null>(null);
+  const [passwordUserName, setPasswordUserName] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  const openPasswordModal = useCallback((userId: string, userName: string) => {
+    setPasswordUserId(userId);
+    setPasswordUserName(userName);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordError(null);
+    setPasswordSuccess(false);
+    setPasswordModalOpen(true);
+  }, []);
+
+  const handleSetPassword = useCallback(async () => {
+    if (!passwordUserId) return;
+    const trimmed = newPassword.trim();
+    if (!trimmed) {
+      setPasswordError("Informe a nova senha.");
+      return;
+    }
+    if (trimmed.length < 6) {
+      setPasswordError("A senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (trimmed !== confirmPassword.trim()) {
+      setPasswordError("As senhas não conferem.");
+      return;
+    }
+    setPasswordSaving(true);
+    setPasswordError(null);
+    try {
+      await api.post(CRUD_ENDPOINT, {
+        action: "update",
+        table: "users",
+        payload: {
+          id: passwordUserId,
+          password_hash: trimmed,
+          updated_at: new Date().toISOString(),
+        },
+      });
+      setPasswordSuccess(true);
+      setNewPassword("");
+      setConfirmPassword("");
+      // Auto-close after 1.5s
+      setTimeout(() => {
+        setPasswordModalOpen(false);
+        setPasswordSuccess(false);
+      }, 1500);
+    } catch (err) {
+      setPasswordError(getApiErrorMessage(err, "Falha ao definir senha."));
+    } finally {
+      setPasswordSaving(false);
+    }
+  }, [passwordUserId, newPassword, confirmPassword]);
 
   const loadFilteredUsers = useMemo(() => {
     return async (): Promise<User[]> => {
@@ -497,12 +569,188 @@ export default function UsersManagementScreen() {
                   Imóveis
                 </ThemedText>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() =>
+                  openPasswordModal(
+                    userId,
+                    String(item.fullname ?? item.email ?? "Usuário"),
+                  )
+                }
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#f59e0b",
+                  borderRadius: 999,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  backgroundColor: "#f59e0b15",
+                }}
+              >
+                <ThemedText
+                  style={{
+                    color: "#f59e0b",
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  Definir Senha
+                </ThemedText>
+              </TouchableOpacity>
             </View>
           );
         }}
         getId={(item) => String(item.id ?? "")}
         getTitle={(item) => String(item.fullname ?? item.email ?? "Usuário")}
       />
+
+      {/* Admin Set Password Modal */}
+      <Modal
+        transparent
+        visible={passwordModalOpen}
+        animationType="fade"
+        onRequestClose={() => setPasswordModalOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: cardColor,
+              borderRadius: 12,
+              padding: 20,
+              maxWidth: 420,
+              alignSelf: "center",
+              width: "100%",
+            }}
+          >
+            <ThemedText
+              style={{ fontSize: 16, fontWeight: "700", color: textColor }}
+            >
+              Definir Senha
+            </ThemedText>
+            <ThemedText
+              style={{ fontSize: 13, color: mutedColor, marginTop: 4 }}
+            >
+              {passwordUserName}
+            </ThemedText>
+
+            {passwordSuccess ? (
+              <View
+                style={{
+                  marginTop: 16,
+                  padding: 16,
+                  backgroundColor: "#16a34a15",
+                  borderRadius: 8,
+                  alignItems: "center",
+                }}
+              >
+                <ThemedText
+                  style={{
+                    color: "#16a34a",
+                    fontWeight: "700",
+                    fontSize: 14,
+                  }}
+                >
+                  Senha definida com sucesso!
+                </ThemedText>
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  placeholder="Nova senha (mín. 6 caracteres)"
+                  placeholderTextColor={mutedColor}
+                  secureTextEntry
+                  style={{
+                    borderWidth: 1,
+                    borderColor,
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    backgroundColor: inputBg,
+                    color: textColor,
+                    marginTop: 16,
+                  }}
+                />
+
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Confirmar senha"
+                  placeholderTextColor={mutedColor}
+                  secureTextEntry
+                  style={{
+                    borderWidth: 1,
+                    borderColor,
+                    borderRadius: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    backgroundColor: inputBg,
+                    color: textColor,
+                    marginTop: 10,
+                  }}
+                />
+
+                {passwordError ? (
+                  <ThemedText
+                    style={{ color: "#ef4444", fontSize: 13, marginTop: 8 }}
+                  >
+                    {passwordError}
+                  </ThemedText>
+                ) : null}
+
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 8,
+                    marginTop: 16,
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => setPasswordModalOpen(false)}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 14,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor,
+                    }}
+                  >
+                    <ThemedText style={{ color: textColor, fontWeight: "600" }}>
+                      Cancelar
+                    </ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSetPassword}
+                    disabled={passwordSaving}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 14,
+                      borderRadius: 6,
+                      backgroundColor: passwordSaving ? mutedColor : "#f59e0b",
+                    }}
+                  >
+                    {passwordSaving ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+                        Salvar Senha
+                      </ThemedText>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ProtectedRoute>
   );
 }

@@ -16,10 +16,8 @@ import * as DocumentPicker from "expo-document-picker";
 import { Alert, Platform } from "react-native";
 
 // Lazy-loaded: expo-file-system File/Paths don't work on web
-const getFileSystem = () =>
-  Platform.OS !== "web"
-    ? (require("expo-file-system") as typeof import("expo-file-system"))
-    : null;
+const getFileSystem = async () =>
+  Platform.OS !== "web" ? await import("expo-file-system") : null;
 
 /* ------------------------------------------------------------------ */
 /*  Config                                                             */
