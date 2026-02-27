@@ -1,4 +1,5 @@
 import { ThemedText } from "@/components/themed-text";
+import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";

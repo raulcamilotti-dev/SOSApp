@@ -261,7 +261,9 @@ async function generateOrderPix(
   }
 
   if (!config.pix_key) {
-    return { brCode: null, qrBase64: null, pixKey: null };
+    throw new Error(
+      "Chave PIX não configurada. Configure a chave PIX do marketplace nas configurações do tenant.",
+    );
   }
 
   const params: PixPayloadParams = {
@@ -1025,7 +1027,7 @@ export async function regenerateOrderPix(orderId: string): Promise<{
 
   const pixData = await generateOrderPix(
     config,
-    order.total,
+    Number(order.total) || 0,
     order.id,
     customerInfo,
     shipping,

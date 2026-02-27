@@ -43,6 +43,7 @@ import {
 
 type StatusConfig = {
   label: string;
+  shortLabel: string;
   color: string;
   bg: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -51,48 +52,56 @@ type StatusConfig = {
 const STATUS_MAP: Record<OnlineOrderStatus, StatusConfig> = {
   pending_payment: {
     label: "Aguardando Pagamento",
+    shortLabel: "Aguardando",
     color: "#d97706",
     bg: "#fef3c7",
     icon: "time-outline",
   },
   payment_confirmed: {
     label: "Pagamento Confirmado",
+    shortLabel: "Pagamento",
     color: "#2563eb",
     bg: "#dbeafe",
     icon: "checkmark-circle-outline",
   },
   processing: {
     label: "Em Processamento",
+    shortLabel: "Preparando",
     color: "#7c3aed",
     bg: "#ede9fe",
     icon: "cog-outline",
   },
   shipped: {
     label: "Enviado",
+    shortLabel: "Enviado",
     color: "#0891b2",
     bg: "#cffafe",
     icon: "airplane-outline",
   },
   delivered: {
     label: "Entregue",
+    shortLabel: "Entregue",
     color: "#059669",
     bg: "#d1fae5",
     icon: "checkmark-done-outline",
   },
   completed: {
     label: "Concluído",
+    shortLabel: "Concluído",
     color: "#059669",
     bg: "#d1fae5",
     icon: "trophy-outline",
   },
   cancelled: {
     label: "Cancelado",
+    shortLabel: "Cancelado",
     color: "#dc2626",
     bg: "#fee2e2",
     icon: "close-circle-outline",
   },
   return_requested: {
     label: "Devolução Solicitada",
+    shortLabel: "Devolução",
     color: "#ea580c",
     bg: "#ffedd5",
     icon: "return-down-back-outline",
@@ -109,7 +118,8 @@ const TIMELINE_STEPS: OnlineOrderStatus[] = [
 ];
 
 const formatCurrency = (value: unknown): string => {
-  const num = typeof value === "number" ? value : parseFloat(String(value ?? "0"));
+  const num =
+    typeof value === "number" ? value : parseFloat(String(value ?? "0"));
   if (isNaN(num)) return "R$ 0,00";
   return `R$ ${num.toFixed(2).replace(".", ",")}`;
 };
@@ -236,6 +246,16 @@ export default function MinhasComprasScreen() {
     setPixLoading(true);
     try {
       const data = await regenerateOrderPix(selectedOrder.id);
+      if (!data.pixBrCode) {
+        const noPixMsg =
+          "Não foi possível gerar o código PIX. Verifique se a chave PIX está configurada corretamente.";
+        if (Platform.OS === "web") {
+          window.alert(noPixMsg);
+        } else {
+          Alert.alert("PIX indisponível", noPixMsg);
+        }
+        return;
+      }
       setPixBrCode(data.pixBrCode);
       setPixQr(data.pixQrCodeBase64);
     } catch (err) {
@@ -848,7 +868,7 @@ export default function MinhasComprasScreen() {
                                   }}
                                   numberOfLines={2}
                                 >
-                                  {stepSc.label.split(" ")[0]}
+                                  {stepSc.shortLabel}
                                 </Text>
                               </View>
                             );
@@ -1067,7 +1087,7 @@ export default function MinhasComprasScreen() {
                     mutedColor={mutedColor}
                   />
 
-                  {selectedOrder.discount_amount > 0 && (
+                  {Number(selectedOrder.discount_amount) > 0 && (
                     <TotalRow
                       label="Desconto"
                       value={`-${formatCurrency(selectedOrder.discount_amount)}`}
@@ -1076,7 +1096,7 @@ export default function MinhasComprasScreen() {
                     />
                   )}
 
-                  {selectedOrder.shipping_cost > 0 && (
+                  {Number(selectedOrder.shipping_cost) > 0 && (
                     <TotalRow
                       label="Frete"
                       value={formatCurrency(selectedOrder.shipping_cost)}
@@ -1085,7 +1105,7 @@ export default function MinhasComprasScreen() {
                     />
                   )}
 
-                  {selectedOrder.shipping_cost === 0 && (
+                  {Number(selectedOrder.shipping_cost) === 0 && (
                     <TotalRow
                       label="Frete"
                       value="Grátis"

@@ -98,7 +98,7 @@ export async function pickCertificateFile(): Promise<PickedCertificate | null> {
 
     // Read as base64
     let base64: string;
-    const fs = getFileSystem();
+    const fs = await getFileSystem();
     if (fs && Platform.OS !== "web") {
       const file = new fs.File(asset.uri);
       base64 = await file
@@ -232,7 +232,7 @@ export async function downloadSignedPdf(
     });
 
     if (response.data?.signedPdfBase64) {
-      const fs = getFileSystem();
+      const fs = await getFileSystem();
       if (fs && Platform.OS !== "web") {
         // Native: save to device documents directory
         const fName = `documento_assinado_${signatureId}.pdf`;

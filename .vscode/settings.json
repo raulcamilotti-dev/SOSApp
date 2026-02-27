@@ -11,9 +11,23 @@
   },
   "typescript.tsdk": "node_modules/typescript/lib",
   "search.exclude": {
-    "**/node_modules": true
+    "**/node_modules": true,
+    "**/dist": true
   },
   "files.exclude": {
-    "**/node_modules/**/tsconfig.json": true
-  }
+    "**/node_modules/**/tsconfig.json": true,
+    "**/dist": true
+  },
+  "css.validate": true,
+  "css.lint.validProperties": ["border-curve"],
+  "css.lint.emptyRules": "ignore",
+  "css.lint.unknownProperties": "ignore",
+  "css.lint.compatibleVendorPrefixes": "ignore",
+  "css.lint.vendorPrefix": "ignore",
+  "html.validate.scripts": true,
+  "html.validate.styles": false,
+  "[html]": {
+    "editor.defaultFormatter": "vscode.html-language-features"
+  },
+  "stylelint.ignoreDisables": false
 }

@@ -11,10 +11,10 @@
 
 import { api } from "./api";
 import {
-  API_DINAMICO,
-  buildSearchParams,
-  CRUD_ENDPOINT,
-  normalizeCrudList,
+    API_DINAMICO,
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    normalizeCrudList,
 } from "./crud";
 import type { QuoteItemInput } from "./quotes";
 
@@ -918,6 +918,9 @@ export function parseMarketplaceConfigFromRaw(
   return {
     enabled: Boolean(marketplace.enabled),
     commission_percent: Number(marketplace.commission_percent ?? 0),
+    pix_provider: marketplace.pix_provider
+      ? (String(marketplace.pix_provider) as "pix-utils" | "asaas")
+      : undefined,
     pix_key: marketplace.pix_key ? String(marketplace.pix_key) : null,
     pix_key_type: marketplace.pix_key_type
       ? String(marketplace.pix_key_type)
@@ -927,6 +930,10 @@ export function parseMarketplaceConfigFromRaw(
       : null,
     pix_merchant_city: marketplace.pix_merchant_city
       ? String(marketplace.pix_merchant_city)
+      : null,
+    asaas_enabled: Boolean(marketplace.asaas_enabled),
+    asaas_wallet_id: marketplace.asaas_wallet_id
+      ? String(marketplace.asaas_wallet_id)
       : null,
     min_order_value: Number(marketplace.min_order_value ?? 0),
     free_shipping_above: marketplace.free_shipping_above

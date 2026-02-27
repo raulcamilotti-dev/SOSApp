@@ -6,10 +6,10 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
-    AI_AGENT_ENDPOINT,
-    buildAiInsightMessage,
-    extractAiInsightText,
-    UNIVERSAL_AI_INSIGHT_PROMPT,
+  AI_AGENT_ENDPOINT,
+  buildAiInsightMessage,
+  extractAiInsightText,
+  UNIVERSAL_AI_INSIGHT_PROMPT,
 } from "@/services/ai-insights";
 import { api, getApiErrorMessage } from "@/services/api";
 import { getTableInfo, type TableInfoRow } from "@/services/schema";
@@ -17,26 +17,26 @@ import DateTimePickerMobile from "@react-native-community/datetimepicker";
 import { useIsFocused } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import {
-    createElement,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
 } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 
 export type CrudFieldType =
@@ -312,6 +312,14 @@ const maskMaxDigits = (maskType: MaskPreset): number => {
   }
 };
 
+/** Detect UUID-like strings (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx) */
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const looksLikeUuid = (value: unknown): boolean => {
+  if (!value || typeof value !== "string") return false;
+  return UUID_REGEX.test(value.trim());
+};
+
 /** Format a value based on field type for display in cards/details */
 const formatValueByType = (
   value: unknown,
@@ -346,9 +354,33 @@ const dateToISODate = (date: Date): string => {
 /** Convert a Date to ISO string for API submission */
 const dateToISOString = (date: Date): string => date.toISOString();
 
+/** Detect ISO 8601 date strings (e.g. "2026-03-17T00:00:00.000Z", "2026-03-17") */
+const ISO_DATE_REGEX =
+  /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+const looksLikeIsoDate = (value: string): boolean =>
+  ISO_DATE_REGEX.test(value.trim());
+
+/** Auto-format an ISO date string to pt-BR. Returns null if not a valid date. */
+const autoFormatIsoDate = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!looksLikeIsoDate(trimmed)) return null;
+  const date = new Date(trimmed);
+  if (isNaN(date.getTime())) return null;
+  // If it has time component (T...), use datetime format; otherwise date-only
+  if (trimmed.includes("T")) {
+    return formatDateTimeBR(date);
+  }
+  return formatDateBR(date);
+};
+
 const formatValue = (value: unknown) => {
   if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    // Auto-detect and format ISO date strings (fixes raw dates in custom getDetails)
+    const formatted = autoFormatIsoDate(value);
+    if (formatted) return formatted;
+    return value;
+  }
   try {
     return JSON.stringify(value);
   } catch {
@@ -2354,15 +2386,21 @@ export function CrudScreen<T extends Record<string, unknown>>({
         ),
       ];
 
-      return orderedFields.map((field) => ({
-        label: getFriendlyLabelByField(field),
-        value:
-          field.type === "reference"
-            ? getCachedReferenceLabel(field, item[field.key]) || "-"
-            : field.type === "boolean"
-              ? formatBooleanValueByField(field, item[field.key])
-              : formatValueByType(item[field.key], field.type, field.maskType),
-      }));
+      return orderedFields
+        .map((field) => ({
+          label: getFriendlyLabelByField(field),
+          value:
+            field.type === "reference"
+              ? getCachedReferenceLabel(field, item[field.key]) || "-"
+              : field.type === "boolean"
+                ? formatBooleanValueByField(field, item[field.key])
+                : formatValueByType(
+                    item[field.key],
+                    field.type,
+                    field.maskType,
+                  ),
+        }))
+        .filter((detail) => !looksLikeUuid(detail.value));
     },
     [fields, getCachedReferenceLabel],
   );
@@ -2486,31 +2524,63 @@ export function CrudScreen<T extends Record<string, unknown>>({
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* ── Compact inline header ── */}
-        <View style={{ marginBottom: 8 }}>
-          <ThemedText
-            style={{ fontSize: 18, fontWeight: "700", color: textColor }}
-          >
-            {title}
-          </ThemedText>
+        {/* ── Header ── */}
+        <View style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <ThemedText
+              style={{
+                fontSize: 22,
+                fontWeight: "bold",
+                color: textColor,
+                flex: 1,
+              }}
+            >
+              {title}
+            </ThemedText>
+            {filteredItems.length > 0 ? (
+              <View
+                style={{
+                  backgroundColor: tintColor + "18",
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}
+              >
+                <ThemedText
+                  style={{ fontSize: 12, fontWeight: "700", color: tintColor }}
+                >
+                  {filteredItems.length}
+                </ThemedText>
+              </View>
+            ) : null}
+          </View>
           {subtitle ? (
             <ThemedText
-              style={{ fontSize: 12, color: mutedTextColor, marginTop: 2 }}
+              style={{ fontSize: 13, color: mutedTextColor, marginTop: 4 }}
             >
               {subtitle}
             </ThemedText>
           ) : null}
           {headerActions ? (
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
               {headerActions}
             </View>
           ) : null}
         </View>
 
         {error ? (
-          <ThemedText style={{ color: tintColor, marginBottom: 8 }}>
-            {error}
-          </ThemedText>
+          <View
+            style={{
+              backgroundColor: "#fee2e2",
+              borderRadius: 10,
+              padding: 14,
+              marginBottom: 12,
+            }}
+          >
+            <ThemedText style={{ color: "#dc2626", fontSize: 13 }}>
+              {error}
+            </ThemedText>
+          </View>
         ) : null}
 
         {/* ── Search input (no card, no filter chips) ── */}
@@ -2534,26 +2604,31 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
         {/* ── AI Insights ── */}
         {(aiInsights || aiError) && (
-          <ThemedView
-            style={[
-              styles.processCard,
-              {
-                marginTop: responsiveSpacing.cardGap,
-                borderColor,
-                backgroundColor: cardColor,
-              },
-            ]}
+          <View
+            style={{
+              backgroundColor: cardColor,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor,
+              padding: 16,
+              marginBottom: 12,
+            }}
           >
             <ThemedText
-              style={{ color: textColor, fontSize: 13, fontWeight: "700" }}
+              style={{
+                color: textColor,
+                fontSize: 14,
+                fontWeight: "700",
+                marginBottom: 10,
+              }}
             >
-              Insights da IA
+              ✨ Insights da IA
             </ThemedText>
             {aiError ? (
               <ThemedText
                 style={{
-                  color: tintColor,
-                  marginTop: responsiveSpacing.sectionGap,
+                  color: "#dc2626",
+                  fontSize: 13,
                 }}
               >
                 {aiError}
@@ -2563,182 +2638,546 @@ export function CrudScreen<T extends Record<string, unknown>>({
               <ThemedText
                 style={{
                   color: textColor,
-                  marginTop: responsiveSpacing.sectionGap,
-                  fontSize: 12,
+                  fontSize: 13,
+                  lineHeight: 20,
                 }}
               >
                 {aiInsights}
               </ThemedText>
             ) : null}
-          </ThemedView>
+          </View>
         )}
 
         {filteredItems.length === 0 && !error ? (
-          <ThemedText style={{ color: mutedTextColor, marginTop: 12 }}>
-            Nenhum registro encontrado.
-          </ThemedText>
+          <View style={{ alignItems: "center", paddingVertical: 32 }}>
+            <ThemedText style={{ color: mutedTextColor, fontSize: 14 }}>
+              Nenhum registro encontrado.
+            </ThemedText>
+          </View>
         ) : null}
 
-        {filteredItems.map((item) => {
-          const details = getDetails
-            ? getDetails(item)
-            : detailsFromFields(item);
-          const dynamicReferenceShortcuts = normalizedFields.filter((field) => {
-            if (field.type !== "reference") return false;
-            if (field.visibleInList === false) return false;
-            const value = item[field.key];
-            return (
-              value !== null && value !== undefined && String(value).trim()
+        {/* ── Desktop Table Layout vs Mobile Card Layout ── */}
+        {(() => {
+          const isDesktop = width >= 768;
+
+          // Compute table columns from the first item's details (for desktop header)
+          const tableColumns = (() => {
+            if (!isDesktop || filteredItems.length === 0) return [];
+            const firstItem = filteredItems[0];
+            const sampleDetails = getDetails
+              ? getDetails(firstItem)
+              : detailsFromFields(firstItem);
+            const sanitized = sampleDetails.filter(
+              (d) => !looksLikeUuid(d.value),
             );
-          });
-          const hasCustomActions = Boolean(renderItemActions);
-          const hasAnyShortcuts =
-            dynamicReferenceShortcuts.length > 0 || hasCustomActions;
+            const maxCols = width >= 1200 ? 6 : 4;
+            return sanitized.slice(0, maxCols).map((d) => d.label);
+          })();
 
           return (
-            <ThemedView
-              key={getId(item)}
-              style={[
-                styles.processCard,
-                {
-                  marginTop: 12,
-                  borderColor: borderColor,
-                  backgroundColor: cardColor,
-                },
-              ]}
-            >
-              <ThemedText
-                style={{ fontSize: 16, fontWeight: "600", color: textColor }}
-              >
-                {getTitle(item)}
-              </ThemedText>
-              <TouchableOpacity
-                onPress={() => openEdit(item)}
-                style={{ marginTop: 8 }}
-              >
-                <ThemedText style={{ color: tintColor, fontWeight: "600" }}>
-                  Editar
-                </ThemedText>
-              </TouchableOpacity>
-              <View style={{ marginTop: 6, gap: 4 }}>
-                {details.map((detail) => {
-                  const refField = detailValueIsReference(detail.label);
-                  const isRefValue =
-                    refField && detail.value && detail.value !== "-";
+            <>
+              {/* Desktop: Table header */}
+              {isDesktop &&
+              filteredItems.length > 0 &&
+              tableColumns.length > 0 ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    marginBottom: 4,
+                    borderBottomWidth: 1,
+                    borderBottomColor: borderColor,
+                  }}
+                >
+                  <ThemedText
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: mutedTextColor,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
+                      flex: 2,
+                      marginRight: 8,
+                    }}
+                  >
+                    Nome
+                  </ThemedText>
+                  {tableColumns.map((col) => (
+                    <ThemedText
+                      key={`header-${col}`}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "700",
+                        color: mutedTextColor,
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                        flex: 1,
+                        textAlign: "left",
+                      }}
+                      numberOfLines={1}
+                    >
+                      {col}
+                    </ThemedText>
+                  ))}
+                  <View style={{ width: 60 }} />
+                </View>
+              ) : null}
+
+              {filteredItems.map((item, itemIdx) => {
+                const rawDetails = getDetails
+                  ? getDetails(item)
+                  : detailsFromFields(item);
+                // Hide UUID values that couldn't be resolved to human-readable labels
+                const details = rawDetails.filter(
+                  (d) => !looksLikeUuid(d.value),
+                );
+                const dynamicReferenceShortcuts = normalizedFields.filter(
+                  (field) => {
+                    if (field.type !== "reference") return false;
+                    if (field.visibleInList === false) return false;
+                    const value = item[field.key];
+                    return (
+                      value !== null &&
+                      value !== undefined &&
+                      String(value).trim()
+                    );
+                  },
+                );
+                const hasCustomActions = Boolean(renderItemActions);
+                const hasAnyShortcuts =
+                  dynamicReferenceShortcuts.length > 0 || hasCustomActions;
+
+                /* ── DESKTOP: Table row layout ── */
+                if (isDesktop) {
+                  // Map details to columns by label for consistent alignment
+                  const columnValues = tableColumns.map((colLabel) => {
+                    const match = details.find((d) => d.label === colLabel);
+                    return match ? match.value : "-";
+                  });
+
                   return (
-                    <View key={`${getId(item)}-${detail.label}`}>
-                      {isRefValue ? (
-                        <TouchableOpacity
-                          onPress={() => {
-                            if (
-                              refField &&
-                              detail.value &&
-                              detail.value !== "-"
-                            ) {
-                              const fieldValue = item[refField.key];
-                              if (fieldValue) {
-                                openReferenceDetail(
-                                  refField,
-                                  String(fieldValue),
-                                );
-                              }
-                            }
+                    <View
+                      key={getId(item)}
+                      style={{
+                        backgroundColor: cardColor,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        borderColor,
+                        marginBottom: 6,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* Main row: title + columns + edit */}
+                      <TouchableOpacity
+                        onPress={() => openEdit(item)}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingHorizontal: 16,
+                          paddingVertical: 12,
+                        }}
+                      >
+                        <ThemedText
+                          style={{
+                            fontSize: 14,
+                            fontWeight: "600",
+                            color: textColor,
+                            flex: 2,
+                            marginRight: 8,
                           }}
-                          style={{ paddingVertical: 2 }}
+                          numberOfLines={1}
+                        >
+                          {getTitle(item)}
+                        </ThemedText>
+                        {columnValues.map((val, colIdx) => {
+                          const colLabel = tableColumns[colIdx];
+                          const refField = detailValueIsReference(colLabel);
+                          const isRefValue = refField && val && val !== "-";
+                          return (
+                            <View
+                              key={`${getId(item)}-col-${colIdx}`}
+                              style={{ flex: 1 }}
+                            >
+                              {isRefValue ? (
+                                <TouchableOpacity
+                                  onPress={(e) => {
+                                    e.stopPropagation?.();
+                                    const fieldValue = item[refField.key];
+                                    if (fieldValue) {
+                                      openReferenceDetail(
+                                        refField,
+                                        String(fieldValue),
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <ThemedText
+                                    style={{
+                                      fontSize: 13,
+                                      color: tintColor,
+                                      fontWeight: "500",
+                                    }}
+                                    numberOfLines={1}
+                                  >
+                                    {val}
+                                  </ThemedText>
+                                </TouchableOpacity>
+                              ) : (
+                                <ThemedText
+                                  style={{
+                                    fontSize: 13,
+                                    color: textColor,
+                                    fontWeight: "400",
+                                  }}
+                                  numberOfLines={1}
+                                >
+                                  {val}
+                                </ThemedText>
+                              )}
+                            </View>
+                          );
+                        })}
+                        <View style={{ width: 60, alignItems: "flex-end" }}>
+                          <ThemedText
+                            style={{
+                              color: tintColor,
+                              fontWeight: "600",
+                              fontSize: 13,
+                            }}
+                          >
+                            Editar ›
+                          </ThemedText>
+                        </View>
+                      </TouchableOpacity>
+
+                      {/* Expandable: shortcuts + custom actions */}
+                      {hasAnyShortcuts ? (
+                        <View
+                          style={{
+                            paddingHorizontal: 16,
+                            paddingBottom: 10,
+                            paddingTop: 0,
+                            borderTopWidth: 1,
+                            borderTopColor: borderColor + "40",
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: 6,
+                            alignItems: "center",
+                          }}
+                        >
+                          {dynamicReferenceShortcuts.map((field) => {
+                            const value = item[field.key];
+                            const referenceId = String(value ?? "");
+                            const label =
+                              getCachedReferenceLabel(field, value) ||
+                              String(field.label || field.key);
+                            return (
+                              <TouchableOpacity
+                                key={`${getId(item)}-shortcut-${field.key}`}
+                                onPress={() =>
+                                  openReferenceDetail(field, referenceId)
+                                }
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  backgroundColor: tintColor + "12",
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 4,
+                                  borderRadius: 6,
+                                  marginTop: 6,
+                                }}
+                              >
+                                <ThemedText
+                                  style={{
+                                    color: tintColor,
+                                    fontWeight: "600",
+                                    fontSize: 10,
+                                  }}
+                                >
+                                  {field.label}:
+                                </ThemedText>
+                                <ThemedText
+                                  style={{
+                                    color: tintColor,
+                                    fontWeight: "500",
+                                    fontSize: 10,
+                                  }}
+                                  numberOfLines={1}
+                                >
+                                  {label}
+                                </ThemedText>
+                              </TouchableOpacity>
+                            );
+                          })}
+                          {renderItemActions ? (
+                            <View style={{ marginTop: 6 }}>
+                              {renderItemActions(item)}
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                }
+
+                /* ── MOBILE: Card layout (unchanged) ── */
+                const MAX_CARD_DETAILS = 5;
+                const isAutoDetails = !getDetails;
+                const visibleDetails = isAutoDetails
+                  ? details.slice(0, MAX_CARD_DETAILS)
+                  : details;
+                const hiddenCount = details.length - visibleDetails.length;
+
+                return (
+                  <View
+                    key={getId(item)}
+                    style={{
+                      backgroundColor: cardColor,
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor,
+                      marginBottom: 12,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <View style={{ padding: 16 }}>
+                      {/* Title row */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <ThemedText
+                          style={{
+                            fontSize: 15,
+                            fontWeight: "700",
+                            color: textColor,
+                            flex: 1,
+                            marginRight: 12,
+                          }}
+                          numberOfLines={2}
+                        >
+                          {getTitle(item)}
+                        </ThemedText>
+                        <TouchableOpacity
+                          onPress={() => openEdit(item)}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
                         >
                           <ThemedText
                             style={{
-                              fontSize: 12,
                               color: tintColor,
-                              textDecorationLine: "underline",
+                              fontWeight: "600",
+                              fontSize: 13,
                             }}
                           >
-                            {detail.label}: {detail.value || "-"}
+                            Editar
+                          </ThemedText>
+                          <ThemedText
+                            style={{
+                              color: tintColor,
+                              fontSize: 16,
+                              marginTop: -1,
+                            }}
+                          >
+                            ›
                           </ThemedText>
                         </TouchableOpacity>
-                      ) : (
-                        <ThemedText
-                          style={{ fontSize: 12, color: mutedTextColor }}
+                      </View>
+
+                      {/* Detail fields as key-value rows */}
+                      {visibleDetails.length > 0 ? (
+                        <View
+                          style={{
+                            marginTop: 12,
+                            borderTopWidth: 1,
+                            borderTopColor: borderColor,
+                            paddingTop: 10,
+                          }}
                         >
-                          {detail.label}: {detail.value || "-"}
-                        </ThemedText>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
+                          {visibleDetails.map((detail, idx) => {
+                            const refField = detailValueIsReference(
+                              detail.label,
+                            );
+                            const isRefValue =
+                              refField && detail.value && detail.value !== "-";
+                            return (
+                              <View
+                                key={`${getId(item)}-${detail.label}`}
+                                style={{
+                                  flexDirection: "row",
+                                  justifyContent: "space-between",
+                                  alignItems: "flex-start",
+                                  paddingVertical: 5,
+                                  borderTopWidth: idx > 0 ? 1 : 0,
+                                  borderTopColor: borderColor + "30",
+                                }}
+                              >
+                                <ThemedText
+                                  style={{
+                                    fontSize: 12,
+                                    color: mutedTextColor,
+                                    flex: 1,
+                                    marginRight: 12,
+                                  }}
+                                >
+                                  {detail.label}
+                                </ThemedText>
+                                {isRefValue ? (
+                                  <TouchableOpacity
+                                    onPress={() => {
+                                      const fieldValue = item[refField.key];
+                                      if (fieldValue) {
+                                        openReferenceDetail(
+                                          refField,
+                                          String(fieldValue),
+                                        );
+                                      }
+                                    }}
+                                    style={{ flex: 2 }}
+                                  >
+                                    <ThemedText
+                                      style={{
+                                        fontSize: 13,
+                                        color: tintColor,
+                                        fontWeight: "500",
+                                        textAlign: "right",
+                                      }}
+                                      numberOfLines={1}
+                                    >
+                                      {detail.value || "-"}
+                                    </ThemedText>
+                                  </TouchableOpacity>
+                                ) : (
+                                  <ThemedText
+                                    style={{
+                                      fontSize: 13,
+                                      color: textColor,
+                                      fontWeight: "500",
+                                      flex: 2,
+                                      textAlign: "right",
+                                    }}
+                                    numberOfLines={1}
+                                  >
+                                    {detail.value || "-"}
+                                  </ThemedText>
+                                )}
+                              </View>
+                            );
+                          })}
+                          {hiddenCount > 0 ? (
+                            <TouchableOpacity
+                              onPress={() => openEdit(item)}
+                              style={{ paddingTop: 6 }}
+                            >
+                              <ThemedText
+                                style={{
+                                  fontSize: 11,
+                                  color: mutedTextColor,
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                +{hiddenCount} campo{hiddenCount > 1 ? "s" : ""}
+                              </ThemedText>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      ) : null}
 
-              {hasAnyShortcuts ? (
-                <View style={{ marginTop: 10 }}>
-                  <ThemedText
-                    style={{
-                      fontSize: 12,
-                      color: mutedTextColor,
-                      fontWeight: "600",
-                    }}
-                  >
-                    Atalhos
-                  </ThemedText>
-
-                  {dynamicReferenceShortcuts.length > 0 ? (
-                    <View
-                      style={{
-                        marginTop: 8,
-                        flexDirection: "row",
-                        flexWrap: "wrap",
-                        gap: 8,
-                      }}
-                    >
-                      {dynamicReferenceShortcuts.map((field) => {
-                        const value = item[field.key];
-                        const referenceId = String(value ?? "");
-                        const label =
-                          getCachedReferenceLabel(field, value) ||
-                          String(field.label || field.key);
-
-                        return (
-                          <TouchableOpacity
-                            key={`${getId(item)}-shortcut-${field.key}`}
-                            onPress={() =>
-                              openReferenceDetail(field, referenceId)
-                            }
-                            style={{
-                              borderWidth: 1,
-                              borderColor,
-                              borderRadius: 999,
-                              paddingHorizontal: 10,
-                              paddingVertical: 6,
-                            }}
-                          >
-                            <ThemedText
+                      {/* Reference shortcuts + custom actions */}
+                      {hasAnyShortcuts ? (
+                        <View
+                          style={{
+                            marginTop: 12,
+                            paddingTop: 10,
+                            borderTopWidth: 1,
+                            borderTopColor: borderColor,
+                          }}
+                        >
+                          {dynamicReferenceShortcuts.length > 0 ? (
+                            <View
                               style={{
-                                color: tintColor,
-                                fontWeight: "700",
-                                fontSize: 12,
+                                flexDirection: "row",
+                                flexWrap: "wrap",
+                                gap: 8,
                               }}
                             >
-                              {field.label}: {label}
-                            </ThemedText>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ) : null}
+                              {dynamicReferenceShortcuts.map((field) => {
+                                const value = item[field.key];
+                                const referenceId = String(value ?? "");
+                                const label =
+                                  getCachedReferenceLabel(field, value) ||
+                                  String(field.label || field.key);
 
-                  {renderItemActions ? (
-                    <View
-                      style={{
-                        marginTop: dynamicReferenceShortcuts.length ? 8 : 6,
-                      }}
-                    >
-                      {renderItemActions(item)}
+                                return (
+                                  <TouchableOpacity
+                                    key={`${getId(item)}-shortcut-${field.key}`}
+                                    onPress={() =>
+                                      openReferenceDetail(field, referenceId)
+                                    }
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      backgroundColor: tintColor + "12",
+                                      paddingHorizontal: 10,
+                                      paddingVertical: 6,
+                                      borderRadius: 8,
+                                    }}
+                                  >
+                                    <ThemedText
+                                      style={{
+                                        color: tintColor,
+                                        fontWeight: "600",
+                                        fontSize: 11,
+                                      }}
+                                    >
+                                      {field.label}:
+                                    </ThemedText>
+                                    <ThemedText
+                                      style={{
+                                        color: tintColor,
+                                        fontWeight: "500",
+                                        fontSize: 11,
+                                      }}
+                                      numberOfLines={1}
+                                    >
+                                      {label}
+                                    </ThemedText>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
+                          ) : null}
+
+                          {renderItemActions ? (
+                            <View
+                              style={{
+                                marginTop:
+                                  dynamicReferenceShortcuts.length > 0 ? 8 : 0,
+                              }}
+                            >
+                              {renderItemActions(item)}
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
                     </View>
-                  ) : null}
-                </View>
-              ) : null}
-            </ThemedView>
+                  </View>
+                );
+              })}
+            </>
           );
-        })}
+        })()}
 
         {/* Pagination: "Carregar mais" button */}
         {isPaginated && hasMore && filteredItems.length > 0 && !searchQuery ? (
@@ -2797,24 +3236,77 @@ export function CrudScreen<T extends Record<string, unknown>>({
               style={{
                 flex: 1,
                 backgroundColor: modalBackdrop,
-                justifyContent: "center",
-                padding: 16,
+                justifyContent: "flex-end",
               }}
             >
               <View
                 style={{
                   backgroundColor: cardColor,
-                  borderRadius: 12,
-                  padding: 16,
-                  maxHeight: "90%",
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  padding: 20,
+                  maxHeight: "92%",
                 }}
               >
-                <ThemedText style={[styles.processTitle, { color: textColor }]}>
-                  {modalMode === "create" ? "Novo" : "Editar"}
-                </ThemedText>
+                {/* Modal header */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    marginBottom: 16,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <ThemedText
+                      style={{
+                        fontSize: 20,
+                        fontWeight: "700",
+                        color: textColor,
+                      }}
+                    >
+                      {modalMode === "create"
+                        ? "Novo registro"
+                        : "Editar registro"}
+                    </ThemedText>
+                    <ThemedText
+                      style={{
+                        fontSize: 13,
+                        color: mutedTextColor,
+                        marginTop: 4,
+                      }}
+                    >
+                      {title}
+                    </ThemedText>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setModalOpen(false);
+                      resetForm();
+                    }}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      backgroundColor: borderColor + "60",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <ThemedText
+                      style={{
+                        color: mutedTextColor,
+                        fontSize: 16,
+                        lineHeight: 18,
+                      }}
+                    >
+                      ✕
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
 
                 <ScrollView
-                  style={{ marginTop: 12 }}
+                  style={{ marginTop: 0 }}
                   contentContainerStyle={{ paddingBottom: 8 }}
                 >
                   {normalizedFormFields.map((field, fieldIndex) => {
@@ -3557,21 +4049,60 @@ export function CrudScreen<T extends Record<string, unknown>>({
             <View
               style={{
                 backgroundColor: cardColor,
-                borderRadius: 12,
-                padding: 16,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                borderBottomLeftRadius: 20,
+                borderBottomRightRadius: 20,
+                padding: 20,
                 maxHeight: "90%",
               }}
             >
-              <ThemedText style={[styles.processTitle, { color: textColor }]}>
-                Criar novo
-              </ThemedText>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 12,
+                }}
+              >
+                <ThemedText
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "700",
+                    color: textColor,
+                  }}
+                >
+                  Criar novo
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={closeQuickCreate}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: borderColor + "60",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText
+                    style={{
+                      color: mutedTextColor,
+                      fontSize: 16,
+                      lineHeight: 18,
+                    }}
+                  >
+                    ✕
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
 
               {quickCreateFieldsLoading ? (
                 <ActivityIndicator style={{ marginTop: 12 }} />
               ) : null}
 
               <ScrollView
-                style={{ marginTop: 12 }}
+                style={{ marginTop: 8 }}
                 contentContainerStyle={{ paddingBottom: 8 }}
               >
                 {quickCreateFields.map((field) => {
@@ -4150,16 +4681,60 @@ export function CrudScreen<T extends Record<string, unknown>>({
             <View
               style={{
                 backgroundColor: cardColor,
-                borderRadius: 12,
-                padding: 16,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                borderBottomLeftRadius: 20,
+                borderBottomRightRadius: 20,
+                padding: 20,
                 maxHeight: "90%",
                 zIndex: 30001 + modalDepth * 1000,
                 elevation: 41 + modalDepth,
               }}
             >
-              <ThemedText style={[styles.processTitle, { color: textColor }]}>
-                Selecionar
-              </ThemedText>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 12,
+                }}
+              >
+                <ThemedText
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "700",
+                    color: textColor,
+                  }}
+                >
+                  Selecionar
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={() => {
+                    setReferenceModalField(null);
+                    setReferenceModalContext("form");
+                    setActiveQuickFieldKey(null);
+                    setModalDepth((prev) => Math.max(0, prev - 1));
+                  }}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: borderColor + "60",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText
+                    style={{
+                      color: mutedTextColor,
+                      fontSize: 16,
+                      lineHeight: 18,
+                    }}
+                  >
+                    ✕
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
 
               <TextInput
                 value={referenceSearch}
@@ -4195,10 +4770,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
                 }}
                 style={{
                   marginTop: 12,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  paddingHorizontal: 14,
                   backgroundColor: tintColor,
-                  borderRadius: 6,
+                  borderRadius: 10,
                   alignItems: "center",
                 }}
               >
@@ -4285,10 +4860,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
                 }}
                 style={{
                   marginTop: 12,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  paddingHorizontal: 14,
                   backgroundColor: cardColor,
-                  borderRadius: 6,
+                  borderRadius: 10,
                   alignItems: "center",
                   borderWidth: 1,
                   borderColor,
@@ -4322,16 +4897,55 @@ export function CrudScreen<T extends Record<string, unknown>>({
             <View
               style={{
                 backgroundColor: cardColor,
-                borderRadius: 12,
-                padding: 16,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                borderBottomLeftRadius: 20,
+                borderBottomRightRadius: 20,
+                padding: 20,
                 maxHeight: "90%",
                 zIndex: 40001 + modalDepth * 1000,
                 elevation: 51 + modalDepth,
               }}
             >
-              <ThemedText style={[styles.processTitle, { color: textColor }]}>
-                Detalhes
-              </ThemedText>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 12,
+                }}
+              >
+                <ThemedText
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "700",
+                    color: textColor,
+                  }}
+                >
+                  Detalhes
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={closeReferenceDetail}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: borderColor + "60",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText
+                    style={{
+                      color: mutedTextColor,
+                      fontSize: 16,
+                      lineHeight: 18,
+                    }}
+                  >
+                    ✕
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
 
               {referenceDetailLoading ? (
                 <ActivityIndicator style={{ marginTop: 12 }} />
@@ -4427,10 +5041,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
                 onPress={closeReferenceDetail}
                 style={{
                   marginTop: 12,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  paddingHorizontal: 14,
                   backgroundColor: tintColor,
-                  borderRadius: 6,
+                  borderRadius: 10,
                   alignItems: "center",
                 }}
               >
