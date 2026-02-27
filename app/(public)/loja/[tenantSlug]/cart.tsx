@@ -13,7 +13,7 @@ import { useMarketplaceTenant } from "@/hooks/use-marketplace-tenant";
 import { useShoppingCart } from "@/hooks/use-shopping-cart";
 import type { CartItem } from "@/services/shopping-cart";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import {
     ActivityIndicator,
@@ -75,6 +75,7 @@ const navigateTo = (url: string) => {
 
 export default function CartScreen() {
   const { tenantSlug } = useLocalSearchParams<{ tenantSlug?: string }>();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
@@ -103,12 +104,12 @@ export default function CartScreen() {
 
   /* ── Actions ── */
   const goBack = useCallback(() => {
-    navigateTo(storeBase);
-  }, [storeBase]);
+    router.push(storeBase as any);
+  }, [storeBase, router]);
 
   const goToCheckout = useCallback(() => {
-    navigateTo(checkoutUrl);
-  }, [checkoutUrl]);
+    router.push(checkoutUrl as any);
+  }, [checkoutUrl, router]);
 
   const handleRefreshPrices = useCallback(async () => {
     try {
@@ -237,7 +238,7 @@ export default function CartScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (item.product_slug) {
-                  navigateTo(productUrl(item.product_slug));
+                  router.push(productUrl(item.product_slug) as any);
                 }
               }}
             >

@@ -206,6 +206,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                           tenant?.empresa ??
                           "",
                       ).trim() || undefined,
+                    slug: String(tenant?.slug ?? "").trim() || undefined,
                     role_id: roleId,
                     role_name: roleName,
                   } satisfies TenantOption,

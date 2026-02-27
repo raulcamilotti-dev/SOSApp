@@ -19,7 +19,7 @@ import { useMarketplaceTenant } from "@/hooks/use-marketplace-tenant";
 import { useShoppingCart } from "@/hooks/use-shopping-cart";
 import type { MarketplaceProduct } from "@/services/marketplace";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -76,12 +76,22 @@ const navigateTo = (url: string) => {
   }
 };
 
+/** Build login URL preserving current marketplace path as returnTo */
+const getLoginUrlWithReturn = (): string => {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    const returnTo = window.location.pathname + window.location.search;
+    return `/login?returnTo=${encodeURIComponent(returnTo)}`;
+  }
+  return "/login";
+};
+
 /* ═══════════════════════════════════════════════════════════════════
  * COMPONENT
  * ═══════════════════════════════════════════════════════════════════ */
 
 export default function PublicStoreListing() {
   const { tenantSlug } = useLocalSearchParams<{ tenantSlug?: string }>();
+  const router = useRouter();
   const { width } = useWindowDimensions();
 
   const {
@@ -210,14 +220,14 @@ export default function PublicStoreListing() {
 
   const openProduct = useCallback(
     (product: MarketplaceProduct) => {
-      navigateTo(productUrl(product.slug));
+      router.push(productUrl(product.slug) as any);
     },
-    [productUrl],
+    [productUrl, router],
   );
 
   const openCart = useCallback(() => {
-    navigateTo(cartUrl);
-  }, [cartUrl]);
+    router.push(cartUrl as any);
+  }, [cartUrl, router]);
 
   /* ═══ Render: Store Header ═══ */
   const renderHeader = () => (
@@ -262,7 +272,7 @@ export default function PublicStoreListing() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              onPress={() => navigateTo("/login")}
+              onPress={() => navigateTo(getLoginUrlWithReturn())}
               style={st.loginButton}
             >
               <Ionicons name="log-in-outline" size={18} color={primaryColor} />

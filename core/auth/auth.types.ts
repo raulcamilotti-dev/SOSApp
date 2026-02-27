@@ -19,6 +19,7 @@ export interface User {
 export type TenantOption = {
   id: string;
   company_name?: string;
+  slug?: string;
   role_id?: string;
   role_name?: string;
 };

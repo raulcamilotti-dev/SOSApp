@@ -19,39 +19,39 @@ import { useCepAutoFill } from "@/hooks/use-cep-autofill";
 import { useMarketplaceTenant } from "@/hooks/use-marketplace-tenant";
 import { useShoppingCart } from "@/hooks/use-shopping-cart";
 import {
-  createOnlineOrder,
-  type OnlineOrderResult,
+    createOnlineOrder,
+    type OnlineOrderResult,
 } from "@/services/marketplace-checkout";
 import {
-  getSchedulingOptionsForServices,
-  type ServiceSchedulingOptions,
-  type TimeSlot,
+    getSchedulingOptionsForServices,
+    type ServiceSchedulingOptions,
+    type TimeSlot,
 } from "@/services/marketplace-scheduling";
 import {
-  aggregatePackageDimensions,
-  calculateShippingRates,
-  checkFreeShipping,
-  formatShippingRate,
-  getCheapestRate,
-  type ShippingQuoteResult,
-  type ShippingRate,
+    aggregatePackageDimensions,
+    calculateShippingRates,
+    checkFreeShipping,
+    formatShippingRate,
+    getCheapestRate,
+    type ShippingQuoteResult,
+    type ShippingRate,
 } from "@/services/shipping";
 import type { CartItem } from "@/services/shopping-cart";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  useWindowDimensions,
+    ActivityIndicator,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+    useWindowDimensions,
 } from "react-native";
 
 /* ── Constants ──────────────────────────────────────────────────── */
@@ -105,6 +105,15 @@ const navigateTo = (url: string) => {
   }
 };
 
+/** Build login URL preserving current marketplace path as returnTo */
+const getLoginUrlWithReturn = (): string => {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    const returnTo = window.location.pathname + window.location.search;
+    return `/login?returnTo=${encodeURIComponent(returnTo)}`;
+  }
+  return "/login";
+};
+
 const formatCep = (raw: string): string => {
   const digits = raw.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 5) return digits;
@@ -137,6 +146,7 @@ const maskPhone = (raw: string): string => {
 
 export default function CheckoutScreen() {
   const { tenantSlug } = useLocalSearchParams<{ tenantSlug?: string }>();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
 
@@ -596,7 +606,7 @@ export default function CheckoutScreen() {
     <View style={[styles.header, { backgroundColor: primaryColor }]}>
       <View style={styles.headerInner}>
         <TouchableOpacity
-          onPress={() => navigateTo(cartUrl)}
+          onPress={() => router.push(cartUrl as any)}
           style={styles.headerBackBtn}
         >
           <Ionicons name="arrow-back" size={22} color="#ffffff" />
@@ -1637,7 +1647,7 @@ export default function CheckoutScreen() {
 
         {/* Back to store */}
         <TouchableOpacity
-          onPress={() => navigateTo(storeBase)}
+          onPress={() => router.push(storeBase as any)}
           style={[styles.primaryBtn, { marginTop: 16 }]}
         >
           <Ionicons name="storefront-outline" size={18} color="#ffffff" />
@@ -1663,7 +1673,7 @@ export default function CheckoutScreen() {
         Você precisa estar logado para finalizar sua compra
       </Text>
       <TouchableOpacity
-        onPress={() => navigateTo("/login")}
+        onPress={() => navigateTo(getLoginUrlWithReturn())}
         style={[styles.primaryBtn, { marginTop: 24 }]}
       >
         <Text
@@ -1676,7 +1686,7 @@ export default function CheckoutScreen() {
         </Text>
       </TouchableOpacity>
       <TouchableOpacity
-        onPress={() => navigateTo(cartUrl)}
+        onPress={() => router.push(cartUrl as any)}
         style={{ marginTop: 12 }}
       >
         <Text style={[styles.authGateLink, { color: primaryColor }]}>
@@ -1722,7 +1732,7 @@ export default function CheckoutScreen() {
             Adicione produtos antes de finalizar a compra
           </Text>
           <TouchableOpacity
-            onPress={() => navigateTo(storeBase)}
+            onPress={() => router.push(storeBase as any)}
             style={[styles.primaryBtn, { marginTop: 24 }]}
           >
             <Text

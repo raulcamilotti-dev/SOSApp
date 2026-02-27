@@ -19,7 +19,7 @@ import {
     requestMarketplaceQuote,
 } from "@/services/marketplace";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -74,6 +74,15 @@ const navigateTo = (url: string) => {
   }
 };
 
+/** Build login URL preserving current marketplace path as returnTo */
+const getLoginUrlWithReturn = (): string => {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    const returnTo = window.location.pathname + window.location.search;
+    return `/login?returnTo=${encodeURIComponent(returnTo)}`;
+  }
+  return "/login";
+};
+
 const getProductIcon = (kind?: string): { name: string; color: string } => {
   switch (kind) {
     case "service":
@@ -94,6 +103,7 @@ export default function QuoteRequestPage() {
     tenantSlug?: string;
     productSlug: string;
   }>();
+  const router = useRouter();
   const { width } = useWindowDimensions();
   const { user, loading: authLoading } = useAuth();
 
@@ -161,7 +171,7 @@ export default function QuoteRequestPage() {
           setError("Serviço não encontrado.");
         } else if (p.pricing_type !== "quote") {
           // Not a quote-type product — redirect back
-          navigateTo(productUrl);
+          router.replace(productUrl as any);
           return;
         }
         setProduct(p);
@@ -180,12 +190,12 @@ export default function QuoteRequestPage() {
 
   /* ── Actions ── */
   const goBack = useCallback(() => {
-    navigateTo(productUrl);
-  }, [productUrl]);
+    router.push(productUrl as any);
+  }, [productUrl, router]);
 
   const goToStore = useCallback(() => {
-    navigateTo(storeBase);
-  }, [storeBase]);
+    router.push(storeBase as any);
+  }, [storeBase, router]);
 
   const handleSubmit = useCallback(async () => {
     if (!product || !tenant?.tenant_id || !user?.id) return;

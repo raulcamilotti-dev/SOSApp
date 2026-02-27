@@ -25,7 +25,7 @@ import {
     getProductCompositionChildren,
 } from "@/services/marketplace";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -124,6 +124,7 @@ export default function PublicProductDetail() {
     tenantSlug?: string;
     productSlug: string;
   }>();
+  const router = useRouter();
   const { width } = useWindowDimensions();
 
   /* ── Mode-aware navigation URLs ── */
@@ -203,12 +204,12 @@ export default function PublicProductDetail() {
 
   /* ── Actions ── */
   const goBack = useCallback(() => {
-    navigateTo(storeBase);
-  }, [storeBase]);
+    router.push(storeBase as any);
+  }, [storeBase, router]);
 
   const openCart = useCallback(() => {
-    navigateTo(cartUrl);
-  }, [cartUrl]);
+    router.push(cartUrl as any);
+  }, [cartUrl, router]);
 
   const incrementQty = useCallback(() => {
     if (!product) return;
@@ -400,7 +401,7 @@ export default function PublicProductDetail() {
             onPress={() => {
               // Navigate to quote request — login required, handled via auth redirect
               const quoteUrl = `${storeBase}/${product.slug}/orcamento`;
-              navigateTo(quoteUrl);
+              router.push(quoteUrl as any);
             }}
             style={[st.addButton, { backgroundColor: primaryColor }]}
             activeOpacity={0.8}

@@ -88,6 +88,20 @@ export function AuthGate({ children }: Props) {
         return;
       }
 
+      // Check for marketplace returnTo URL (web-only, set by marketplace login links)
+      if (typeof window !== "undefined") {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const returnTo = params.get("returnTo");
+          if (returnTo && returnTo.startsWith("/loja/")) {
+            router.replace(returnTo as any);
+            return;
+          }
+        } catch {
+          // Ignore URL parsing errors
+        }
+      }
+
       router.replace("/");
     }
 

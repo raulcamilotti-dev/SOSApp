@@ -11,8 +11,15 @@ import { useTenantModules } from "@/core/modules/ModulesContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useMemo } from "react";
+import {
+    Linking,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    View,
+} from "react-native";
 
 /* ------------------------------------------------------------------ */
 /*  Types & Data                                                       */
@@ -46,11 +53,11 @@ const SERVICE_GROUPS: ServiceGroup[] = [
     icon: "briefcase-outline",
     items: [
       {
-        id: "solicitar",
-        title: "Serviços e Agendamento",
-        description: "Buscar serviços e profissionais e agendar",
-        icon: "search-outline",
-        route: "/Servicos/SolicitarServico",
+        id: "catalogo",
+        title: "Catálogo de Produtos e Serviços",
+        description: "Explore produtos e serviços disponíveis na loja",
+        icon: "storefront-outline",
+        route: "__marketplace__",
       },
       {
         id: "meus_servicos",
@@ -74,6 +81,13 @@ const SERVICE_GROUPS: ServiceGroup[] = [
           "Veja seus contratos ativos e acompanhe vigência e valores",
         icon: "reader-outline",
         route: "/Servicos/MeusContratos",
+      },
+      {
+        id: "minhas_compras",
+        title: "Minhas Compras",
+        description: "Acompanhe seus pedidos da loja, pagamentos e entregas",
+        icon: "bag-handle-outline",
+        route: "/Servicos/MinhasCompras",
       },
     ],
   },
@@ -165,7 +179,7 @@ const SERVICE_GROUPS: ServiceGroup[] = [
 /* ------------------------------------------------------------------ */
 
 export default function ServicosScreen() {
-  const { user } = useAuth();
+  const { user, availableTenants } = useAuth();
   const isRadul = isRadulUser(user);
   const { hasAnyPermission } = usePermissions();
   const { isModuleEnabled } = useTenantModules();
@@ -182,6 +196,35 @@ export default function ServicosScreen() {
   );
 
   const canAccessAdmin = hasAnyPermission(ADMIN_PANEL_PERMISSIONS);
+
+  /* Resolve tenant slug for marketplace navigation */
+  const tenantSlug = useMemo(() => {
+    if (!user?.tenant_id) return null;
+    const match = availableTenants.find(
+      (t) => String(t.id) === String(user.tenant_id),
+    );
+    return match?.slug ?? null;
+  }, [user?.tenant_id, availableTenants]);
+
+  const handleItemPress = useCallback(
+    (item: ServiceItem) => {
+      if (item.route === "__marketplace__") {
+        if (tenantSlug) {
+          const url = `/loja/${tenantSlug}`;
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            window.location.href = url;
+          } else {
+            Linking.openURL(url).catch(() => {
+              router.push(url as any);
+            });
+          }
+        }
+        return;
+      }
+      router.push(item.route as any);
+    },
+    [tenantSlug, router],
+  );
 
   /* Filter groups & items by module + permissions */
   const visibleGroups = useMemo(() => {
@@ -252,7 +295,7 @@ export default function ServicosScreen() {
             {group.items.map((item) => (
               <Pressable
                 key={item.id}
-                onPress={() => router.push(item.route as any)}
+                onPress={() => handleItemPress(item)}
                 style={({ pressed }) => ({
                   backgroundColor: pressed ? groupHeaderBg : cardColor,
                   borderRadius: 14,
