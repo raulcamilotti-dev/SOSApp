@@ -20,10 +20,6 @@ import { api } from "./api";
 import { buildSearchParams, CRUD_ENDPOINT, normalizeCrudList } from "./crud";
 import { getMarketplaceProductById } from "./marketplace";
 
-const API_DINAMICO =
-  (process.env.EXPO_PUBLIC_API_BASE_URL ??
-    "https://api-crud.sosescritura.com.br") + "/api_dinamico";
-
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
@@ -314,9 +310,7 @@ export async function updateCartItemQuantity(
  * Uses real DELETE (not soft-delete) because shopping_cart_items has no deleted_at column.
  */
 export async function removeCartItem(cartItemId: string): Promise<void> {
-  await api.post(API_DINAMICO, {
-    sql: `DELETE FROM shopping_cart_items WHERE id = '${cartItemId}'`,
-  });
+  await api.post("/cart/remove-item", { cartItemId });
 }
 
 /**
@@ -324,9 +318,7 @@ export async function removeCartItem(cartItemId: string): Promise<void> {
  * Uses real DELETE (not soft-delete) because shopping_cart_items has no deleted_at column.
  */
 export async function clearCart(cartId: string): Promise<void> {
-  await api.post(API_DINAMICO, {
-    sql: `DELETE FROM shopping_cart_items WHERE cart_id = '${cartId}'`,
-  });
+  await api.post("/cart/clear", { cartId });
 }
 
 /* ------------------------------------------------------------------ */

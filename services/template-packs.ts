@@ -3,7 +3,7 @@
 /*                                                                     */
 /*  Applies a template pack to a tenant, creating all entities in the  */
 /*  correct dependency order. Uses api_crud for individual inserts     */
-/*  and api_dinamico for batch operations or permission lookups.       */
+/*  and dedicated Worker endpoints for batch operations.               */
 /*                                                                     */
 /*  Apply order (respects FK dependencies):                            */
 /*    1. service_categories                                            */
@@ -97,12 +97,6 @@ async function fetchAllPermissions(): Promise<{ id: string; code: string }[]> {
     table: "permissions",
   });
   return normalizeCrudList<{ id: string; code: string }>(res.data);
-}
-
-/** Execute raw SQL via api_dinamico. */
-async function execSQL(sql: string): Promise<unknown[]> {
-  const res = await api.post("api_dinamico", { sql });
-  return Array.isArray(res.data) ? res.data : [];
 }
 
 /**
@@ -962,43 +956,25 @@ export async function clearPackData(tenantId: string): Promise<{
   deletedCounts: Record<string, number>;
   errors: string[];
 }> {
-  const errors: string[] = [];
-  const deletedCounts: Record<string, number> = {};
-  const now = new Date().toISOString();
-
-  const softDeleteTable = async (table: string, extraWhere = "") => {
-    try {
-      const sql = `UPDATE "${table}" SET deleted_at = '${now}' WHERE tenant_id = '${tenantId}' AND deleted_at IS NULL ${extraWhere}`;
-      const res = await execSQL(sql);
-      deletedCounts[table] = Array.isArray(res)
-        ? ((res as { count?: number }[])[0]?.count ?? 0)
-        : 0;
-    } catch (err) {
-      errors.push(`clear ${table}: ${describeError(err)}`);
-    }
-  };
-
-  // Tables with tenant_id and deleted_at
-  const tablesToClear = [
-    "ocr_config",
-    "services",
-    "tenant_modules",
-    "document_templates",
-    "step_forms",
-    "step_task_templates",
-    "deadline_rules",
-    "workflow_step_transitions",
-    "service_types",
-    "service_categories",
-    "roles",
-    "workflow_templates",
-  ];
-
-  for (const table of tablesToClear) {
-    await softDeleteTable(table);
+  try {
+    const res = await api.post("/template-packs/clear", { tenantId });
+    const data = res.data as {
+      success: boolean;
+      deletedCounts: Record<string, number>;
+      errors: string[];
+    };
+    return {
+      success: data.success ?? false,
+      deletedCounts: data.deletedCounts ?? {},
+      errors: data.errors ?? [],
+    };
+  } catch (err) {
+    return {
+      success: false,
+      deletedCounts: {},
+      errors: [`clearPackData: ${describeError(err)}`],
+    };
   }
-
-  return { success: errors.length === 0, deletedCounts, errors };
 }
 
 /* ================================================================== */

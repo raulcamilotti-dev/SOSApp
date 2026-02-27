@@ -11,7 +11,6 @@
 import { api } from "./api";
 import {
     aggregateCrud,
-    API_DINAMICO,
     buildSearchParams,
     CRUD_ENDPOINT,
     normalizeCrudList,
@@ -578,23 +577,15 @@ export async function getMonthlyRevenue(
   year: number,
 ): Promise<{ month: string; total: number }[]> {
   try {
-    const res = await api.post(API_DINAMICO, {
-      sql: `
-        SELECT
-          TO_CHAR(paid_at, 'YYYY-MM') AS month,
-          COALESCE(SUM(total), 0) AS total
-        FROM invoices
-        WHERE tenant_id = '${tenantId}'
-          AND status = 'paid'
-          AND paid_at IS NOT NULL
-          AND EXTRACT(YEAR FROM paid_at) = ${year}
-          AND deleted_at IS NULL
-        GROUP BY TO_CHAR(paid_at, 'YYYY-MM')
-        ORDER BY month
-      `,
+    const res = await api.post("/financial/monthly-revenue", {
+      tenantId,
+      year,
     });
-    const rows = normalizeCrudList<{ month: string; total: string }>(res.data);
-    return rows.map((r) => ({ month: r.month, total: Number(r.total || 0) }));
+    const rows = Array.isArray(res.data) ? res.data : [];
+    return rows.map((r: Record<string, unknown>) => ({
+      month: String(r.month ?? ""),
+      total: Number(r.total || 0),
+    }));
   } catch {
     return [];
   }
@@ -826,42 +817,19 @@ export interface DelinquencySummary {
 
 /**
  * Fetch delinquent customers with aggregated overdue amounts.
- * Uses api_dinamico for JOIN between accounts_receivable and customers.
+ * Uses dedicated Worker endpoint with parametrized query.
  */
 export async function getDelinquentCustomers(
   tenantId: string,
   partnerId?: string,
 ): Promise<DelinquentCustomer[]> {
-  const partnerFilter = partnerId ? `AND c.partner_id = '${partnerId}'` : "";
   try {
-    const res = await api.post(API_DINAMICO, {
-      sql: `
-        SELECT
-          ar.customer_id,
-          COALESCE(c.name, 'Cliente não identificado') AS customer_name,
-          c.email AS customer_email,
-          c.phone AS customer_phone,
-          c.cpf AS customer_cpf_cnpj,
-          COUNT(ar.id)::int AS overdue_count,
-          COALESCE(SUM(ar.amount), 0) AS total_overdue,
-          COALESCE(SUM(ar.amount_received), 0) AS total_received,
-          MIN(ar.due_date)::text AS oldest_due_date,
-          MAX(ar.due_date)::text AS newest_due_date,
-          EXTRACT(DAY FROM NOW() - MIN(ar.due_date))::int AS days_overdue
-        FROM accounts_receivable ar
-        LEFT JOIN customers c ON c.id = ar.customer_id
-        WHERE ar.tenant_id = '${tenantId}'
-          AND ar.deleted_at IS NULL
-          AND ar.status IN ('overdue', 'pending')
-          AND ar.due_date < CURRENT_DATE
-          AND ar.customer_id IS NOT NULL
-          ${partnerFilter}
-        GROUP BY ar.customer_id, c.name, c.email, c.phone, c.cpf
-        ORDER BY total_overdue DESC
-      `,
+    const res = await api.post("/financial/delinquent-customers", {
+      tenantId,
+      ...(partnerId ? { partnerId } : {}),
     });
-    const rows = normalizeCrudList<Record<string, unknown>>(res.data);
-    return rows.map((r) => ({
+    const rows = Array.isArray(res.data) ? res.data : [];
+    return rows.map((r: Record<string, unknown>) => ({
       customer_id: String(r.customer_id ?? ""),
       customer_name: String(r.customer_name ?? "Cliente não identificado"),
       customer_email: r.customer_email ? String(r.customer_email) : null,
@@ -890,31 +858,14 @@ export async function getOverdueEntriesForCustomer(
   customerId: string,
   partnerId?: string,
 ): Promise<OverdueEntry[]> {
-  const partnerFilter = partnerId
-    ? `AND customer_id IN (SELECT id FROM customers WHERE partner_id = '${partnerId}')`
-    : "";
   try {
-    const res = await api.post(API_DINAMICO, {
-      sql: `
-        SELECT
-          id, description, type, category,
-          amount, amount_received,
-          (amount - amount_received) AS balance,
-          due_date::text,
-          EXTRACT(DAY FROM NOW() - due_date)::int AS days_overdue,
-          status, payment_method, notes, customer_id
-        FROM accounts_receivable
-        WHERE tenant_id = '${tenantId}'
-          AND customer_id = '${customerId}'
-          AND deleted_at IS NULL
-          AND status IN ('overdue', 'pending')
-          AND due_date < CURRENT_DATE
-          ${partnerFilter}
-        ORDER BY due_date ASC
-      `,
+    const res = await api.post("/financial/overdue-entries", {
+      tenantId,
+      customerId,
+      ...(partnerId ? { partnerId } : {}),
     });
-    const rows = normalizeCrudList<Record<string, unknown>>(res.data);
-    return rows.map((r) => ({
+    const rows = Array.isArray(res.data) ? res.data : [];
+    return rows.map((r: Record<string, unknown>) => ({
       id: String(r.id ?? ""),
       description: String(r.description ?? ""),
       type: String(r.type ?? ""),
@@ -942,30 +893,13 @@ export async function getDelinquencySummary(
   tenantId: string,
   partnerId?: string,
 ): Promise<DelinquencySummary> {
-  const partnerFilter = partnerId
-    ? `AND customer_id IN (SELECT id FROM customers WHERE partner_id = '${partnerId}')`
-    : "";
   try {
-    const res = await api.post(API_DINAMICO, {
-      sql: `
-        SELECT
-          COALESCE(SUM(amount - amount_received), 0) AS total_overdue_amount,
-          COUNT(DISTINCT customer_id)::int AS total_delinquents,
-          COALESCE(AVG(EXTRACT(DAY FROM NOW() - due_date)), 0)::int AS avg_days_overdue,
-          COALESCE(MAX(EXTRACT(DAY FROM NOW() - due_date)), 0)::int AS oldest_overdue_days,
-          COUNT(id)::int AS total_overdue_entries,
-          COALESCE(SUM(amount_received), 0) AS total_partial_amount
-        FROM accounts_receivable
-        WHERE tenant_id = '${tenantId}'
-          AND deleted_at IS NULL
-          AND status IN ('overdue', 'pending')
-          AND due_date < CURRENT_DATE
-          AND customer_id IS NOT NULL
-          ${partnerFilter}
-      `,
+    const res = await api.post("/financial/delinquency-summary", {
+      tenantId,
+      ...(partnerId ? { partnerId } : {}),
     });
-    const rows = normalizeCrudList<Record<string, unknown>>(res.data);
-    const r = rows[0] ?? {};
+    const rows = Array.isArray(res.data) ? res.data : [];
+    const r = (rows[0] as Record<string, unknown>) ?? {};
     return {
       totalOverdueAmount: Number(r.total_overdue_amount || 0),
       totalDelinquents: Number(r.total_delinquents || 0),
@@ -995,24 +929,12 @@ export async function markEntriesAsOverdue(
   tenantId: string,
   partnerId?: string,
 ): Promise<number> {
-  const partnerFilter = partnerId
-    ? `AND customer_id IN (SELECT id FROM customers WHERE partner_id = '${partnerId}')`
-    : "";
   try {
-    const res = await api.post(API_DINAMICO, {
-      sql: `
-        UPDATE accounts_receivable
-        SET status = 'overdue', updated_at = NOW()
-        WHERE tenant_id = '${tenantId}'
-          AND deleted_at IS NULL
-          AND status = 'pending'
-          AND due_date < CURRENT_DATE
-          ${partnerFilter}
-        RETURNING id
-      `,
+    const res = await api.post("/financial/mark-overdue", {
+      tenantId,
+      ...(partnerId ? { partnerId } : {}),
     });
-    const rows = normalizeCrudList<{ id: string }>(res.data);
-    return rows.length;
+    return Number((res.data as Record<string, unknown>)?.updated || 0);
   } catch (err) {
     console.error("[Inadimplentes] markEntriesAsOverdue error:", err);
     return 0;

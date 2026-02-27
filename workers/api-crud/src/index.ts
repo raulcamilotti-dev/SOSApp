@@ -3,15 +3,25 @@
 /*  Replaces N8N api_crud webhook with edge-native execution           */
 /*                                                                     */
 /*  Endpoints:                                                         */
-/*    POST /api_crud      — 7 CRUD actions (list/create/update/etc.)   */
-/*    POST /api_dinamico  — Execute raw SQL (restricted)               */
-/*    POST /tables_info   — Table schema introspection                 */
-/*    GET  /tables        — List all public tables                     */
-/*    GET  /health        — Health check                               */
-/*    POST /marketplace/* — Dedicated marketplace checkout endpoints   */
+/*    POST /api_crud         — 7 CRUD actions (list/create/update/etc.)*/
+/*    POST /api_dinamico     — Execute raw SQL (restricted)            */
+/*    POST /tables_info      — Table schema introspection              */
+/*    GET  /tables           — List all public tables                  */
+/*    GET  /health           — Health check                            */
+/*    POST /marketplace/*    — Marketplace checkout endpoints          */
+/*    POST /cart/*           — Shopping cart endpoints                  */
+/*    POST /financial/*      — Financial dashboard endpoints           */
+/*    POST /template-packs/* — Template pack management endpoints      */
 /* ================================================================== */
 
 import { executeQuery } from "./db";
+import {
+    handleDelinquencySummary,
+    handleDelinquentCustomers,
+    handleMarkOverdue,
+    handleMonthlyRevenue,
+    handleOverdueEntries,
+} from "./financial";
 import {
     handleCancelOrder,
     handleConfirmPayment,
@@ -19,6 +29,7 @@ import {
     handleOrderSummary,
     handleResolveCustomer,
 } from "./marketplace";
+import { handleClearCart, handleRemoveCartItem } from "./shopping-cart";
 import {
     buildAggregate,
     buildBatchCreate,
@@ -28,6 +39,7 @@ import {
     buildList,
     buildUpdate,
 } from "./sql-builder";
+import { handleClearPackData } from "./template-packs";
 import type { CrudRequestBody, Env } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -457,6 +469,49 @@ export default {
             return handleConfirmPayment(body, env);
           case "/marketplace/cancel-order":
             return handleCancelOrder(body, env);
+          default:
+            return errorResponse(404, "Not found: " + path);
+        }
+      }
+
+      // Route: POST /cart/* — shopping cart endpoints
+      if (request.method === "POST" && path.startsWith("/cart/")) {
+        const body = (await request.json()) as Record<string, unknown>;
+        switch (path) {
+          case "/cart/remove-item":
+            return handleRemoveCartItem(body, env);
+          case "/cart/clear":
+            return handleClearCart(body, env);
+          default:
+            return errorResponse(404, "Not found: " + path);
+        }
+      }
+
+      // Route: POST /financial/* — financial dashboard endpoints
+      if (request.method === "POST" && path.startsWith("/financial/")) {
+        const body = (await request.json()) as Record<string, unknown>;
+        switch (path) {
+          case "/financial/monthly-revenue":
+            return handleMonthlyRevenue(body, env);
+          case "/financial/delinquent-customers":
+            return handleDelinquentCustomers(body, env);
+          case "/financial/overdue-entries":
+            return handleOverdueEntries(body, env);
+          case "/financial/delinquency-summary":
+            return handleDelinquencySummary(body, env);
+          case "/financial/mark-overdue":
+            return handleMarkOverdue(body, env);
+          default:
+            return errorResponse(404, "Not found: " + path);
+        }
+      }
+
+      // Route: POST /template-packs/* — template pack management endpoints
+      if (request.method === "POST" && path.startsWith("/template-packs/")) {
+        const body = (await request.json()) as Record<string, unknown>;
+        switch (path) {
+          case "/template-packs/clear":
+            return handleClearPackData(body, env);
           default:
             return errorResponse(404, "Not found: " + path);
         }
