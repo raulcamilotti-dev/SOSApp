@@ -4,6 +4,13 @@ import { ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { isUserProfileComplete } from "./auth.utils";
 import { ADMIN_PANEL_PERMISSIONS } from "./permissions";
+import {
+    clearReturnTo,
+    extractReturnToFromUrl,
+    getReturnTo,
+    navigateToReturnTo,
+    saveReturnTo,
+} from "./returnTo";
 import { usePermissions } from "./usePermissions";
 
 /**
@@ -81,7 +88,8 @@ export function AuthGate({ children }: Props) {
 
     // On web, check actual browser URL — more reliable than useSegments()
     // during SPA hydration or full page reloads to public routes.
-    if (isPublicWebRoute()) return;
+    // Also check Expo Router's segment-based group as defense-in-depth.
+    if (isPublicWebRoute() || inPublicGroup) return;
 
     if (!user && !inAuthGroup && !inPublicGroup) {
       router.replace("/(auth)/login");
@@ -98,23 +106,21 @@ export function AuthGate({ children }: Props) {
         return;
       }
 
+      // Save returnTo from URL params before any redirect loses it
+      const urlReturnTo = extractReturnToFromUrl();
+      if (urlReturnTo) saveReturnTo(urlReturnTo);
+
       if (requiresTenantSelection) {
         router.replace("/(app)/Usuario/selecionar-tenant");
         return;
       }
 
-      // Check for marketplace returnTo URL (web-only, set by marketplace login links)
-      if (typeof window !== "undefined") {
-        try {
-          const params = new URLSearchParams(window.location.search);
-          const returnTo = params.get("returnTo");
-          if (returnTo && returnTo.startsWith("/loja/")) {
-            router.replace(returnTo as any);
-            return;
-          }
-        } catch {
-          // Ignore URL parsing errors
-        }
+      // Check for saved marketplace returnTo (persisted in sessionStorage)
+      const savedReturnTo = getReturnTo();
+      if (savedReturnTo) {
+        clearReturnTo();
+        navigateToReturnTo(savedReturnTo);
+        return;
       }
 
       router.replace("/");
@@ -160,6 +166,13 @@ export function AuthGate({ children }: Props) {
       !requiresOnboarding &&
       isTenantSelectionRoute
     ) {
+      // Tenant selection just completed — redirect to saved returnTo or home
+      const savedReturnTo = getReturnTo();
+      if (savedReturnTo) {
+        clearReturnTo();
+        navigateToReturnTo(savedReturnTo);
+        return;
+      }
       router.replace("/");
       return;
     }

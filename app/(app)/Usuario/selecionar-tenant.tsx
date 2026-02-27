@@ -1,6 +1,11 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
+import {
+    clearReturnTo,
+    getReturnTo,
+    navigateToReturnTo,
+} from "@/core/auth/returnTo";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -38,7 +43,15 @@ export default function SelectTenantScreen() {
     try {
       setSubmitting(true);
       await selectTenant(selectedTenantId);
-      router.replace("/Usuario/Perfil");
+
+      // Check if there's a saved marketplace returnTo path
+      const savedReturnTo = getReturnTo();
+      if (savedReturnTo) {
+        clearReturnTo();
+        navigateToReturnTo(savedReturnTo);
+      } else {
+        router.replace("/Usuario/Perfil");
+      }
     } catch (error) {
       console.error("Erro ao selecionar tenant", error);
       Alert.alert(

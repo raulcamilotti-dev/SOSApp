@@ -1,5 +1,6 @@
 import { isUserProfileComplete } from "@/core/auth/auth.utils";
 import { useAuth } from "@/core/auth/AuthContext";
+import { extractReturnToFromUrl, saveReturnTo } from "@/core/auth/returnTo";
 import { getAuthColors, useTenantBranding } from "@/hooks/use-tenant-branding";
 import { validateCpf } from "@/services/brasil-api";
 import {
@@ -116,6 +117,9 @@ export default function Login() {
       try {
         setGoogleSubmitting(true);
         setError("");
+        // Persist returnTo from URL before login redirects lose it
+        const urlReturnTo = extractReturnToFromUrl();
+        if (urlReturnTo) saveReturnTo(urlReturnTo);
         const loggedUser = await googleLogin(idToken);
         if (!loggedUser.tenant_id) {
           router.replace("/(app)/Usuario/selecionar-tenant");
@@ -149,6 +153,10 @@ export default function Login() {
         setSubmitting(false);
         return;
       }
+
+      // Persist returnTo from URL before login redirects lose it
+      const urlReturnTo = extractReturnToFromUrl();
+      if (urlReturnTo) saveReturnTo(urlReturnTo);
 
       const result = await login(cpf, password);
       if (!result.tenant_id) {
@@ -221,6 +229,10 @@ export default function Login() {
         }
         return;
       }
+
+      // Persist returnTo from URL before login redirects lose it
+      const urlReturnTo = extractReturnToFromUrl();
+      if (urlReturnTo) saveReturnTo(urlReturnTo);
 
       const loggedUser = await govBrLogin(
         result.params.code,
