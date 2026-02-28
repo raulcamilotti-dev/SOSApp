@@ -12,25 +12,25 @@ import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import {
-  CRUD_ENDPOINT,
-  buildSearchParams,
-  normalizeCrudList,
+    CRUD_ENDPOINT,
+    buildSearchParams,
+    normalizeCrudList,
 } from "@/services/crud";
 import { generatePixPayload, generatePixQRCodeBase64 } from "@/services/pix";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 const log = __DEV__ ? console.log : () => {};

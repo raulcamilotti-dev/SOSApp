@@ -47,6 +47,8 @@ import {
     saveReconciliationImport,
     updateImportReconciledCount,
 } from "@/services/bank-reconciliation";
+import type { ChartAccount } from "@/services/chart-of-accounts";
+import { loadLeafAccounts } from "@/services/chart-of-accounts";
 import type { OFXParseResult } from "@/services/ofx-parser";
 import {
     getPeriodText,
@@ -54,8 +56,6 @@ import {
     getTotalDebits,
     parseOFX,
 } from "@/services/ofx-parser";
-import type { ChartAccount } from "@/services/chart-of-accounts";
-import { loadLeafAccounts } from "@/services/chart-of-accounts";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -1274,17 +1274,24 @@ export default function ConciliadorBancarioScreen() {
                           paddingVertical: 6,
                           borderRadius: 16,
                           backgroundColor:
-                            createChartAccountId === acc.id ? tintColor : cardBg,
+                            createChartAccountId === acc.id
+                              ? tintColor
+                              : cardBg,
                           borderWidth: 1,
                           borderColor:
-                            createChartAccountId === acc.id ? tintColor : borderColor,
+                            createChartAccountId === acc.id
+                              ? tintColor
+                              : borderColor,
                         }}
                       >
                         <Text
                           style={{
                             fontSize: 12,
                             fontWeight: "600",
-                            color: createChartAccountId === acc.id ? "#fff" : textColor,
+                            color:
+                              createChartAccountId === acc.id
+                                ? "#fff"
+                                : textColor,
                           }}
                         >
                           {acc.code} — {acc.name}
@@ -1292,7 +1299,13 @@ export default function ConciliadorBancarioScreen() {
                       </Pressable>
                     ))}
                     {leafAccounts.length === 0 && (
-                      <Text style={{ fontSize: 12, color: mutedColor, fontStyle: "italic" }}>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: mutedColor,
+                          fontStyle: "italic",
+                        }}
+                      >
                         Nenhuma conta cadastrada
                       </Text>
                     )}

@@ -14,6 +14,10 @@
  */
 
 import { api } from "./api";
+import {
+    KNOWN_ACCOUNT_CODES,
+    resolveChartAccountId,
+} from "./chart-of-accounts";
 import { explodeComposition } from "./compositions";
 import {
     buildSearchParams,
@@ -594,7 +598,15 @@ export async function createSale(
     payload: { id: sale.id, invoice_id: invoiceId },
   });
 
-  // 9. Create accounts_receivable
+  // 9. Auto-classify chart of accounts based on sale item composition
+  const hasProducts = createdItems.some((i) => i.item_kind === "product");
+  const hasServices = createdItems.some((i) => i.item_kind === "service");
+  const revenueCode = hasProducts && !hasServices
+    ? KNOWN_ACCOUNT_CODES.RECEITA_PRODUTOS
+    : KNOWN_ACCOUNT_CODES.RECEITA_SERVICOS; // default to services (or mixed)
+  const chartAccountId = await resolveChartAccountId(tenantId, revenueCode);
+
+  // 10. Create accounts_receivable
   const arRes = await api.post(CRUD_ENDPOINT, {
     action: "create",
     table: "accounts_receivable",
@@ -614,6 +626,7 @@ export async function createSale(
       competence_date: now,
       recurrence: "none",
       payment_method: paymentMethodStr,
+      chart_account_id: chartAccountId,
     },
   });
   const ar = normalizeCrudOne<Record<string, unknown>>(arRes.data);

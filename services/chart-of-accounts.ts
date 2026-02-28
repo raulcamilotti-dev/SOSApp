@@ -635,3 +635,108 @@ export async function loadLeafAccounts(
 export function formatAccountLabel(account: ChartAccount): string {
   return `${account.code} — ${account.name}`;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Auto-classification helpers                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Well-known account codes used for automatic classification.
+ * These codes match the DEFAULT_ACCOUNTS seeded for every tenant.
+ */
+export const KNOWN_ACCOUNT_CODES = {
+  // Revenue
+  RECEITA_SERVICOS: "1.1.01",
+  RECEITA_PRODUTOS: "1.1.02",
+  RECEITA_CONSULTORIAS: "1.1.03",
+  MENSALIDADES: "1.1.04",
+  COMISSOES_RECEBIDAS: "1.1.05",
+  JUROS_RECEBIDOS: "1.2.01",
+  OUTRAS_RECEITAS: "1.3.02",
+
+  // Costs
+  CUSTO_MERCADORIA: "2.1.01",
+  CUSTO_SERVICO: "2.1.02",
+  PAGAMENTO_PARCEIROS: "2.1.03",
+  COMISSOES_PAGAS: "2.1.04",
+
+  // Expenses (common)
+  ALUGUEL: "3.1.01",
+  SOFTWARE_TECNOLOGIA: "3.5.02",
+  FORNECEDORES: "3.5.04",
+  OUTRAS_DESPESAS: "3.6.03",
+} as const;
+
+/** In-memory cache: tenantId → (code → UUID) */
+const _codeToIdCache = new Map<string, Map<string, string>>();
+const _codeToIdCacheTs = new Map<string, number>();
+const CODE_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Resolve a chart-of-accounts code (e.g. "1.1.01") to its UUID for a given tenant.
+ *
+ * This is the core auto-classification helper. All automated financial flows
+ * should call this to assign chart_account_id without manual user input.
+ *
+ * Returns `null` if the account code is not found (graceful fallback —
+ * never blocks the financial operation).
+ *
+ * Usage:
+ *   const chartAccountId = await resolveChartAccountId(tenantId, KNOWN_ACCOUNT_CODES.RECEITA_SERVICOS);
+ */
+export async function resolveChartAccountId(
+  tenantId: string,
+  code: string,
+): Promise<string | null> {
+  if (!tenantId || !code) return null;
+
+  // Check cache
+  const now = Date.now();
+  const cachedTs = _codeToIdCacheTs.get(tenantId);
+  let codeMap = _codeToIdCache.get(tenantId);
+
+  if (codeMap && cachedTs && now - cachedTs < CODE_CACHE_TTL_MS) {
+    return codeMap.get(code) ?? null;
+  }
+
+  // Load all active accounts for this tenant and build code→id map
+  try {
+    const accounts = await loadChartOfAccounts(tenantId);
+    codeMap = new Map<string, string>();
+    for (const account of accounts) {
+      if (account.code && account.id) {
+        codeMap.set(account.code, account.id);
+      }
+    }
+    _codeToIdCache.set(tenantId, codeMap);
+    _codeToIdCacheTs.set(tenantId, now);
+    return codeMap.get(code) ?? null;
+  } catch {
+    // Never block financial operations on classification failure
+    return null;
+  }
+}
+
+/**
+ * Resolve multiple codes at once (batch — single DB call).
+ * Returns a Map<code, UUID>.
+ */
+export async function resolveChartAccountIds(
+  tenantId: string,
+  codes: string[],
+): Promise<Map<string, string | null>> {
+  const result = new Map<string, string | null>();
+  if (!tenantId || !codes.length) {
+    codes.forEach((c) => result.set(c, null));
+    return result;
+  }
+
+  // Populate cache (single call)
+  await resolveChartAccountId(tenantId, codes[0] ?? "");
+
+  const codeMap = _codeToIdCache.get(tenantId);
+  for (const code of codes) {
+    result.set(code, codeMap?.get(code) ?? null);
+  }
+  return result;
+}

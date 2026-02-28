@@ -39,6 +39,10 @@ import {
     updateReferralStatus,
 } from "./channel-partners";
 import {
+    KNOWN_ACCOUNT_CODES,
+    resolveChartAccountId,
+} from "./chart-of-accounts";
+import {
     aggregateCrud,
     buildSearchParams,
     CRUD_ENDPOINT,
@@ -819,6 +823,10 @@ export async function subscribeToPlan(
       });
 
     // 5. Create Accounts Receivable on Radul tenant (monthly recurrence)
+    const saasChartAccountId = await resolveChartAccountId(
+      radul.id,
+      KNOWN_ACCOUNT_CODES.MENSALIDADES,
+    );
     const ar = await createAccountReceivable({
       tenant_id: radul.id,
       description,
@@ -837,6 +845,7 @@ export async function subscribeToPlan(
       pix_payload: pixPayload ?? undefined,
       pix_qr_base64: pixQrBase64 ?? undefined,
       recurrence: "monthly",
+      chart_account_id: saasChartAccountId,
       notes: JSON.stringify({
         type: "saas_plan_subscription",
         buyer_tenant_id: buyerTenantId,
@@ -973,6 +982,10 @@ export async function purchaseExtraClients(
         externalReference: invoice.id,
       });
 
+    const extraChartAccountId = await resolveChartAccountId(
+      radul.id,
+      KNOWN_ACCOUNT_CODES.MENSALIDADES,
+    );
     const ar = await createAccountReceivable({
       tenant_id: radul.id,
       description,
@@ -991,6 +1004,7 @@ export async function purchaseExtraClients(
       pix_payload: pixPayload ?? undefined,
       pix_qr_base64: pixQrBase64 ?? undefined,
       recurrence: "monthly",
+      chart_account_id: extraChartAccountId,
       notes: JSON.stringify({
         type: "saas_extra_clients",
         buyer_tenant_id: buyerTenantId,
@@ -1311,6 +1325,10 @@ async function generateNextMonthBilling(
     });
 
   // 4. Create AR entry for next month (linked to parent via recurrence_parent_id)
+  const nextChartAccountId = await resolveChartAccountId(
+    radul.id,
+    KNOWN_ACCOUNT_CODES.MENSALIDADES,
+  );
   const ar = await createAccountReceivable({
     tenant_id: radul.id,
     description,
@@ -1330,6 +1348,7 @@ async function generateNextMonthBilling(
     pix_qr_base64: pixQrBase64 ?? undefined,
     recurrence: "monthly",
     recurrence_parent_id: parentArId,
+    chart_account_id: nextChartAccountId,
     notes: JSON.stringify({
       ...parentNotes,
       is_initial: false,

@@ -69,6 +69,7 @@ export interface AccountPayable {
   description: string;
   type: AccountEntryType;
   category?: string | null;
+  chart_account_id?: string | null;
   partner_id?: string | null;
   partner_earning_id?: string | null;
   service_order_id?: string | null;
@@ -109,6 +110,7 @@ export interface AccountReceivable {
   description: string;
   type: AccountEntryType;
   category?: string | null;
+  chart_account_id?: string | null;
   customer_id?: string | null;
   invoice_id?: string | null;
   sale_id?: string | null;

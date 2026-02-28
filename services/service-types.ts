@@ -11,6 +11,8 @@ export type ServiceType = {
   category_id: string | null;
   entity_table: string | null;
   default_template_id: string | null;
+  /** Default chart-of-accounts entry for automatic revenue classification */
+  default_chart_account_id: string | null;
   is_active: boolean;
   created_at: string | null;
   updated_at: string | null;

@@ -147,6 +147,30 @@ const fields: CrudFieldConfig<ServiceType>[] = [
     visibleInForm: true,
   },
   {
+    key: "default_chart_account_id" as keyof ServiceType & string,
+    label: "Plano de Contas Padrão",
+    placeholder: "Conta contábil padrão para receitas deste tipo",
+    type: "reference",
+    referenceTable: "chart_of_accounts",
+    referenceLabelField: "name",
+    referenceSearchField: "name",
+    referenceIdField: "id",
+    visibleInList: false,
+    visibleInForm: true,
+    section: "Classificação Financeira",
+    referenceLabelFormatter: (item, _default) => {
+      const code = String(item?.code ?? "");
+      const name = String(item?.name ?? "");
+      return code ? `${code} — ${name}` : name;
+    },
+    referenceFilter: (item) => {
+      // Only show leaf accounts (level 3) that are active
+      const level = Number(item?.level ?? 0);
+      const isActive = item?.is_active !== false;
+      return level === 3 && isActive;
+    },
+  },
+  {
     key: "created_at",
     label: "Created At",
     placeholder: "Created At",

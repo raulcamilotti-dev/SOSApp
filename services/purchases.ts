@@ -13,6 +13,10 @@
 
 import { api } from "./api";
 import {
+    KNOWN_ACCOUNT_CODES,
+    resolveChartAccountId,
+} from "./chart-of-accounts";
+import {
     buildSearchParams,
     CRUD_ENDPOINT,
     normalizeCrudList,
@@ -449,6 +453,12 @@ export async function createAccountsPayableForPO(
   const today = new Date();
   const invoiceRef = po.invoice_number ? ` NF ${po.invoice_number}` : "";
 
+  // Auto-classify chart of accounts for purchases
+  const purchaseChartAccountId = await resolveChartAccountId(
+    tenantId,
+    KNOWN_ACCOUNT_CODES.CUSTO_MERCADORIA,
+  );
+
   for (let i = 0; i < installmentCount; i++) {
     const dueDate = addDays(today, terms[i]);
     const amount =
@@ -472,6 +482,7 @@ export async function createAccountsPayableForPO(
       due_date: dueDate,
       competence_date: today.toISOString().split("T")[0].substring(0, 8) + "01",
       recurrence: "none",
+      chart_account_id: purchaseChartAccountId,
       notes: JSON.stringify({
         type: "purchase_order",
         purchase_order_id: po.id,
