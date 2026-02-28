@@ -37,25 +37,25 @@ import {
 
 /* ── Constants ──────────────────────────────────────────────────── */
 const DEFAULT_PRIMARY = "#2563eb";
-const BG_COLOR = "#ffffff";
+const BG_COLOR = "#f8fafc";
 const CARD_BG = "#ffffff";
-const TEXT_PRIMARY = "#1e293b";
-const TEXT_SECONDARY = "#64748b";
+const TEXT_PRIMARY = "#0f172a";
+const TEXT_SECONDARY = "#475569";
 const TEXT_MUTED = "#94a3b8";
 const BORDER_COLOR = "#e2e8f0";
-const HERO_BG = "#f8fafc";
-const SUCCESS_COLOR = "#16a34a";
+const HERO_BG = "#f1f5f9";
+const SUCCESS_COLOR = "#059669";
 
 const CARD_SHADOW = Platform.select({
   web: {
-    boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.04)",
   },
   default: {
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
 });
 
@@ -275,10 +275,8 @@ export default function PublicStoreListing() {
               onPress={() => navigateTo(getLoginUrlWithReturn())}
               style={st.loginButton}
             >
-              <Ionicons name="log-in-outline" size={18} color={primaryColor} />
-              <Text style={[st.loginButtonText, { color: primaryColor }]}>
-                Entrar
-              </Text>
+              <Ionicons name="log-in-outline" size={16} color="#fff" />
+              <Text style={st.loginButtonText}>Entrar</Text>
             </TouchableOpacity>
           )}
 
@@ -308,6 +306,7 @@ export default function PublicStoreListing() {
           style={st.bannerImage}
           resizeMode="cover"
         />
+        <View style={st.bannerGradient} />
       </View>
     );
   };
@@ -325,7 +324,7 @@ export default function PublicStoreListing() {
         <TextInput
           value={searchText}
           onChangeText={handleSearch}
-          placeholder="Buscar produtos..."
+          placeholder="O que você procura?"
           placeholderTextColor={TEXT_MUTED}
           style={st.searchInput}
           returnKeyType="search"
@@ -691,20 +690,37 @@ export default function PublicStoreListing() {
   /* ═══ Render: Footer ═══ */
   const renderFooter = () => (
     <View style={st.footer}>
+      {config?.min_order_value || config?.free_shipping_above ? (
+        <View style={st.footerBadges}>
+          {config?.min_order_value ? (
+            <View style={st.footerBadge}>
+              <Ionicons
+                name="receipt-outline"
+                size={13}
+                color={TEXT_SECONDARY}
+              />
+              <Text style={st.footerBadgeText}>
+                Pedido mín. {formatCurrency(config.min_order_value)}
+              </Text>
+            </View>
+          ) : null}
+          {config?.free_shipping_above ? (
+            <View
+              style={[st.footerBadge, { borderColor: SUCCESS_COLOR + "30" }]}
+            >
+              <Ionicons name="car-outline" size={13} color={SUCCESS_COLOR} />
+              <Text style={[st.footerBadgeText, { color: SUCCESS_COLOR }]}>
+                Frete grátis acima de{" "}
+                {formatCurrency(config.free_shipping_above)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       <Text style={st.footerText}>
         Powered by{" "}
         <Text style={{ fontWeight: "700", color: TEXT_SECONDARY }}>Radul</Text>
       </Text>
-      {config?.min_order_value ? (
-        <Text style={st.footerHint}>
-          Pedido mínimo: {formatCurrency(config.min_order_value)}
-        </Text>
-      ) : null}
-      {config?.free_shipping_above ? (
-        <Text style={st.footerHint}>
-          Frete grátis acima de {formatCurrency(config.free_shipping_above)}
-        </Text>
-      ) : null}
     </View>
   );
 
@@ -778,8 +794,9 @@ const st = StyleSheet.create({
   /* Header */
   header: {
     paddingTop: Platform.OS === "web" ? 0 : 48,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    zIndex: 10,
   },
   headerInner: {
     flexDirection: "row",
@@ -796,21 +813,24 @@ const st = StyleSheet.create({
     flex: 1,
   },
   logoCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.25)",
   },
   logoLetter: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#fff",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#fff",
+    letterSpacing: 0.2,
   },
   headerSubtitle: {
     fontSize: 12,
@@ -824,15 +844,17 @@ const st = StyleSheet.create({
   },
   cartBadge: {
     position: "absolute",
-    top: 2,
-    right: 0,
+    top: 0,
+    right: -2,
     backgroundColor: "#ef4444",
     borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    minWidth: 20,
+    height: 20,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.3)",
   },
   cartBadgeText: {
     color: "#fff",
@@ -843,12 +865,24 @@ const st = StyleSheet.create({
   /* Banner */
   bannerContainer: {
     width: "100%",
-    height: 180,
+    height: 200,
     backgroundColor: HERO_BG,
+    overflow: "hidden" as const,
+    position: "relative",
   },
   bannerImage: {
     width: "100%",
     height: "100%",
+  },
+  bannerGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    ...(Platform.OS === "web"
+      ? { backgroundImage: `linear-gradient(transparent, ${BG_COLOR})` as any }
+      : {}),
   },
 
   /* Search */
@@ -863,16 +897,26 @@ const st = StyleSheet.create({
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: HERO_BG,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "web" ? 10 : 12,
+    backgroundColor: CARD_BG,
+    borderRadius: 28,
+    paddingHorizontal: 18,
+    paddingVertical: Platform.OS === "web" ? 12 : 14,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 12px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 4,
+      },
+    }),
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     color: TEXT_PRIMARY,
     ...(Platform.OS === "web" ? { outlineStyle: "none" as any } : {}),
   },
@@ -888,23 +932,24 @@ const st = StyleSheet.create({
     paddingRight: 20,
   },
   categoryChip: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: BORDER_COLOR,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
     backgroundColor: CARD_BG,
   },
   categoryChipText: {
     fontSize: 13,
     color: TEXT_SECONDARY,
     fontWeight: "600",
+    letterSpacing: 0.1,
   },
 
   /* Product grid */
   gridContainer: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 16,
     maxWidth: 1200,
     alignSelf: "center",
     width: "100%",
@@ -912,20 +957,19 @@ const st = StyleSheet.create({
   resultCount: {
     fontSize: 13,
     color: TEXT_MUTED,
-    marginBottom: 12,
+    marginBottom: 14,
+    fontWeight: "500",
   },
   gridRow: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
+    gap: 14,
+    marginBottom: 14,
   },
 
   /* Product card */
   productCard: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderRadius: 16,
     overflow: "hidden" as const,
     ...CARD_SHADOW,
   },
@@ -954,17 +998,17 @@ const st = StyleSheet.create({
   /* Badges */
   discountBadge: {
     position: "absolute",
-    top: 8,
-    left: 8,
+    top: 10,
+    left: 10,
     backgroundColor: "#ef4444",
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   discountBadgeText: {
     color: "#fff",
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "800",
   },
   outOfStockOverlay: {
     position: "absolute",
@@ -985,21 +1029,23 @@ const st = StyleSheet.create({
 
   /* Product info */
   productInfo: {
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
   productCategory: {
     fontSize: 10,
     color: TEXT_MUTED,
-    fontWeight: "600",
+    fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 0.3,
-    marginBottom: 2,
+    letterSpacing: 0.5,
+    marginBottom: 3,
   },
   productName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
     color: TEXT_PRIMARY,
-    lineHeight: 18,
+    lineHeight: 19,
     marginBottom: 6,
   },
   priceRow: {
@@ -1013,8 +1059,8 @@ const st = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   currentPrice: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
     color: TEXT_PRIMARY,
   },
   kitBadge: {
@@ -1086,10 +1132,10 @@ const st = StyleSheet.create({
   headerActionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.18)",
   },
   headerActionText: {
@@ -1101,16 +1147,16 @@ const st = StyleSheet.create({
   loginButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
   },
   loginButtonText: {
     fontSize: 12,
     fontWeight: "700",
+    color: "#fff",
   },
 
   /* Add to cart button */
@@ -1118,17 +1164,16 @@ const st = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
-    borderRadius: 8,
-    paddingVertical: 8,
-    marginTop: 8,
-    marginHorizontal: 10,
-    marginBottom: 10,
+    gap: 5,
+    borderRadius: 22,
+    paddingVertical: 10,
+    marginTop: 10,
   },
   addToCartText: {
     color: "#fff",
     fontSize: 12,
     fontWeight: "700",
+    letterSpacing: 0.2,
   },
 
   /* Netflix catalog layout */
@@ -1150,7 +1195,7 @@ const st = StyleSheet.create({
   },
   netflixRowContent: {
     paddingHorizontal: 20,
-    gap: 12,
+    gap: 14,
   },
 
   /* Inline empty state (no-results inside content) */
@@ -1188,19 +1233,36 @@ const st = StyleSheet.create({
   /* Footer */
   footer: {
     alignItems: "center",
-    paddingVertical: 24,
+    paddingVertical: 28,
     paddingHorizontal: 20,
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: BORDER_COLOR,
+    marginTop: 16,
+    gap: 12,
+  },
+  footerBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  footerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    backgroundColor: CARD_BG,
+  },
+  footerBadgeText: {
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    fontWeight: "500",
   },
   footerText: {
     fontSize: 12,
     color: TEXT_MUTED,
-  },
-  footerHint: {
-    fontSize: 11,
-    color: TEXT_MUTED,
-    marginTop: 4,
   },
 });

@@ -42,27 +42,27 @@ import {
 
 /* ── Constants ──────────────────────────────────────────────────── */
 const DEFAULT_PRIMARY = "#2563eb";
-const BG_COLOR = "#ffffff";
+const BG_COLOR = "#f8fafc";
 const CARD_BG = "#ffffff";
-const TEXT_PRIMARY = "#1e293b";
-const TEXT_SECONDARY = "#64748b";
+const TEXT_PRIMARY = "#0f172a";
+const TEXT_SECONDARY = "#475569";
 const TEXT_MUTED = "#94a3b8";
 const BORDER_COLOR = "#e2e8f0";
-const HERO_BG = "#f8fafc";
-const SUCCESS_COLOR = "#16a34a";
+const HERO_BG = "#f1f5f9";
+const SUCCESS_COLOR = "#059669";
 const WARNING_COLOR = "#ea580c";
 const ERROR_COLOR = "#dc2626";
 
 const CARD_SHADOW = Platform.select({
   web: {
-    boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.04)",
   },
   default: {
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
 });
 
@@ -876,7 +876,7 @@ const st = StyleSheet.create({
 
   /* ── Image ── */
   imageContainer: {
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: "hidden",
     alignSelf: "center",
   },
@@ -887,9 +887,7 @@ const st = StyleSheet.create({
   imagePlaceholder: {
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderRadius: 16,
   },
   imagePlaceholderText: {
     marginTop: 8,
@@ -960,9 +958,9 @@ const st = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   discountBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   discountBadgeText: {
     color: "#fff",
@@ -984,10 +982,9 @@ const st = StyleSheet.create({
   addToCartSection: {
     marginTop: 20,
     backgroundColor: CARD_BG,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderRadius: 16,
     padding: 16,
+    ...CARD_SHADOW,
   },
   qtyRow: {
     flexDirection: "row",
@@ -1005,10 +1002,10 @@ const st = StyleSheet.create({
     gap: 12,
   },
   qtyBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    borderWidth: 1,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1043,12 +1040,13 @@ const st = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 24,
   },
   addButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+    letterSpacing: 0.2,
   },
   minOrderHint: {
     marginTop: 8,
@@ -1062,10 +1060,9 @@ const st = StyleSheet.create({
     marginTop: 16,
     marginHorizontal: 16,
     backgroundColor: CARD_BG,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderRadius: 16,
     padding: 16,
+    ...CARD_SHADOW,
   },
   sectionTitle: {
     fontSize: 16,
@@ -1123,10 +1120,9 @@ const st = StyleSheet.create({
     marginTop: 12,
     marginHorizontal: 16,
     backgroundColor: CARD_BG,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderRadius: 16,
     padding: 14,
+    ...CARD_SHADOW,
   },
   infoRowContent: {
     flex: 1,
@@ -1168,7 +1164,7 @@ const st = StyleSheet.create({
     marginTop: 20,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 24,
   },
   stateButtonText: {
     color: "#fff",
@@ -1227,7 +1223,7 @@ const st = StyleSheet.create({
     gap: 6,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 10,
+    borderRadius: 24,
     minWidth: 140,
   } as any,
   stickyBarBtnText: {
