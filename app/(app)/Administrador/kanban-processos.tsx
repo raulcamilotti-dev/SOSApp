@@ -140,9 +140,21 @@ const getPriorityColor = (p?: string | null): string => {
   }
 };
 
+/* ─── Types (props) ─── */
+
+export type WorkflowScope = "operational" | "administrative";
+
+export interface ProcessKanbanProps {
+  /** Workflow scope — operational (customer-facing, default) or administrative (internal). */
+  scope?: WorkflowScope;
+}
+
 /* ─── Component ─── */
 
-export default function ProcessKanbanScreen() {
+export default function ProcessKanbanScreen({
+  scope = "operational",
+}: ProcessKanbanProps = {}) {
+  const isAdminScope = scope === "administrative";
   const { user } = useAuth();
   const kanbanRef = useRef<KanbanScreenRef>(null);
 
@@ -278,7 +290,11 @@ export default function ProcessKanbanScreen() {
     if (!selectedTypeId) return [];
 
     const [templatesRes, stepsRes] = await Promise.all([
-      api.post(CRUD_ENDPOINT, { action: "list", table: "workflow_templates" }),
+      api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "workflow_templates",
+        ...buildSearchParams([], { sortColumn: "created_at" }),
+      }),
       api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "workflow_steps",
@@ -286,10 +302,17 @@ export default function ProcessKanbanScreen() {
       }),
     ]);
 
-    const templates = normalizeCrudList<{
+    const allTemplates = normalizeCrudList<{
       id: string;
       service_type_id?: string;
+      workflow_scope?: string;
     }>(templatesRes.data);
+
+    // Filter templates by scope (default to operational if column not yet present)
+    const templates = allTemplates.filter((t) => {
+      const tScope = t.workflow_scope || "operational";
+      return tScope === scope;
+    });
     const allSteps = normalizeCrudList<WorkflowStep>(stepsRes.data).sort(
       (a, b) => (a.step_order ?? 0) - (b.step_order ?? 0),
     );
@@ -334,7 +357,7 @@ export default function ProcessKanbanScreen() {
       order: step.step_order ?? 0,
       description: step.description,
     }));
-  }, [selectedTypeId, serviceTypes, tintColor]);
+  }, [selectedTypeId, serviceTypes, tintColor, scope]);
 
   const loadItems = useCallback(async (): Promise<ServiceOrderItem[]> => {
     if (!selectedTypeId) return [];
@@ -608,37 +631,39 @@ export default function ProcessKanbanScreen() {
     setCreateTitle("");
     setCreateDescription("");
     setCreateModalVisible(true);
-    // Pre-load customers
-    (async () => {
-      setCreateCustomersLoading(true);
-      try {
-        const tenantId = user?.tenant_id ?? "";
-        const res = await api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "customers",
-          ...buildSearchParams(
-            tenantId ? [{ field: "tenant_id", value: tenantId }] : [],
-            { sortColumn: "name ASC", autoExcludeDeleted: true },
-          ),
-        });
-        setCreateCustomers(
-          normalizeCrudList<{
-            id: string;
-            name: string;
-            cpf?: string;
-            email?: string;
-          }>(res.data),
-        );
-      } catch {
-        // ignore
-      } finally {
-        setCreateCustomersLoading(false);
-      }
-    })();
-  }, [user?.tenant_id]);
+    // Pre-load customers (skip for administrative scope — no customer needed)
+    if (!isAdminScope) {
+      (async () => {
+        setCreateCustomersLoading(true);
+        try {
+          const tenantId = user?.tenant_id ?? "";
+          const res = await api.post(CRUD_ENDPOINT, {
+            action: "list",
+            table: "customers",
+            ...buildSearchParams(
+              tenantId ? [{ field: "tenant_id", value: tenantId }] : [],
+              { sortColumn: "name ASC", autoExcludeDeleted: true },
+            ),
+          });
+          setCreateCustomers(
+            normalizeCrudList<{
+              id: string;
+              name: string;
+              cpf?: string;
+              email?: string;
+            }>(res.data),
+          );
+        } catch {
+          // ignore
+        } finally {
+          setCreateCustomersLoading(false);
+        }
+      })();
+    }
+  }, [user?.tenant_id, isAdminScope]);
 
   const handleCreateOrder = useCallback(async () => {
-    if (!selectedCustomerId) {
+    if (!isAdminScope && !selectedCustomerId) {
       Alert.alert("Atenção", "Selecione um cliente para iniciar o processo.");
       return;
     }
@@ -657,9 +682,13 @@ export default function ProcessKanbanScreen() {
 
     setCreatingOrder(true);
     try {
+      const customerName = selectedCustomerId
+        ? (createCustomers.find((c) => c.id === selectedCustomerId)?.name ??
+          "Cliente")
+        : null;
       const title =
         createTitle.trim() ||
-        `${svcType.name} — ${createCustomers.find((c) => c.id === selectedCustomerId)?.name ?? "Cliente"}`;
+        (customerName ? `${svcType.name} — ${customerName}` : svcType.name);
 
       const res = await api.post(CRUD_ENDPOINT, {
         action: "create",
@@ -702,6 +731,7 @@ export default function ProcessKanbanScreen() {
       setCreatingOrder(false);
     }
   }, [
+    isAdminScope,
     selectedCustomerId,
     selectedTypeId,
     serviceTypes,
@@ -1143,7 +1173,7 @@ export default function ProcessKanbanScreen() {
             <View style={ps.modalHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={[ps.modalTitle, { color: textColor }]}>
-                  Novo Processo
+                  {isAdminScope ? "Novo Processo Interno" : "Novo Processo"}
                 </Text>
                 <Text style={[ps.modalSubtitle, { color: mutedColor }]}>
                   {serviceTypes.find((s) => s.id === selectedTypeId)?.name ??
@@ -1215,125 +1245,133 @@ export default function ProcessKanbanScreen() {
               }}
             />
 
-            {/* Customer picker */}
-            <Text
-              style={{
-                ...typography.caption,
-                color: mutedColor,
-                marginBottom: 4,
-                fontWeight: "600",
-              }}
-            >
-              Cliente *
-            </Text>
-            <TextInput
-              value={createSearchTerm}
-              onChangeText={setCreateSearchTerm}
-              placeholder="Buscar cliente por nome, CPF ou e-mail..."
-              placeholderTextColor={mutedColor}
-              style={{
-                ...typography.body,
-                color: textColor,
-                borderWidth: 1,
-                borderColor,
-                borderRadius: 8,
-                padding: spacing.sm,
-                marginBottom: spacing.sm,
-                backgroundColor: bg,
-              }}
-            />
+            {/* Customer picker — hidden for administrative scope */}
+            {!isAdminScope && (
+              <>
+                <Text
+                  style={{
+                    ...typography.caption,
+                    color: mutedColor,
+                    marginBottom: 4,
+                    fontWeight: "600",
+                  }}
+                >
+                  Cliente *
+                </Text>
+                <TextInput
+                  value={createSearchTerm}
+                  onChangeText={setCreateSearchTerm}
+                  placeholder="Buscar cliente por nome, CPF ou e-mail..."
+                  placeholderTextColor={mutedColor}
+                  style={{
+                    ...typography.body,
+                    color: textColor,
+                    borderWidth: 1,
+                    borderColor,
+                    borderRadius: 8,
+                    padding: spacing.sm,
+                    marginBottom: spacing.sm,
+                    backgroundColor: bg,
+                  }}
+                />
 
-            {createCustomersLoading ? (
-              <View style={{ padding: 16, alignItems: "center" }}>
-                <ActivityIndicator size="small" color={tintColor} />
-              </View>
-            ) : (
-              <ScrollView
-                style={{ maxHeight: 180 }}
-                keyboardShouldPersistTaps="handled"
-              >
-                {filteredCreateCustomers.length === 0 ? (
-                  <Text
-                    style={{
-                      color: mutedColor,
-                      textAlign: "center",
-                      padding: 16,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {createSearchTerm.trim()
-                      ? "Nenhum cliente encontrado"
-                      : "Nenhum cliente cadastrado"}
-                  </Text>
+                {createCustomersLoading ? (
+                  <View style={{ padding: 16, alignItems: "center" }}>
+                    <ActivityIndicator size="small" color={tintColor} />
+                  </View>
                 ) : (
-                  filteredCreateCustomers.map((cust) => {
-                    const selected = selectedCustomerId === cust.id;
-                    return (
-                      <TouchableOpacity
-                        key={cust.id}
-                        onPress={() =>
-                          setSelectedCustomerId(selected ? null : cust.id)
-                        }
+                  <ScrollView
+                    style={{ maxHeight: 180 }}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {filteredCreateCustomers.length === 0 ? (
+                      <Text
                         style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: spacing.sm,
-                          paddingVertical: spacing.sm,
-                          paddingHorizontal: spacing.sm,
-                          borderBottomWidth: StyleSheet.hairlineWidth,
-                          borderColor,
-                          backgroundColor: selected
-                            ? tintColor + "18"
-                            : "transparent",
-                          borderRadius: selected ? 8 : 0,
+                          color: mutedColor,
+                          textAlign: "center",
+                          padding: 16,
+                          fontStyle: "italic",
                         }}
                       >
-                        <Ionicons
-                          name={
-                            selected ? "checkmark-circle" : "ellipse-outline"
-                          }
-                          size={20}
-                          color={selected ? tintColor : mutedColor}
-                        />
-                        <View style={{ flex: 1 }}>
-                          <Text
+                        {createSearchTerm.trim()
+                          ? "Nenhum cliente encontrado"
+                          : "Nenhum cliente cadastrado"}
+                      </Text>
+                    ) : (
+                      filteredCreateCustomers.map((cust) => {
+                        const selected = selectedCustomerId === cust.id;
+                        return (
+                          <TouchableOpacity
+                            key={cust.id}
+                            onPress={() =>
+                              setSelectedCustomerId(selected ? null : cust.id)
+                            }
                             style={{
-                              ...typography.body,
-                              color: textColor,
-                              fontWeight: selected ? "600" : "400",
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: spacing.sm,
+                              paddingVertical: spacing.sm,
+                              paddingHorizontal: spacing.sm,
+                              borderBottomWidth: StyleSheet.hairlineWidth,
+                              borderColor,
+                              backgroundColor: selected
+                                ? tintColor + "18"
+                                : "transparent",
+                              borderRadius: selected ? 8 : 0,
                             }}
-                            numberOfLines={1}
                           >
-                            {cust.name}
-                          </Text>
-                          {(cust.cpf || cust.email) && (
-                            <Text
-                              style={{
-                                ...typography.caption,
-                                color: mutedColor,
-                              }}
-                              numberOfLines={1}
-                            >
-                              {[cust.cpf, cust.email]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </Text>
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
+                            <Ionicons
+                              name={
+                                selected
+                                  ? "checkmark-circle"
+                                  : "ellipse-outline"
+                              }
+                              size={20}
+                              color={selected ? tintColor : mutedColor}
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={{
+                                  ...typography.body,
+                                  color: textColor,
+                                  fontWeight: selected ? "600" : "400",
+                                }}
+                                numberOfLines={1}
+                              >
+                                {cust.name}
+                              </Text>
+                              {(cust.cpf || cust.email) && (
+                                <Text
+                                  style={{
+                                    ...typography.caption,
+                                    color: mutedColor,
+                                  }}
+                                  numberOfLines={1}
+                                >
+                                  {[cust.cpf, cust.email]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </ScrollView>
                 )}
-              </ScrollView>
+              </>
             )}
 
             {/* Create button */}
             <TouchableOpacity
               onPress={handleCreateOrder}
-              disabled={!selectedCustomerId || creatingOrder}
+              disabled={(!isAdminScope && !selectedCustomerId) || creatingOrder}
               style={{
                 backgroundColor:
-                  selectedCustomerId && !creatingOrder ? tintColor : mutedColor,
+                  (isAdminScope || selectedCustomerId) && !creatingOrder
+                    ? tintColor
+                    : mutedColor,
                 paddingVertical: spacing.md,
                 borderRadius: 10,
                 alignItems: "center",
@@ -1382,6 +1420,7 @@ export default function ProcessKanbanScreen() {
       tintColor,
       bg,
       handleCreateOrder,
+      isAdminScope,
     ],
   );
 
@@ -1433,10 +1472,12 @@ export default function ProcessKanbanScreen() {
           ]}
         >
           <Text style={[ps.headerTitle, { color: textColor }]}>
-            Kanban de Processos
+            {isAdminScope ? "Kanban Administrativo" : "Kanban de Processos"}
           </Text>
           <Text style={[ps.headerSubtitle, { color: mutedColor }]}>
-            Selecione a categoria do serviço
+            {isAdminScope
+              ? "Selecione o tipo de processo interno"
+              : "Selecione a categoria do serviço"}
           </Text>
         </View>
         <ScrollView
@@ -1706,7 +1747,7 @@ export default function ProcessKanbanScreen() {
         </Text>
       }
       renderExtraModals={renderAllModals}
-      createButtonLabel="Novo Processo"
+      createButtonLabel={isAdminScope ? "Novo Processo" : "Novo Processo"}
       onCreatePress={openCreateModal}
     />
   );

@@ -1023,6 +1023,20 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/kanban-processos",
     requiredAnyPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.WORKFLOW_READ],
   },
+
+  /* ─── Administrativo ─── */
+  {
+    id: "kanban_administrativo",
+    group: "Administrativo",
+    module: "operacao",
+    title: "Kanban Administrativo",
+    description:
+      "Processos internos sem vínculo obrigatório com cliente (compras, RH, manutenção)",
+    icon: "briefcase-outline",
+    route: "/Administrador/kanban-administrativo",
+    requiredAnyPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.WORKFLOW_READ],
+  },
+
   {
     id: "metabase",
     group: "Auditoria & Logs",

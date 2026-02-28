@@ -76,6 +76,7 @@ export const breadcrumbMap: Record<string, string> = {
   "gestao-de-usuarios": "Gestão de Usuários",
   "gestao-tenant": "Gestão da Organização",
   Inadimplentes: "Inadimplentes",
+  "kanban-administrativo": "Kanban Administrativo",
   "kanban-processos": "Kanban de Processos",
   "lancamentos-processos": "Lançamentos de Processos",
   "lead-forms": "Formulários de Lead",

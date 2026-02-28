@@ -2,19 +2,19 @@
 
 ## Resumo Executivo
 
-A Radul é uma plataforma SaaS multi-tenant de **operações configurável para qualquer empresa de serviços** — prestadores, consultores, escritórios de advocacia, vendedores, gestores de atividades, empresas de cobrança, despachantes, entre outros. Após auditoria completa do codebase (~98 telas, 53 páginas admin, 80+ tabelas, 8 módulos, 5 template packs + 1 agent pack, 43 services, 22+ integrações externas), comparamos com **12 plataformas concorrentes** de 4 verticais diferentes para identificar gaps de funcionalidade.
+A Radul é uma plataforma SaaS multi-tenant de **operações configurável para qualquer empresa de serviços** — prestadores, consultores, escritórios de advocacia, vendedores, gestores de atividades, empresas de cobrança, despachantes, entre outros. Após auditoria completa do codebase (~169 telas, 114 páginas admin, 80+ tabelas, 13 módulos, 6 template packs + 2 agent packs, 76 services, 22+ integrações externas), comparamos com **12 plataformas concorrentes** de 4 verticais diferentes para identificar gaps de funcionalidade.
 
-**Resultado principal (atualizado Fev 2026):** A Radul evoluiu massivamente. **6 dos 7 gaps críticos foram resolvidos**:
+**Resultado principal (atualizado Fev 2026):** A Radul evoluiu massivamente. **Todos os 7 gaps críticos foram resolvidos**:
 
-1. ✅ **Financeiro** — Módulo completo: faturas, pagamentos, contas a receber/pagar, inadimplentes, recibos, dashboard, conciliação bancária OFX
+1. ✅ **Financeiro** — Módulo completo: faturas, pagamentos, contas a receber/pagar, inadimplentes, recibos, dashboard, conciliação bancária OFX, DRE, export contábil
 2. ✅ **Portal do Cliente** — Portal público `/p/:token` com timeline, review, estimativa de prazo/custo
-3. ✅ **Orçamentos** — Sistema completo: quotes + quote_items + link público `/q/:token` com aprovação online
-4. ✅ **Parceiros** — Portal dedicado: Meus Trabalhos, aceitar/recusar, ganhos, comissões, PIX, disponibilidade, folgas
-5. ✅ **CRM / Leads** — Pipeline kanban, leads CrudScreen, detalhe do lead, campanhas, dashboard de campanhas
-6. ✅ **AI Agents** — Arquitetura completa: 9 telas admin, playbooks, handoff, channel bindings, agent packs
-7. 🔜 **Pagamento online (gateway)** — Integração MercadoPago/Stripe pendente
+3. ✅ **Orçamentos** — Sistema completo: quotes + quote_items + link público `/q/:token` com aprovação online, multi-opção (pacotes), quote templates
+4. ✅ **Parceiros** — Portal dedicado: Meus Trabalhos, aceitar/recusar, ganhos, comissões, PIX, disponibilidade, folgas, channel partners
+5. ✅ **CRM / Leads** — Pipeline kanban, leads CrudScreen, detalhe do lead, campanhas, dashboard de campanhas, formulários públicos, lead scoring, follow-up
+6. ✅ **AI Agents** — Arquitetura completa: 9 telas admin, playbooks, handoff, channel bindings, 2 agent packs
+7. ✅ **Pagamento online (gateway)** — 3 gateways implementados (Asaas + MercadoPago + Mock) via interface `IPaymentGateway`
 
-**Gaps restantes prioritários:** Pagamento online (gateway), Time Tracking, NFSe, Integração contábil, Formulários públicos de captação
+**Gaps restantes prioritários:** Time Tracking, NFSe, Integração contábil, Visual Workflow Builder, Export CSV/PDF
 
 ---
 
@@ -214,16 +214,16 @@ A Radul é uma plataforma SaaS multi-tenant de **operações configurável para 
 
 ### 👤 CLIENTES (End Users)
 
-#### GAP 7: PORTAL DO CLIENTE SELF-SERVICE — ~~Prioridade CRÍTICA~~ ⚠️ PARCIAL
+#### GAP 7: PORTAL DO CLIENTE SELF-SERVICE — ~~Prioridade CRÍTICA~~ ✅ IMPLEMENTADO
 
-**Atualização Fev 2026:** Portal público `/p/:token` implementado com timeline, review e estimativa. Falta PWA completo e pagamento integrado.
+**Atualização Fev 2026:** Portal público `/p/:token` implementado com timeline, review e estimativa. Pagamento integrado via 3 gateways (Asaas, MercadoPago, Mock).
 
 | Funcionalidade         | Smokeball | ServiceTitan | HousecallPro | Jobber | SOS               |
 | ---------------------- | --------- | ------------ | ------------ | ------ | ----------------- |
 | Portal web (sem app)   | ✅        | ✅           | ✅           | ✅     | ✅ (`/p/:token`)  |
 | Histórico de serviços  | ✅        | ✅           | ✅           | ✅     | ✅                |
 | Aprovação de orçamento | ❌        | ✅           | ✅           | ✅     | ✅ (`/q/:token`)  |
-| Pagamento online       | ✅        | ✅           | ✅           | ✅     | ❌                |
+| Pagamento online       | ✅        | ✅           | ✅           | ✅     | ✅ (3 gateways)   |
 | Upload de documentos   | ✅        | ❌           | ❌           | ❌     | ✅                |
 | Chat com operador      | ✅        | ❌           | ✅           | ❌     | ✅                |
 | Tracking em tempo real | ❌        | ✅           | ✅           | ❌     | ✅ (timeline + %) |
@@ -237,30 +237,32 @@ A Radul é uma plataforma SaaS multi-tenant de **operações configurável para 
 
 ---
 
-#### GAP 8: PAGAMENTO / CHECKOUT — ⚠️ PARCIAL
+#### GAP 8: PAGAMENTO / CHECKOUT — ~~⚠️ PARCIAL~~ ✅ IMPLEMENTADO
 
-**Atualização Fev 2026:** Tabelas `invoices`, `payments` e CrudScreens existem. PIX implementado com copia e cola + QR Code via `services/pix.ts` (pix-utils). Falta integração com gateway de pagamento (MercadoPago/Stripe) para cartão e boleto.
+**Atualização Fev 2026:** 3 gateways de pagamento implementados via interface `IPaymentGateway`: Asaas (PIX + boleto + cartão), MercadoPago (PIX + cartão), Mock (desenvolvimento). Worker dedicado `asaas-webhook` para webhooks de confirmação.
 
-| Funcionalidade               | ServiceTitan | HousecallPro | Jobber | SOS                                  |
-| ---------------------------- | ------------ | ------------ | ------ | ------------------------------------ |
-| Cartão de crédito            | ✅           | ✅           | ✅     | ❌ (próximo — gateway)               |
-| PIX                          | N/A          | N/A          | N/A    | ✅ (copia e cola + QR Code + BRCode) |
-| Boleto                       | N/A          | N/A          | N/A    | ❌ (próximo — gateway)               |
-| Parcelamento / Financiamento | ✅           | ✅           | ❌     | ❌                                   |
-| InstaPay (depósito rápido)   | ❌           | ✅           | ❌     | ❌                                   |
-| Recibo automático            | ✅           | ✅           | ✅     | ✅                                   |
+| Funcionalidade               | ServiceTitan | HousecallPro | Jobber | SOS                                             |
+| ---------------------------- | ------------ | ------------ | ------ | ----------------------------------------------- |
+| Cartão de crédito            | ✅           | ✅           | ✅     | ✅ (via Asaas + MercadoPago)                    |
+| PIX                          | N/A          | N/A          | N/A    | ✅ (copia e cola + QR Code + BRCode + gateways) |
+| Boleto                       | N/A          | N/A          | N/A    | ✅ (via Asaas)                                  |
+| Parcelamento / Financiamento | ✅           | ✅           | ❌     | ❌                                              |
+| InstaPay (depósito rápido)   | ❌           | ✅           | ❌     | ❌                                              |
+| Recibo automático            | ✅           | ✅           | ✅     | ✅                                              |
 
 **Implementado:**
 
 1. ✅ `services/pix.ts` — wrapper pix-utils para gerar BRCode + QR Code base64
 2. ✅ PIX copia e cola em faturas, SaaS billing, e contas a receber
 3. ✅ Validação de chave PIX (CPF, CNPJ, email, telefone, chave aleatória)
+4. ✅ `services/payment-gateway.ts` — interface `IPaymentGateway` com 3 implementações
+5. ✅ `workers/asaas-webhook/` — Cloudflare Worker para webhooks de pagamento
+6. ✅ Admin CrudScreen `payments.tsx` com status lifecycle
 
-**Recomendação (restante):**
+**Restante:**
 
-1. Integrar **Stripe** (internacional) + **Mercado Pago** ou **PagSeguro** (cartão + boleto)
-2. Link de pagamento no WhatsApp/email junto com a fatura
-3. Split payment (parceiro recebe X%, tenant recebe Y%)
+1. Split payment (parceiro recebe X%, tenant recebe Y%)
+2. Parcelamento automático via gateway
 
 ---
 
@@ -502,13 +504,17 @@ ALTO IMPACTO + BAIXO ESFORÇO (Quick Wins) — ✅ TODOS FEITOS
 
 ALTO IMPACTO + MÉDIO ESFORÇO (Prioridade) — ✅ MAIORIA FEITA
 ├── ✅ 💰 Faturamento/Invoicing (invoices + PDF + status)
-├── 🔜 💰 Pagamento online (gateway MercadoPago — próximo)
-├── ✅ 📋 Orçamentos/Quotes com aprovação online
-├── ✅ 🏪 Portal do Parceiro (Meus Trabalhos + ganhos)
-├── ✅ 📊 CRM/Lead Pipeline (kanban + campanhas + conversão)
-├── ✅ 🤖 AI Agents (9 telas + agent packs)
+├── ✅ 💰 Pagamento online (3 gateways: Asaas + MercadoPago + Mock)
+├── ✅ 📋 Orçamentos/Quotes com aprovação online + multi-opção + templates
+├── ✅ 🏪 Portal do Parceiro (Meus Trabalhos + ganhos + channel partners)
+├── ✅ 📊 CRM/Lead Pipeline (kanban + campanhas + conversão + lead scoring)
+├── ✅ 🤖 AI Agents (9 telas + 2 agent packs)
 ├── ✅ 💳 SaaS Billing (planos + recorrência + dashboard)
 ├── ✅ 🏦 Conciliação Bancária (OFX import + matching)
+├── ✅ 📝 Contratos/SLA (renovação + compliance)
+├── ✅ 🛒 Marketplace/PDV (produtos + estoque + compras + entregas)
+├── ✅ 📄 Content Pages (blog + landing + CMS)
+├── ✅ 🤝 Channel Partners (referral codes + comissões)
 └── 🔜 ⏱️ Time tracking
 
 ALTO IMPACTO + ALTO ESFORÇO (Estratégico)
@@ -535,16 +541,16 @@ BAIXO IMPACTO + ALTO ESFORÇO (Deprioritizar)
 
 > **Objetivo:** Permitir que tenants cobrem e recebam pela plataforma
 
-| #   | Feature                              | Tabelas                     | Impacto                              | Status                             |
-| --- | ------------------------------------ | --------------------------- | ------------------------------------ | ---------------------------------- |
-| 1   | Tabela de preços por tipo de serviço | `service_prices`            | Tenants configuram preços            | ❌                                 |
-| 2   | Orçamento/Quote                      | `quotes`, `quote_items`     | Cliente vê custo antes de aprovar    | ✅                                 |
-| 3   | Faturamento                          | `invoices`, `invoice_items` | Gerar fatura vinculada à OS          | ✅                                 |
-| 4   | Pagamento online                     | `payments` + gateway        | Cliente paga por link                | ⚠️ tabela existe, gateway pendente |
-| 5   | Dashboard financeiro                 | Tela dedicada               | Receita, inadimplência, ticket médio | ✅                                 |
-| 6   | Contas a Receber/Pagar               | `accounts_*`                | Fluxo financeiro completo            | ✅                                 |
-| 7   | Inadimplentes                        | SQL customizado             | Gestão de cobrança                   | ✅                                 |
-| 8   | Recibos automáticos                  | PDF auto-gerado             | Comprovantes ao confirmar pagamento  | ✅                                 |
+| #   | Feature                              | Tabelas                     | Impacto                              | Status          |
+| --- | ------------------------------------ | --------------------------- | ------------------------------------ | --------------- |
+| 1   | Tabela de preços por tipo de serviço | `service_prices`            | Tenants configuram preços            | ❌              |
+| 2   | Orçamento/Quote                      | `quotes`, `quote_items`     | Cliente vê custo antes de aprovar    | ✅              |
+| 3   | Faturamento                          | `invoices`, `invoice_items` | Gerar fatura vinculada à OS          | ✅              |
+| 4   | Pagamento online                     | `payments` + gateway        | Cliente paga por link                | ✅ (3 gateways) |
+| 5   | Dashboard financeiro                 | Tela dedicada               | Receita, inadimplência, ticket médio | ✅              |
+| 6   | Contas a Receber/Pagar               | `accounts_*`                | Fluxo financeiro completo            | ✅              |
+| 7   | Inadimplentes                        | SQL customizado             | Gestão de cobrança                   | ✅              |
+| 8   | Recibos automáticos                  | PDF auto-gerado             | Comprovantes ao confirmar pagamento  | ✅              |
 
 ### Fase 2 — Experiência do Cliente (3-4 semanas) ✅ IMPLEMENTADA
 
@@ -580,8 +586,8 @@ BAIXO IMPACTO + ALTO ESFORÇO (Deprioritizar)
 | 17  | Detalhe do lead                | Visão 360° do prospect       | ✅ crm-lead-detail                |
 | 18  | Campanhas                      | Organizar ações de marketing | ✅ campaigns + campaign-dashboard |
 | 19  | Conversão lead → cliente       | Fechar vendas                | ✅ via services/crm.ts            |
-| 20  | Formulário público de captação | Leads entram automaticamente | ❌                                |
-| 21  | Follow-up automático           | Não perder leads             | ❌                                |
+| 20  | Formulário público de captação | Leads entram automaticamente | ✅ /f/:slug + lead-forms.ts       |
+| 21  | Follow-up automático           | Não perder leads             | ✅ getOverdueFollowUps()          |
 | 22  | Time tracking                  | Produtividade do time        | ❌                                |
 
 ### Fase 5 — AI & Automação (3-4 semanas) ✅ IMPLEMENTADA
@@ -610,19 +616,28 @@ BAIXO IMPACTO + ALTO ESFORÇO (Deprioritizar)
 | 33  | Bank reconciliation | Conciliação bancária OFX        | ✅     |
 | 34  | GlobalSearch        | Busca de telas no header        | ✅     |
 
-### Fase 7 — Integrações BR + Produtividade (4-6 semanas) 🔜 PRÓXIMA
+### Fase 7 — Integrações BR + Produtividade + E-commerce (4-6 semanas) ✅ MAIORIA IMPLEMENTADA
 
-> **Objetivo:** Conectar com ecossistema brasileiro e controlar tempo
+> **Objetivo:** Conectar com ecossistema brasileiro, controlar tempo e expandir para e-commerce
 
-| #   | Feature                    | Impacto                           |
-| --- | -------------------------- | --------------------------------- |
-| 35  | Pagamento online (gateway) | MercadoPago PIX + cartão          |
-| 36  | NFSe automática            | Compliance fiscal via ENotas      |
-| 37  | Time tracking              | time_entries + timer + timesheets |
-| 38  | Formulários públicos       | `/f/:formId` → gera lead          |
-| 39  | Follow-up automático       | N8N automação para leads frios    |
-| 40  | API pública REST           | Permitir integrações de terceiros |
-| 41  | Webhook outgoing           | Eventos para sistemas externos    |
+| #   | Feature                      | Impacto                             | Status                              |
+| --- | ---------------------------- | ----------------------------------- | ----------------------------------- |
+| 35  | Pagamento online (gateway)   | 3 gateways via IPaymentGateway      | ✅ Asaas + MercadoPago + Mock       |
+| 36  | NFSe automática              | Compliance fiscal via ENotas        | ❌                                  |
+| 37  | Time tracking                | time_entries + timer + timesheets   | ❌                                  |
+| 38  | Formulários públicos         | `/f/:slug` → gera lead              | ✅ lead-forms.ts + admin CrudScreen |
+| 39  | Follow-up automático         | Automação para leads frios          | ✅ getOverdueFollowUps()            |
+| 40  | API pública REST             | Permitir integrações de terceiros   | ❌                                  |
+| 41  | Webhook outgoing             | Eventos para sistemas externos      | ❌                                  |
+| 42  | Marketplace / PDV            | Catálogo + shopping cart + checkout | ✅                                  |
+| 43  | Produtos & Composições (BOM) | Catálogo + custos + categorias      | ✅                                  |
+| 44  | Estoque                      | Movimentações + locais + alertas    | ✅                                  |
+| 45  | Compras                      | Pedidos de compra + fornecedores    | ✅                                  |
+| 46  | Entregas                     | Expedição + rastreamento + rotas    | ✅                                  |
+| 47  | Contratos/SLA                | Renovação + SLA tracking            | ✅                                  |
+| 48  | Content Pages                | Blog + landing pages + CMS          | ✅                                  |
+| 49  | Channel Partners             | Referral codes + comissões          | ✅                                  |
+| 50  | Marketing AI                 | IA para campanhas e conteúdo        | ✅                                  |
 
 ### Fase 8 — Avançado (6-8 semanas)
 
@@ -630,13 +645,13 @@ BAIXO IMPACTO + ALTO ESFORÇO (Deprioritizar)
 
 | #   | Feature                 | Impacto                         |
 | --- | ----------------------- | ------------------------------- |
-| 42  | Tabela de emolumentos   | Cálculo automático (módulo ONR) |
-| 43  | e-Notariado/CENSEC      | Buscas/validações (módulo ONR)  |
-| 44  | Integração contábil     | Omie/Bling/Conta Azul           |
-| 45  | Visual workflow builder | Editor drag-drop de workflows   |
-| 46  | Export CSV/PDF          | Exportar dados de CrudScreens   |
-| 47  | Dispatch com mapa       | Geolocalização de parceiros     |
-| 48  | Email integrado         | Gmail/Outlook dentro do app     |
+| 51  | Tabela de emolumentos   | Cálculo automático (módulo ONR) |
+| 52  | e-Notariado/CENSEC      | Buscas/validações (módulo ONR)  |
+| 53  | Integração contábil     | Omie/Bling/Conta Azul           |
+| 54  | Visual workflow builder | Editor drag-drop de workflows   |
+| 55  | Export CSV/PDF          | Exportar dados de CrudScreens   |
+| 56  | Dispatch com mapa       | Geolocalização de parceiros     |
+| 57  | Email integrado         | Gmail/Outlook dentro do app     |
 
 ---
 
@@ -649,9 +664,9 @@ BAIXO IMPACTO + ALTO ESFORÇO (Deprioritizar)
                           │
                           │   Radul Platform ★
                           │   (qualquer empresa de serviços,
-                          │    com 5 template packs + 1 agent pack,
+                          │    com 6 template packs + 2 agent packs,
                           │    CRM, AI agents, SaaS billing,
-                          │    multi-domain auth, 49 CrudScreens)
+                          │    multi-domain auth, 72 CrudScreens)
                           │
                           │   Clio / Lawcus / Smokeball
                           │   (legal practice)
@@ -671,18 +686,23 @@ INTERNO ──────────────────┼─────
 ### Diferencial Competitivo da Radul Platform (atualizado)
 
 1. **Plataforma configurável** — Template Packs + Agent Packs transformam o motor genérico em solução vertical em 15 minutos
-2. **Módulos opt-in** — 8 módulos ativáveis. Tenant vê só o que precisa. Complexidade = proporcional.
-3. **CRM completo** — Pipeline kanban de leads, campanhas, dashboard, conversão lead→cliente
-4. **Financeiro completo** — Faturas, pagamentos, contas AR/AP, inadimplentes, recibos, dashboard, conciliação bancária OFX
-5. **AI Agents avançado** — 9 telas admin, playbooks, handoff, channel bindings, agent packs (nenhum concorrente BR tem isso)
+2. **Módulos opt-in** — 13 módulos ativáveis. Tenant vê só o que precisa. Complexidade = proporcional.
+3. **CRM completo** — Pipeline kanban de leads, campanhas, dashboard, conversão lead→cliente, lead scoring, follow-up
+4. **Financeiro completo** — Faturas, pagamentos, contas AR/AP, inadimplentes, recibos, dashboard, conciliação bancária OFX, DRE, export contábil
+5. **AI Agents avançado** — 9 telas admin, playbooks, handoff, channel bindings, 2 agent packs (nenhum concorrente BR tem isso)
 6. **Integrações BR nativas** — Gov.br, BrasilAPI, ONR/SREI, ICP-Brasil — nenhum concorrente internacional tem isso
 7. **Workflow engine completo** — Process engine com FSM, tasks automáticas, deadlines, kanban
 8. **Assinatura digital dual** — Documenso (eletrônica) + ICP-Brasil (qualificada) em uma só plataforma
 9. **Portal público** — Cliente acompanha processo sem login via `/p/:token` + orçamento via `/q/:token`
-10. **49 telas CrudScreen** — Usuário aprende uma vez e sabe usar tudo. Zero treinamento por feature nova.
+10. **72 telas CrudScreen** — Usuário aprende uma vez e sabe usar tudo. Zero treinamento por feature nova.
 11. **SaaS Billing nativo** — Planos tier, PIX recorrente, dashboard super-admin
 12. **Multi-tenant from day 1** — Multi-domain auth, tenant branding, auto-link de usuários por domínio
 13. **Custo self-hosted** — ~R$380/mês para funcionalidades equivalentes a R$3.000-10.000/mês em SaaS
+14. **3 Payment Gateways** — Asaas + MercadoPago + Mock via interface `IPaymentGateway`
+15. **Marketplace/E-commerce** — PDV, produtos, composições/BOM, estoque, compras, entregas, shopping cart, checkout
+16. **Contratos/SLA** — Gestão de contratos com renovação automática e SLA tracking
+17. **Content Pages (CMS)** — Blog, landing pages, editor de conteúdo para tenants
+18. **Channel Partners** — Referral codes, comissões, tracking de indicações
 
 ### Risco Competitivo
 
@@ -696,39 +716,43 @@ INTERNO ──────────────────┼─────
 
 O SOS Escritura evoluiu de um sistema com fundação operacional sólida para uma **plataforma de operações madura e abrangente** — agora rebatizada de **Radul Platform**. Desde a auditoria inicial (Jul 2025), foram implementados:
 
-- 💰 **Módulo Financeiro completo** — faturas, pagamentos, contas a receber/pagar, inadimplentes, recibos automáticos, dashboard, conciliação bancária OFX
-- 📊 **CRM completo** — pipeline kanban de leads, detalhe do lead, campanhas com dashboard, conversão lead→cliente
-- 📊 **Orçamentos com aprovação online** — quotes + link público `/q/:token`
+- 💰 **Módulo Financeiro completo** — faturas, pagamentos, contas a receber/pagar, inadimplentes, recibos automáticos, dashboard, conciliação bancária OFX, DRE, export contábil
+- 📊 **CRM completo** — pipeline kanban de leads, detalhe do lead, campanhas com dashboard, conversão lead→cliente, lead scoring, follow-up automático
+- 📊 **Orçamentos com aprovação online** — quotes + link público `/q/:token` + multi-opção (pacotes) + quote templates
 - 📱 **Portal público self-service** — timeline `/p/:token`, review, estimativa prazo/custo
-- 🤝 **Portal de Parceiros** — Meus Trabalhos, aceitar/recusar, ganhos, comissões, PIX, disponibilidade, folgas
-- 🤖 **AI Agents completo** — 9 telas admin, playbooks, handoff, channel bindings, agent packs com deploy 1-click
+- 🤝 **Portal de Parceiros** — Meus Trabalhos, aceitar/recusar, ganhos, comissões, PIX, disponibilidade, folgas, channel partners
+- 🤖 **AI Agents completo** — 9 telas admin, playbooks, handoff, channel bindings, 2 agent packs com deploy 1-click
 - 💳 **SaaS Billing** — 5 planos tier (free→enterprise), PIX recorrente mensal, dashboard super-admin
 - 🌐 **Multi-domain Auth** — resolução de tenant por domínio, auto-link, tenant branding customizado
-- 🧩 **Sistema de Módulos** — 8 módulos opt-in, navegação modular automática
-- 📋 **5 Template Packs + 1 Agent Pack** — Genérico, Advocacia, Cobrança, Cartório (integração), Padrão + Agent Genérico
+- 🧩 **Sistema de Módulos** — 13 módulos opt-in, navegação modular automática
+- 📋 **6 Template Packs + 2 Agent Packs** — Genérico, Advocacia, Cobrança, Cartório (integração), Padrão, SOS Escritura + Agent Genérico + Agent SOS Escritura
 - 🏦 **Conciliação Bancária** — Import OFX, matching automático, reconciliação
 - 🔍 **GlobalSearch** — Busca global de telas e funcionalidades no header
-- 🔧 **CrudScreen robusto** — 49 telas, 15+ field types, validação, máscaras, seções, paginação
+- 🔧 **CrudScreen robusto** — 72 telas, 15+ field types, validação, máscaras, seções, paginação
+- 💳 **Payment Gateways** — 3 gateways (Asaas + MercadoPago + Mock) via interface `IPaymentGateway`
+- 🛒 **Marketplace/E-commerce** — PDV, produtos, composições/BOM, estoque, compras, entregas, shopping cart, checkout
+- 📝 **Contratos/SLA** — Gestão de contratos com renovação + SLA tracking
+- 📄 **Content Pages (CMS)** — Blog, landing pages, editor de conteúdo
+- 🤝 **Channel Partners** — Referral codes, comissões, tracking de indicações
+- 📊 **DRE + Export Contábil** — Demonstração de resultado + export para contabilidade
+- 📣 **Marketing AI** — IA para geração de conteúdo e campanhas
+- 📝 **Formulários Públicos de Captação** — `/f/:slug` com admin CrudScreen + lead scoring
 
 **Gaps restantes por prioridade:**
 
-| Prioridade | Gap                           | Impacto                                  |
-| ---------- | ----------------------------- | ---------------------------------------- |
-| 🔴 ALTA    | Pagamento online (gateway)    | Cliente paga direto pela plataforma      |
-| 🔴 ALTA    | Time tracking                 | Controle de produtividade e billing/hora |
-| 🟡 MÉDIA   | Formulários públicos captação | Leads entram automaticamente do site     |
-| 🟡 MÉDIA   | Follow-up automático          | Não perder leads (automação N8N)         |
-| 🟡 MÉDIA   | NFSe automática               | Compliance fiscal brasileiro             |
-| 🟡 MÉDIA   | Integração contábil           | Omie/Bling/Conta Azul                    |
-| 🟡 MÉDIA   | API pública REST              | Permitir integrações de terceiros        |
-| 🟢 BAIXA   | Visual workflow builder       | Power users                              |
-| 🟢 BAIXA   | Dispatch com mapa             | Field service com geolocalização         |
-| 🟢 BAIXA   | Email integrado               | Gmail/Outlook dentro do app              |
-| 🟢 BAIXA   | Export CSV/PDF                | Exportar dados de CrudScreens            |
-| 🟢 BAIXA   | Lead scoring                  | Priorização automática de leads          |
+| Prioridade | Gap                     | Impacto                                  |
+| ---------- | ----------------------- | ---------------------------------------- |
+| 🔴 ALTA    | Time tracking           | Controle de produtividade e billing/hora |
+| 🟡 MÉDIA   | NFSe automática         | Compliance fiscal brasileiro             |
+| 🟡 MÉDIA   | Integração contábil     | Omie/Bling/Conta Azul                    |
+| 🟡 MÉDIA   | API pública REST        | Permitir integrações de terceiros        |
+| 🟢 BAIXA   | Visual workflow builder | Power users                              |
+| 🟢 BAIXA   | Dispatch com mapa       | Field service com geolocalização         |
+| 🟢 BAIXA   | Email integrado         | Gmail/Outlook dentro do app              |
+| 🟢 BAIXA   | Export CSV/PDF          | Exportar dados de CrudScreens            |
 
-**O maior ROI agora está na Fase 7** — integração MercadoPago (fechar ciclo de monetização do tenant), time tracking (produtividade + billing por hora), e formulários públicos de captação (completar o funil CRM).
+**O maior ROI agora está em:** time tracking (produtividade + billing por hora), NFSe automática (compliance fiscal), e API pública REST (permitir integrações de terceiros).
 
 ---
 
-_Estudo gerado em Julho 2025, atualizado em Fevereiro 2026 • Baseado em auditoria completa do codebase (98 telas, 53 páginas admin, 49 CrudScreens, 8 módulos, 5 template packs + 1 agent pack, 43 services, 22+ integrações) + análise de 12 plataformas concorrentes_
+_Estudo gerado em Julho 2025, atualizado em Fevereiro 2026 • Baseado em auditoria completa do codebase (169 telas, 114 páginas admin, 72 CrudScreens, 13 módulos, 6 template packs + 2 agent packs, 76 services, 40 migrations, 10 hooks, 3 payment gateways, 22+ integrações) + análise de 12 plataformas concorrentes_

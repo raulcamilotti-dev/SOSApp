@@ -38,13 +38,13 @@ A auditoria completa do codebase revela que o SOSApp tem um DNA técnico muito e
 
 ### Os 5 Pilares do DNA
 
-| #   | Pilar                     | Como funciona hoje                                                                                                                           | Por que é valioso                                                                                           |
-| --- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 1   | **CRUD-first**            | CrudScreen genérico (~3.200 linhas) renderiza qualquer tabela. **49 telas** usam o mesmo componente.                                         | O usuário aprende UMA vez e sabe usar TUDO. Zero treinamento por feature nova.                              |
-| 2   | **Schema-driven**         | `getTableInfo()` + `convertTableInfoToFields()` geram telas a partir do banco. `tables.tsx` é um code generator em tempo real.               | Adicionar entidade nova = criar tabela + gerar tela. 5 minutos, não 5 dias.                                 |
-| 3   | **Data-driven workflows** | Workflow engine completo (steps, transições, forms, SLA, tasks) configurado 100% via banco de dados.                                         | Processo novo = registros no banco. Não precisa de desenvolvedor.                                           |
-| 4   | **Multi-tenant isolado**  | `tenant_id` em tudo + multi-domain auth + tenant branding + SaaS billing por plano. Cada tenant é uma empresa independente.                  | Mesmo app, infinitas configurações. Um tenant é consultoria, outro é advocacia.                             |
-| 5   | **Modules desacoplados**  | 8 módulos opt-in (core, financeiro, parceiros, documentos, ONR, AI, BI, CRM). Navegação filtra automaticamente por módulos ativos do tenant. | Features são plug-ins, não monolito. Menus somem/aparecem por módulo ativo. ONR é integração, não vertical. |
+| #   | Pilar                     | Como funciona hoje                                                                                                                                                                       | Por que é valioso                                                                                           |
+| --- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1   | **CRUD-first**            | CrudScreen genérico (~3.200 linhas) renderiza qualquer tabela. **72 telas** usam o mesmo componente.                                                                                     | O usuário aprende UMA vez e sabe usar TUDO. Zero treinamento por feature nova.                              |
+| 2   | **Schema-driven**         | `getTableInfo()` + `convertTableInfoToFields()` geram telas a partir do banco. `tables.tsx` é um code generator em tempo real.                                                           | Adicionar entidade nova = criar tabela + gerar tela. 5 minutos, não 5 dias.                                 |
+| 3   | **Data-driven workflows** | Workflow engine completo (steps, transições, forms, SLA, tasks) configurado 100% via banco de dados.                                                                                     | Processo novo = registros no banco. Não precisa de desenvolvedor.                                           |
+| 4   | **Multi-tenant isolado**  | `tenant_id` em tudo + multi-domain auth + tenant branding + SaaS billing por plano. Cada tenant é uma empresa independente.                                                              | Mesmo app, infinitas configurações. Um tenant é consultoria, outro é advocacia.                             |
+| 5   | **Modules desacoplados**  | 13 módulos opt-in (core, financeiro, parceiros, documentos, ONR, AI, BI, CRM, PDV, produtos, estoque, compras, entregas). Navegação filtra automaticamente por módulos ativos do tenant. | Features são plug-ins, não monolito. Menus somem/aparecem por módulo ativo. ONR é integração, não vertical. |
 
 ### O número que importa
 
@@ -59,7 +59,7 @@ A auditoria completa do codebase revela que o SOSApp tem um DNA técnico muito e
 ╚══════════════════════════════════════════╝
 ```
 
-**~92 de 98 telas** funcionam para qualquer tipo de empresa, sem mudança alguma. O financeiro, CRM, parceiros, AI agents, documentos e workflows são 100% genéricos. As 4% verticais são integrações (ONR para protocolos em cartório) que qualquer empresa pode usar quando precisa.
+**~160 de 169 telas** funcionam para qualquer tipo de empresa, sem mudança alguma. O financeiro, CRM, parceiros, AI agents, documentos, marketplace, PDV, estoque e workflows são 100% genéricos. As 4% verticais são integrações (ONR para protocolos em cartório) que qualquer empresa pode usar quando precisa.
 
 ---
 
@@ -191,22 +191,26 @@ Por quê: A soma de 10 módulos simples cria um sistema poderoso. Mas cada módu
 ┌─────────────────────────────────────────────────────────────┐
 │                   CAMADA 3: TEMPLATE PACKS                   │
 │                                                               │
-│  📋 Cartórios & Registros    📋 Advocacia & Jurídico         │
-│  • service_types: matrícula,  • service_types: ação cível,   │
-│    escritura, averbação         contrato, consultoria        │
-│  • workflows: registro →      • workflows: petição →         │
-│    análise → exigência →        protocolo → audiência →      │
-│    registro final               sentença                     │
-│  • integrações: ONR, SREI     • integrações: PJe, CENSEC    │
+│  📋 Jurídico (Advocacia)     📋 Comércio (Varejo/Atacado)    │
+│  • service_types: ação cível, • service_types: venda,        │
+│    contrato, consultoria        estoque, compra, entrega     │
+│  • workflows: petição →       • workflows: pedido →           │
+│    protocolo → audiência →      separação → expedição →      │
+│    sentença                     entrega                      │
+│  • módulos: docs + financeiro • módulos: pdv+stock+delivery  │
 │                                                               │
-│  📋 Cobrança & Inadimplência  📋 Genérico & Padrão           │
-│  • service_types: cobrança     • service_types: (tenant cria) │
-│    amigável, judicial, etc.   • workflows: (tenant config.)   │
-│  • workflows: 7 steps auto    • módulos: core                │
-│  • integrações: financeiro    • integrações: (ativa as que    │
-│                                  precisa)                     │
+│  📋 Consultoria              📋 Padrão (Genérico)            │
+│  • service_types: projeto,    • service_types: (tenant cria) │
+│    diagnóstico, suporte       • workflows: (tenant config.)  │
+│  • workflows: proposta →      • módulos: core                │
+│    kickoff → entregas                                        │
 │                                                               │
-│  🤖 Agent Packs (IA)                                         │
+│  📋 Saúde                    📋 Revenda                      │
+│  • service_types: consulta,   • service_types: encomenda,    │
+│    exame, procedimento          recebimento, expedição       │
+│  • módulos: parceiros+fin.   • módulos: pdv+stock+purchases │
+│                                                               │
+│  🤖 Agent Packs (IA) — 2 packs                              │
 │  • agents: atendimento,       • playbooks: regras, tabelas   │
 │    operacional, supervisão    • handoff: WhatsApp → Operador │
 │  • states: online/offline     • bindings: canal ↔ agente     │
@@ -233,6 +237,13 @@ Por quê: A soma de 10 módulos simples cria um sistema poderoso. Mas cada módu
 │  • protocolos ONR   • 5 planos tier   • link público         │
 │  • certidões        • PIX recorrente  • aprovação online     │
 │  • cartórios        • dashboard SaaS  • review automático    │
+│                                                               │
+│  🛒 PDV & Produtos  📦 Estoque        🚚 Compras/Entregas   │
+│  • catálogo         • movimentações   • pedidos de compra    │
+│  • shopping cart    • locais estoque  • fornecedores         │
+│  • checkout         • alertas         • expedição            │
+│  • marketplace      • separação       • rastreamento         │
+│  • composições/BOM  • kanban          • rotas                │
 └─────────────────────────────────────────────────────────────┘
                          ↕ construído sobre
 ┌─────────────────────────────────────────────────────────────┐
@@ -240,11 +251,11 @@ Por quê: A soma de 10 módulos simples cria um sistema poderoso. Mas cada módu
 │                    (sempre ligado, universal)                 │
 │                                                               │
 │  🔄 CrudScreen    📋 Workflow Engine   📌 Kanban             │
-│  (49 telas,       (qualquer processo)  (qualquer board)      │
+│  (72 telas,       (qualquer processo)  (qualquer board)      │
 │  qualquer tabela)                                             │
 │                                                               │
 │  👥 Users/Roles   🏢 Multi-tenant      🔐 Auth              │
-│  (RBAC, 30+      (isolamento +        (CPF, OAuth, Gov.br   │
+│  (RBAC, 206      (isolamento +        (CPF, OAuth, Gov.br   │
 │   permissions)    multi-domain)        + multi-domain)       │
 │                                                               │
 │  🔔 Notificações  📅 Calendário        📊 api_crud          │
@@ -255,6 +266,10 @@ Por quê: A soma de 10 módulos simples cria um sistema poderoso. Mas cada módu
 │  🔍 GlobalSearch  🧭 Breadcrumbs       🎨 Tenant Branding   │
 │  (busca telas,    (navegação           (cor, logo, nome      │
 │   desktop+mobile)  hierárquica)         por domínio)         │
+│                                                               │
+│  💳 Payment GW    📄 Content Pages     🤝 Channel Partners  │
+│  (Asaas, MP,      (blog, landing       (referral codes,     │
+│   Mock — 3 GW)     pages, CMS)          comissões)           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -272,9 +287,9 @@ Revisitando os 20 gaps identificados no estudo de mercado, agora sob a ótica de
 | 2   | **Time Tracking**          | Toda empresa de serviço controla tempo | BAIXA — timer + CrudScreen          |
 | 3   | **CRM / Leads** ✅         | Toda empresa capta clientes            | BAIXA — kanban de leads             |
 | 4   | **Orçamentos** ✅          | Toda empresa faz proposta              | BAIXA — CrudScreen de quotes        |
-| 5   | **Contratos/SLA**          | Toda empresa tem contratos             | BAIXA — CrudScreen + template       |
-| 7   | **Portal cliente web**     | Todo cliente quer acompanhar           | MÉDIA — PWA/link público            |
-| 8   | **Pagamento online**       | Todo cliente quer pagar fácil          | MÉDIA — integração gateway          |
+| 5   | **Contratos/SLA** ✅       | Toda empresa tem contratos             | BAIXA — CrudScreen + template       |
+| 7   | **Portal cliente web** ✅  | Todo cliente quer acompanhar           | MÉDIA — PWA/link público            |
+| 8   | **Pagamento online** ✅    | Todo cliente quer pagar fácil          | MÉDIA — integração gateway          |
 | 9   | **Review automático**      | Todo serviço pode ser avaliado         | BAIXA — automação existente         |
 | 10  | **Estimativa prazo/custo** | Todo cliente quer saber antes          | BAIXA — campos em service_types     |
 | 11  | **Portal parceiro**        | Toda empresa com terceiros             | BAIXA — tela dedicada por role      |
@@ -301,7 +316,7 @@ Revisitando os 20 gaps identificados no estudo de mercado, agora sob a ótica de
 
 ### Resultado: **14 de 20 gaps (70%) são features universais.**
 
-O estudo de mercado NÃO está pedindo que você se nicha. Está pedindo que você construa features que **toda empresa precisa** e que você simplesmente ainda não tem.
+O estudo de mercado NÃO está pedindo que você se nicha. Está pedindo que você construa features que **toda empresa precisa** — e a maioria já foi implementada.
 
 ---
 
@@ -364,18 +379,21 @@ CREATE TABLE tenant_modules (
 
 ### Módulos Definidos
 
-| module_key       | Label                       | Inclui                                                                                                                            | Dependências | Status     |
-| ---------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------ | ---------- |
-| `core`           | Core (sempre ativo)         | CrudScreen, Workflow, Kanban, Users, Calendar, Notifications, Clientes, Empresas                                                  | —            | ✅         |
-| `financial`      | Financeiro                  | Dashboard, Contas a Receber/Pagar, Faturas, Pagamentos, Inadimplentes, Ganhos                                                     | core         | ✅         |
-| `partners`       | Gestão de Parceiros         | Parceiros, Meus Trabalhos, Ganhos, Aceitar/Recusar, Comissões PIX                                                                 | core         | ✅         |
-| `documents`      | Documentos Avançados        | Templates, Assinaturas Digitais, OCR Config/Results, Gerador de Documentos                                                        | core         | ✅         |
-| `onr_cartorio`   | ONR & Cartório (Integração) | Protocolos ONR, Certidões, Cadastro de Cartórios — disponível para qualquer empresa que precise protocolar documentos em cartório | documents    | ✅         |
-| `ai_automation`  | IA & Automação              | Agents, insights por tela, OCR inteligente                                                                                        | core         | ✅         |
-| `bi_analytics`   | BI & Analytics              | Metabase dashboards embedded, relatórios, cross-filter                                                                            | core         | ✅         |
-| `crm`            | CRM & Leads                 | leads, pipeline, kanban, campanhas, follow-ups, conversão lead→cliente                                                            | core         | ✅         |
-| `time_tracking`  | Controle de Tempo           | time_entries, timesheets, relatórios produtividade                                                                                | core         | 🔜         |
-| `portal_cliente` | Portal do Cliente           | link público, aprovação online, pagamento                                                                                         | core         | ⚠️ parcial |
+| module_key      | Label                       | Inclui                                                                                                                            | Dependências | Status |
+| --------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ |
+| `core`          | Core (sempre ativo)         | CrudScreen, Workflow, Kanban, Users, Calendar, Notifications, Clientes, Empresas                                                  | —            | ✅     |
+| `financial`     | Financeiro                  | Dashboard, Contas a Receber/Pagar, Faturas, Pagamentos, Inadimplentes, Ganhos, DRE                                                | core         | ✅     |
+| `partners`      | Gestão de Parceiros         | Parceiros, Meus Trabalhos, Ganhos, Aceitar/Recusar, Comissões PIX, Channel Partners                                               | core         | ✅     |
+| `documents`     | Documentos Avançados        | Templates, Assinaturas Digitais, OCR Config/Results, Gerador de Documentos                                                        | core         | ✅     |
+| `onr_cartorio`  | ONR & Cartório (Integração) | Protocolos ONR, Certidões, Cadastro de Cartórios — disponível para qualquer empresa que precise protocolar documentos em cartório | documents    | ✅     |
+| `ai_automation` | IA & Automação              | Agents, insights por tela, OCR inteligente, Marketing AI                                                                          | core         | ✅     |
+| `bi_analytics`  | BI & Analytics              | Metabase dashboards embedded, relatórios, cross-filter                                                                            | core         | ✅     |
+| `crm`           | CRM & Leads                 | leads, pipeline, kanban, campanhas, follow-ups, conversão lead→cliente, formulários públicos                                      | core         | ✅     |
+| `pdv`           | PDV / Ponto de Venda        | Shopping cart, checkout, marketplace, catálogo público                                                                            | products     | ✅     |
+| `products`      | Produtos & Serviços         | Catálogo de produtos, composições/BOM, custos, categorias                                                                         | core         | ✅     |
+| `stock`         | Estoque                     | Movimentações, locais de estoque, alertas, separação kanban                                                                       | products     | ✅     |
+| `purchases`     | Compras                     | Pedidos de compra, fornecedores, recebimento                                                                                      | products     | ✅     |
+| `delivery`      | Entregas                    | Expedição, rastreamento, rotas de entrega                                                                                         | stock        | ✅     |
 
 ### Como afeta a navegação
 
@@ -415,19 +433,16 @@ Template Pack = {
 
 ### Exemplos de Template Packs
 
-| Pack                     | Categorias                                      | Workflows                                        | Módulos                                        | Terminologia                          |
-| ------------------------ | ----------------------------------------------- | ------------------------------------------------ | ---------------------------------------------- | ------------------------------------- |
-| **Genérico (Serviços)**  | (o tenant cria as suas)                         | (o tenant configura os seus)                     | core                                           | (usa termos padrão)                   |
-| **Advocacia**            | Consultoria, Contencioso, Contratos, Compliance | Petição → Protocolo → Audiência → Sentença       | core + documentos + time_tracking + financeiro | "Processo", "Causa", "Honorários"     |
-| **Cobrança**             | Cobrança amigável, judicial, renegociação       | 7 steps: notificação → negociação → execução     | core + financeiro + portal_cliente             | "Devedor", "Dívida", "Acordo"         |
-| **Cartório & Registro**¹ | Registro, Escritura, Certidão, Averbação        | Registro → Análise → Exigência → Conclusão       | core + documentos + onr_cartorio               | "Imóvel", "Matrícula", "Emolumentos"  |
-| **Imobiliária**²         | Venda, Locação, Avaliação, Vistoria             | Captação → Vistoria → Proposta → Contrato        | core + crm + parceiros + portal_cliente        | "Imóvel", "Proprietário", "Inquilino" |
-| **Contabilidade**²       | Abertura, IRPF, Folha, Fiscal                   | Receber docs → Analisar → Calcular → Entregar    | core + documentos + financeiro + comunicacao   | "Empresa", "Competência", "Obrigação" |
-| **Despachante**²         | Detran, IPVA, Multas, Transferência             | Solicitar → Coletar docs → Protocolar → Entregar | core + parceiros + portal_cliente              | "Veículo", "Protocolo", "Guia"        |
-| **Consultoria**²         | Projeto, Diagnóstico, Implementação, Suporte    | Proposta → Kickoff → Entregas → Encerramento     | core + crm + time_tracking + financeiro        | "Projeto", "Entregável", "Sprint"     |
+| Pack                  | Categorias                                      | Workflows                                     | Módulos                                   | Terminologia                         |
+| --------------------- | ----------------------------------------------- | --------------------------------------------- | ----------------------------------------- | ------------------------------------ |
+| **Padrão (Genérico)** | (o tenant cria as suas)                         | (o tenant configura os seus)                  | core                                      | (usa termos padrão)                  |
+| **Jurídico**          | Consultoria, Contencioso, Contratos, Compliance | Petição → Protocolo → Audiência → Sentença    | core + documentos + financeiro            | "Processo", "Causa", "Honorários"    |
+| **Comércio**          | Vendas, Estoque, Compras, Entregas              | Pedido → Separação → Expedição → Entrega      | core + pdv + products + stock + delivery  | "Produto", "Pedido", "Estoque"       |
+| **Consultoria**       | Projeto, Diagnóstico, Implementação, Suporte    | Proposta → Kickoff → Entregas → Encerramento  | core + crm + financeiro                   | "Projeto", "Entregável", "Sprint"    |
+| **Saúde**             | Consulta, Exame, Procedimento, Retorno          | Agendamento → Triagem → Atendimento → Alta    | core + parceiros + financeiro             | "Paciente", "Consulta", "Prontuário" |
+| **Revenda**           | Produtos, Catálogo, Marketplace, Pedidos        | Encomenda → Recebimento → Expedição → Entrega | core + pdv + products + stock + purchases | "Fornecedor", "Lote", "Margem"       |
 
-¹ _O pack Cartório é para empresas que trabalham COM cartórios (despachantes, imobiliárias, advocacias), não para cartórios como cliente._
-² _Packs futuros — definidos como possíveis expansões do sistema de template packs._
+**Packs futuros possíveis:** Cartório & Registro (ONR), Cobrança, Imobiliária, Contabilidade, Despachante — definidos como possíveis expansões via criação de novos arquivos em `data/template-packs/`.
 
 ### Onboarding com Template Pack
 
@@ -450,7 +465,7 @@ Template Pack = {
 
 ### Fase -1 — Fortalecer o Motor (CRUD + API) — 2-3 semanas
 
-> **Objetivo:** O CrudScreen é o DNA do produto. Antes de construir faturamento, CRM, portal etc. EM CIMA dele, precisamos torná-lo robusto o suficiente para suportar tudo. Cada melhoria aqui beneficia TODAS as 37+ telas existentes.
+> **Objetivo:** O CrudScreen é o DNA do produto. Antes de construir faturamento, CRM, portal etc. EM CIMA dele, precisamos torná-lo robusto o suficiente para suportar tudo. Cada melhoria aqui beneficia TODAS as 72+ telas existentes.
 
 #### Tier 1 — Crítico (sem isto, módulos financeiros não funcionam) — ✅ IMPLEMENTADO
 
@@ -577,14 +592,14 @@ Ongoing:   -1.13 a -1.18 conforme necessidade das fases seguintes
 
 > **Objetivo:** Onboarding de 15 minutos para qualquer vertical.
 
-| #   | Tarefa                                 | Tipo                       | Status |
-| --- | -------------------------------------- | -------------------------- | ------ |
-| 5.1 | Estrutura de template pack (JSON/seed) | Data                       | ✅     |
-| 5.2 | Script de aplicação de pack            | Backend                    | ✅     |
-| 5.3 | Tela de seleção de pack no onboarding  | UI                         | ✅     |
+| #   | Tarefa                                  | Tipo                                    | Status |
+| --- | --------------------------------------- | --------------------------------------- | ------ |
+| 5.1 | Estrutura de template pack (JSON/seed)  | Data                                    | ✅     |
+| 5.2 | Script de aplicação de pack             | Backend                                 | ✅     |
+| 5.3 | Tela de seleção de pack no onboarding   | UI                                      | ✅     |
 | 5.4 | Pack "Cartório & Registro" (integração) | Data (para empresas que usam cartórios) | ✅     |
-| 5.5 | Pack "Genérico" (empresa de serviço)   | Data                       | ✅     |
-| 5.6 | Pack "Advocacia"                       | Data                       | ✅     |
+| 5.5 | Pack "Genérico" (empresa de serviço)    | Data                                    | ✅     |
+| 5.6 | Pack "Advocacia"                        | Data                                    | ✅     |
 
 ---
 
@@ -600,9 +615,9 @@ INÍCIO (2025)                  HOJE (Fev 2026)
 ┌─────────┐                   ┌──────────────────────────┐
 │ Motor   │                   │ Motor universal           │
 │ genérico│                   │ (o mesmo de sempre)       │
-│ + MVP   │     ────────►     │ + 8 módulos opt-in        │
-│ initial │                   │ + 5 template packs        │
-│         │                   │ + 1 agent pack            │
+│ + MVP   │     ────────►     │ + 13 módulos opt-in       │
+│ initial │                   │ + 6 template packs        │
+│         │                   │ + 2 agent packs           │
 └─────────┘                   │ + portal público          │
                               │ + financeiro completo     │
  ~82 telas                    │ + CRM com kanban          │
@@ -613,16 +628,23 @@ INÍCIO (2025)                  HOJE (Fev 2026)
  7 módulos                    │ + tenant branding         │
                               │ + global search           │
                               │ + breadcrumbs             │
+                              │ + marketplace / PDV       │
+                              │ + estoque + compras       │
+                              │ + payment gateways (3)    │
+                              │ + content pages (CMS)     │
+                              │ + channel partners        │
+                              │ + DRE + export contábil   │
+                              │ + contratos + SLA         │
                               └──────────────────────────┘
 
-                               98 telas
-                               49 CrudScreens
-                               53 admin pages
-                               43 services
-                               5 template packs + 1 agent pack
-                               8 módulos
-                               19 migrations
-                               8 hooks
+                               169 telas
+                               72 CrudScreens
+                               114 admin pages
+                               76 services
+                               6 template packs + 2 agent packs
+                               13 módulos
+                               40 migrations
+                               10 hooks
 
 88% universal
  8% híbrido (engine genérico, nomenclatura de domínio)
@@ -901,11 +923,11 @@ Esse é o moat competitivo: **não é o que o SOS faz, é o que o SOS conecta.**
 | Pergunta                                            | Resposta                                                                                   |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | "Vou perder a simplicidade?"                        | Não — cada feature nova segue o padrão CrudScreen. O usuário não aprende nada novo.        |
-| "Vou ficar nichado demais?"                         | Não — 82% já é universal. O nicho é no Template Pack, não no código.                       |
+| "Vou ficar nichado demais?"                         | Não — 88% já é universal. O nicho é no Template Pack, não no código.                       |
 | "Vou virar um ERP genérico?"                        | Não — módulos são opcionais. O tenant ativa só o que precisa. Complexidade = proporcional. |
 | "O cliente vai precisar de treinamento?"            | Não — se sabe usar CrudScreen, sabe usar faturamento, orçamento, CRM...                    |
 | "Como diferencio para cada tipo de empresa?"        | Template Pack: dados pré-configurados + terminologia + workflows específicos. Zero código. |
-| "Posso atender advocacia E consultoria E cobrança?" | Sim — mesmo motor, packs diferentes. Uma advocacia e uma consultoria usam o MESMO código. |
+| "Posso atender advocacia E consultoria E cobrança?" | Sim — mesmo motor, packs diferentes. Uma advocacia e uma consultoria usam o MESMO código.  |
 | "E se quiser adicionar mais features depois?"       | Módulo novo + CrudScreen + tabela = pronto. O padrão é replicável infinitamente.           |
 | "Preciso ser banco ou emissor de NF?"               | Não — MercadoPago processa PIX, ENotas emite NF. O SOS orquestra, não executa.             |
 | "E se o parceiro open-source mudar a licença?"      | Todo parceiro é isolado num `services/parceiro.ts`. Trocar = 1 arquivo, zero telas.        |
@@ -918,25 +940,29 @@ Esse é o moat competitivo: **não é o que o SOS faz, é o que o SOS conecta.**
 
 1. **Validar este modelo** — Releia e ajuste o que não fizer sentido para a sua visão
 2. **✅ Fase -1 feita** — CrudScreen robusto: date, currency, pagination, validation, masks, sections, smart detection, aggregation
-3. **✅ Fase 0 feita** — Sistema de módulos + filtro de navegação (8 módulos, ModuleGate, ModulesContext)
+3. **✅ Fase 0 feita** — Sistema de módulos + filtro de navegação (13 módulos, ModuleGate, ModulesContext)
 4. **✅ Fase 1 feita** — Portal público com timeline `/p/:token`, review `/p/review/:token`, estimativa prazo/custo
-5. **✅ Fase 2 feita** — Financeiro completo: faturas, pagamentos, contas a receber/pagar, inadimplentes, recibos, dashboard, conciliação bancária OFX
-6. **✅ Fase 3 feita** — CRM: leads CrudScreen, pipeline kanban, detalhe do lead, campanhas, dashboard de campanhas
-7. **✅ Fase 4 feita** — Parceiros: Meus Trabalhos, aceitar/recusar, ganhos, PIX, disponibilidade, folgas
-8. **✅ Fase 5 feita** — Template Packs: cartório, advocacia, genérico, cobrança, padrão (5 packs)
-9. **✅ Extras implementados:**
-   - **AI Agents completo** — 9 telas admin (agents, states, playbooks, rules, tables, handoff, steps, bindings, agent-packs)
-   - **Agent Packs** — Sistema de packs para IA com 1 pack genérico + serviço de aplicação
-   - **SaaS Billing** — Planos tier (free/starter/growth/scale/enterprise), PIX, recorrência mensal, dashboard SaaS
-   - **Bank Reconciliation** — Import OFX, matching automático, conciliação de transações
-   - **Multi-Domain Auth** — Resolução de tenant por domínio/subdomain/custom domain, auto-link de usuários
-   - **Tenant Branding** — Logo, cor primária, nome da marca por tenant, telas de auth personalizadas
-   - **GlobalSearch** — Busca global de telas/funcionalidades no header, desktop + mobile
-   - **Breadcrumbs** — Navegação hierárquica em todas as telas admin
-   - **Orçamentos** — Quotes com link público `/q/:token`, aprovação online, conversão para OS
-   - **Cobrança** — Template pack de cobrança + serviço de collection via workflow engine
-10. **Próximo: Fase 6** — Integrações de Pagamento (MercadoPago gateway) + NFSe (ENotas)
-11. **Próximo: Fase 7** — Time Tracking (time_entries, timer, timesheets) + Formulários públicos de captação
+5. **✅ Fase 2 feita** — Financeiro completo: faturas, pagamentos, contas a receber/pagar, inadimplentes, recibos, dashboard, conciliação bancária OFX, DRE, export contábil
+6. **✅ Fase 3 feita** — CRM: leads CrudScreen, pipeline kanban, detalhe do lead, campanhas, dashboard de campanhas, formulários públicos, lead scoring, follow-up
+7. **✅ Fase 4 feita** — Parceiros: Meus Trabalhos, aceitar/recusar, ganhos, PIX, disponibilidade, folgas, channel partners
+8. **✅ Fase 5 feita** — Template Packs: cartório, advocacia, genérico, cobrança, padrão, sos_escritura (6 packs)
+9. **✅ Fase 6 feita** — Payment Gateways (Asaas + MercadoPago + Mock via IPaymentGateway), Contratos/SLA, Content Pages (blog/landing/CMS), Marketing AI
+10. **✅ Fase 7 feita** — Marketplace/E-commerce: PDV, Produtos, Composições/BOM, Estoque (movimentações + locais + alertas + kanban separação), Compras (pedidos + fornecedores), Entregas (expedição + rastreamento + rotas), Shopping Cart, Checkout
+11. **✅ Extras implementados:**
+    - **AI Agents completo** — 9 telas admin (agents, states, playbooks, rules, tables, handoff, steps, bindings, agent-packs)
+    - **Agent Packs** — 2 packs (genérico + sos_escritura) + serviço de aplicação
+    - **SaaS Billing** — Planos tier (free/starter/growth/scale/enterprise), PIX, recorrência mensal, dashboard SaaS
+    - **Bank Reconciliation** — Import OFX, matching automático, conciliação de transações
+    - **Multi-Domain Auth** — Resolução de tenant por domínio/subdomain/custom domain, auto-link de usuários
+    - **Tenant Branding** — Logo, cor primária, nome da marca por tenant, telas de auth personalizadas
+    - **GlobalSearch** — Busca global de telas/funcionalidades no header, desktop + mobile
+    - **Breadcrumbs** — Navegação hierárquica em todas as telas admin
+    - **Orçamentos** — Quotes com link público `/q/:token`, aprovação online, multi-opção (pacotes), quote templates
+    - **Cobrança** — Template pack de cobrança + serviço de collection via workflow engine
+    - **Contratos/SLA** — contracts + contract_service_orders, renovação, SLA tracking
+    - **Content Pages** — Blog, landing pages, CMS com editor
+    - **Channel Partners** — Referral codes, comissões, tracking de indicações
+12. **Próximo:** NFSe automática (ENotas), Time Tracking (time_entries + timer + timesheets), Visual Workflow Builder, Export CSV/PDF, Dispatch com mapa
 
 ---
 
@@ -958,7 +984,7 @@ O módulo de IA evoluiu de "insights por tela" para uma **arquitetura completa d
 | **Channel Bindings**  | Vínculos agente ↔ canal (qual agente atende qual canal)              |
 | **Agent Packs**       | Packs pré-configurados de agentes (como template packs, mas para IA) |
 
-**Agent Packs** funcionam como Template Packs: um JSON com agentes + estados + playbooks + políticas pré-configurados. O admin seleciona e aplica em 1 clique. Pack genérico inclui 3 agentes (atendimento, operacional, supervisão) + 9 categorias de entidade.
+**Agent Packs** funcionam como Template Packs: um JSON com agentes + estados + playbooks + políticas pré-configurados. O admin seleciona e aplica em 1 clique. 2 packs disponíveis (genérico + sos_escritura), cada um com 3 agentes (atendimento, operacional, supervisão) + 9 categorias de entidade.
 
 ### SaaS Billing (Monetização da Plataforma)
 
@@ -984,4 +1010,4 @@ O SOS agora tem **billing próprio** para cobrar tenants:
 
 ---
 
-_Documento estratégico — Fevereiro 2026 • Baseado em auditoria técnica completa (98 telas, 53 páginas admin, 49 telas CrudScreen, 8 módulos ativos, 5 template packs + 1 agent pack, 43 services, 19 migrations, 22+ integrações ativas)_
+_Documento estratégico — Fevereiro 2026 • Baseado em auditoria técnica completa (169 telas, 114 páginas admin, 72 telas CrudScreen, 13 módulos ativos, 6 template packs + 2 agent packs, 76 services, 40 migrations, 10 hooks, 3 payment gateways, 22+ integrações ativas)_

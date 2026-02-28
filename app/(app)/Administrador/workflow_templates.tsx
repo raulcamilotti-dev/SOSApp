@@ -163,6 +163,17 @@ export default function WorkflowTemplatesScreen() {
       visibleInList: true,
     },
     {
+      key: "workflow_scope",
+      label: "Escopo",
+      placeholder: "Escopo do workflow",
+      type: "select",
+      options: [
+        { label: "Operacional", value: "operational" },
+        { label: "Administrativo", value: "administrative" },
+      ],
+      visibleInList: true,
+    },
+    {
       key: "created_at",
       label: "Criado em",
       placeholder: "Criado em",
