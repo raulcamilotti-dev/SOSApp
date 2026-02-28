@@ -1,19 +1,19 @@
 /**
- * Agent Dashboard — Visão unificada da configuração completa de um agente.
+ * UNIFIED AGENT DASHBOARD
  *
- * Seções colapsáveis:
- * - System Prompt (com edição inline)
- * - Playbooks → Regras, Tabelas, Handoff (aninhados)
- * - Estados do Agente
- * - Canais
+ * Consolidates 7 sub-screens into a single management view:
+ * - Playbooks (+ nested Rules, Tables, Handoff Policies)
+ * - States (+ nested Steps)
+ * - Channel Bindings
  *
- * Carrega todos os dados em paralelo para renderização rápida.
+ * All CRUD inline via modals — no navigation to sub-screens.
  */
 
+import { ThemedText } from "@/components/themed-text";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api, getApiErrorMessage } from "@/services/api";
+import { api } from "@/services/api";
 import {
     buildSearchParams,
     CRUD_ENDPOINT,
@@ -21,8 +21,8 @@ import {
 } from "@/services/crud";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -31,7 +31,6 @@ import {
     Platform,
     RefreshControl,
     ScrollView,
-    Text,
     TextInput,
     TouchableOpacity,
     View,
@@ -41,105 +40,505 @@ import {
  * TYPES
  * ═══════════════════════════════════════════════════════ */
 
-type R = Record<string, unknown>;
+type Row = Record<string, unknown>;
 
-type FilterDef = { field: string; value: string; operator?: string };
+type FieldType =
+  | "text"
+  | "multiline"
+  | "number"
+  | "url"
+  | "boolean"
+  | "select"
+  | "json";
+
+interface FormField {
+  key: string;
+  label: string;
+  type?: FieldType;
+  required?: boolean;
+  options?: { label: string; value: string }[];
+  placeholder?: string;
+}
+
+type EntityType =
+  | "playbook"
+  | "rule"
+  | "table"
+  | "handoff"
+  | "state"
+  | "step"
+  | "binding";
+
+interface ModalState {
+  open: boolean;
+  mode: "create" | "edit";
+  entityType: EntityType;
+  data: Row;
+  parentIds: Row;
+}
 
 /* ═══════════════════════════════════════════════════════
- * API HELPER
+ * CONSTANTS & FIELD DEFINITIONS
+ * ═══════════════════════════════════════════════════════ */
+
+const CH_OPTS = [
+  { label: "App Atendimento", value: "app_atendimento" },
+  { label: "App Operador", value: "app_operador" },
+  { label: "WhatsApp", value: "whatsapp" },
+];
+
+const TABLES: Record<EntityType, string> = {
+  playbook: "agent_playbooks",
+  rule: "agent_playbook_rules",
+  table: "agent_playbook_tables",
+  handoff: "agent_handoff_policies",
+  state: "agent_states",
+  step: "agent_state_steps",
+  binding: "agent_channel_bindings",
+};
+
+const LABELS: Record<EntityType, string> = {
+  playbook: "Playbook",
+  rule: "Regra",
+  table: "Tabela",
+  handoff: "Handoff",
+  state: "Estado",
+  step: "Passo",
+  binding: "Canal",
+};
+
+const FIELDS: Record<EntityType, FormField[]> = {
+  playbook: [
+    { key: "name", label: "Nome", required: true },
+    {
+      key: "channel",
+      label: "Canal",
+      type: "select",
+      options: CH_OPTS,
+      required: true,
+    },
+    { key: "description", label: "Descrição", type: "multiline" },
+    {
+      key: "behavior_source",
+      label: "Origem Comportamento",
+      type: "select",
+      options: [
+        { label: "System Prompt", value: "agent_system_prompt" },
+        { label: "Playbook", value: "playbook" },
+      ],
+      required: true,
+    },
+    {
+      key: "inherit_system_prompt",
+      label: "Herda Prompt Base",
+      type: "boolean",
+    },
+    {
+      key: "state_machine_mode",
+      label: "Modo",
+      type: "select",
+      options: [
+        { label: "Guided", value: "guided" },
+        { label: "Freeform", value: "freeform" },
+      ],
+    },
+    { key: "webhook_url", label: "Webhook Bot", type: "url" },
+    { key: "operator_webhook_url", label: "Webhook Operador", type: "url" },
+    { key: "config_ui", label: "Config UI", type: "json" },
+    { key: "is_active", label: "Ativo", type: "boolean" },
+  ],
+  rule: [
+    { key: "title", label: "Título", required: true },
+    { key: "rule_order", label: "Ordem", type: "number", required: true },
+    {
+      key: "rule_type",
+      label: "Tipo",
+      type: "select",
+      options: [
+        { label: "Policy", value: "policy" },
+        { label: "Flow", value: "flow" },
+        { label: "Safety", value: "safety" },
+        { label: "Tooling", value: "tooling" },
+      ],
+      required: true,
+    },
+    {
+      key: "instruction",
+      label: "Instrução",
+      type: "multiline",
+      required: true,
+    },
+    {
+      key: "severity",
+      label: "Severidade",
+      type: "select",
+      options: [
+        { label: "Info", value: "info" },
+        { label: "Warning", value: "warning" },
+        { label: "Critical", value: "critical" },
+      ],
+    },
+    { key: "is_active", label: "Ativo", type: "boolean" },
+    { key: "metadata", label: "Metadata", type: "json" },
+  ],
+  table: [
+    { key: "table_name", label: "Nome da Tabela", required: true },
+    {
+      key: "access_mode",
+      label: "Acesso",
+      type: "select",
+      options: [
+        { label: "Leitura", value: "read" },
+        { label: "Leitura/Escrita", value: "read_write" },
+        { label: "Escrita", value: "write" },
+      ],
+      required: true,
+    },
+    { key: "purpose", label: "Finalidade", type: "multiline" },
+    { key: "is_required", label: "Obrigatória", type: "boolean" },
+    { key: "is_active", label: "Ativo", type: "boolean" },
+    { key: "query_guardrails", label: "Guardrails", type: "json" },
+  ],
+  handoff: [
+    {
+      key: "from_channel",
+      label: "De",
+      type: "select",
+      options: [
+        { label: "Bot", value: "bot" },
+        { label: "Operador", value: "operator" },
+      ],
+      required: true,
+    },
+    {
+      key: "to_channel",
+      label: "Para",
+      type: "select",
+      options: [
+        { label: "Bot", value: "bot" },
+        { label: "Operador", value: "operator" },
+      ],
+      required: true,
+    },
+    {
+      key: "trigger_type",
+      label: "Gatilho",
+      type: "select",
+      options: [
+        { label: "Solicitação usuário", value: "user_request" },
+        { label: "Regra do sistema", value: "system_rule" },
+        { label: "Solicitação operador", value: "operator_request" },
+      ],
+      required: true,
+    },
+    { key: "trigger_config", label: "Config Gatilho", type: "json" },
+    {
+      key: "pause_bot_while_operator",
+      label: "Pausar bot no operador",
+      type: "boolean",
+    },
+    {
+      key: "operator_can_return_to_bot",
+      label: "Operador retorna ao bot",
+      type: "boolean",
+    },
+    { key: "return_to_state_key", label: "State Key de retorno" },
+    { key: "is_active", label: "Ativo", type: "boolean" },
+  ],
+  state: [
+    { key: "state_key", label: "State Key", required: true },
+    { key: "state_label", label: "Label", required: true },
+    { key: "system_prompt", label: "System Prompt", type: "multiline" },
+    { key: "rules", label: "Rules", type: "json" },
+    { key: "tools", label: "Tools", type: "json" },
+    { key: "is_initial", label: "Inicial", type: "boolean" },
+    { key: "is_terminal", label: "Terminal", type: "boolean" },
+  ],
+  step: [
+    { key: "step_key", label: "Step Key", required: true },
+    { key: "step_label", label: "Label", required: true },
+    { key: "step_order", label: "Ordem", type: "number", required: true },
+    { key: "instruction", label: "Instrução", type: "multiline" },
+    { key: "expected_inputs", label: "Inputs esperados", type: "json" },
+    { key: "expected_outputs", label: "Outputs esperados", type: "json" },
+    { key: "allowed_tables", label: "Tabelas permitidas", type: "json" },
+    { key: "on_success_action", label: "Ação ao suceder" },
+    { key: "on_failure_action", label: "Ação ao falhar" },
+    {
+      key: "handoff_to_operator",
+      label: "Handoff p/ operador",
+      type: "boolean",
+    },
+    { key: "return_to_bot_allowed", label: "Retorno ao bot", type: "boolean" },
+    { key: "is_active", label: "Ativo", type: "boolean" },
+  ],
+  binding: [
+    {
+      key: "channel",
+      label: "Canal",
+      type: "select",
+      options: CH_OPTS,
+      required: true,
+    },
+    { key: "webhook_url", label: "Webhook URL", type: "url" },
+    { key: "is_active", label: "Ativo", type: "boolean" },
+    { key: "config", label: "Config", type: "json" },
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════
+ * API HELPERS
  * ═══════════════════════════════════════════════════════ */
 
 async function fetchRows(
   table: string,
-  filters: FilterDef[],
-  sort?: string,
-): Promise<R[]> {
+  filters: { field: string; value: string; operator?: string }[],
+): Promise<Row[]> {
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table,
-    ...buildSearchParams(filters, {
-      sortColumn: sort,
-      combineType: "AND",
-    }),
+    ...buildSearchParams(filters, { sortColumn: "created_at DESC" }),
   });
-  return filterActive(normalizeCrudList<R>(res.data));
+  return filterActive(normalizeCrudList<Row>(res.data));
 }
 
-async function patchRow(table: string, payload: R): Promise<void> {
+async function createRow(table: string, payload: Row): Promise<Row> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "create",
+    table,
+    payload,
+  });
+  const list = normalizeCrudList<Row>(res.data);
+  return list[0] ?? payload;
+}
+
+async function patchRow(table: string, payload: Row): Promise<Row> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "update",
+    table,
+    payload,
+  });
+  const list = normalizeCrudList<Row>(res.data);
+  return list[0] ?? payload;
+}
+
+async function softDelete(table: string, id: string): Promise<void> {
   await api.post(CRUD_ENDPOINT, {
     action: "update",
     table,
-    payload: { ...payload, updated_at: new Date().toISOString() },
+    payload: { id, deleted_at: new Date().toISOString() },
   });
 }
 
 /* ═══════════════════════════════════════════════════════
- * HELPERS
+ * UTILITY HELPERS
  * ═══════════════════════════════════════════════════════ */
 
-const str = (v: unknown): string => (v != null && v !== "" ? String(v) : "-");
+const str = (v: unknown) => (v == null ? "" : String(v));
+const isTruthy = (v: string) =>
+  ["true", "1", "yes", "sim"].includes(v.trim().toLowerCase());
 
-const isTruthy = (v: unknown): boolean =>
-  v === true || v === "true" || v === "1";
+const EMPTY_MODAL: ModalState = {
+  open: false,
+  mode: "create",
+  entityType: "playbook",
+  data: {},
+  parentIds: {},
+};
+
+function confirmAction(title: string, msg: string, onOk: () => void) {
+  if (Platform.OS === "web") {
+    if (window.confirm(`${title}\n${msg}`)) onOk();
+  } else {
+    Alert.alert(title, msg, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Confirmar", style: "destructive", onPress: onOk },
+    ]);
+  }
+}
+
+function showAlert(title: string, msg: string) {
+  if (Platform.OS === "web") {
+    window.alert(`${title}\n${msg}`);
+  } else {
+    Alert.alert(title, msg);
+  }
+}
 
 /* ═══════════════════════════════════════════════════════
  * MAIN COMPONENT
  * ═══════════════════════════════════════════════════════ */
 
-export default function AgentDashboardScreen() {
+export default function AgentDashboard() {
   const { user } = useAuth();
-  const router = useRouter();
   const params = useLocalSearchParams<{
     agentId?: string;
     tenantId?: string;
   }>();
-
-  const agentId =
-    (Array.isArray(params.agentId) ? params.agentId[0] : params.agentId) ?? "";
+  const agentId = Array.isArray(params.agentId)
+    ? params.agentId[0]
+    : params.agentId;
   const tenantId =
-    (Array.isArray(params.tenantId) ? params.tenantId[0] : params.tenantId) ??
-    user?.tenant_id ??
-    "";
+    (Array.isArray(params.tenantId) ? params.tenantId[0] : params.tenantId) ||
+    user?.tenant_id;
 
   /* ── Theme ── */
-  const bg = useThemeColor({}, "background");
-  const cardBg = useThemeColor({}, "card");
   const textColor = useThemeColor({}, "text");
   const mutedColor = useThemeColor({}, "muted");
   const borderColor = useThemeColor({}, "border");
+  const cardColor = useThemeColor({}, "card");
   const tintColor = useThemeColor({}, "tint");
+  const bgColor = useThemeColor({}, "background");
   const inputBg = useThemeColor({}, "input");
 
-  /* ── Data state ── */
+  /* ── Data State ── */
+  const [agent, setAgent] = useState<Row | null>(null);
+  const [playbooks, setPlaybooks] = useState<Row[]>([]);
+  const [rules, setRules] = useState<Row[]>([]);
+  const [tables, setTables] = useState<Row[]>([]);
+  const [handoff, setHandoff] = useState<Row[]>([]);
+  const [states, setStates] = useState<Row[]>([]);
+  const [steps, setSteps] = useState<Row[]>([]);
+  const [bindings, setBindings] = useState<Row[]>([]);
+
+  /* ── UI State ── */
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const [agent, setAgent] = useState<R | null>(null);
-  const [playbooks, setPlaybooks] = useState<R[]>([]);
-  const [rules, setRules] = useState<R[]>([]);
-  const [tables, setTables] = useState<R[]>([]);
-  const [handoff, setHandoff] = useState<R[]>([]);
-  const [states, setStates] = useState<R[]>([]);
-  const [bindings, setBindings] = useState<R[]>([]);
-
-  /* ── UI state ── */
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(["prompt", "playbooks"]),
-  );
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [modal, setModal] = useState<ModalState>(EMPTY_MODAL);
+  const [formState, setFormState] = useState<Record<string, string>>({});
+  const [promptModal, setPromptModal] = useState(false);
+  const [promptText, setPromptText] = useState("");
 
-  // Edit prompt modal
-  const [editPromptOpen, setEditPromptOpen] = useState(false);
-  const [editPromptText, setEditPromptText] = useState("");
+  /* ── Grouped Data ── */
+  const rulesByPb = useMemo(() => {
+    const m = new Map<string, Row[]>();
+    rules.forEach((r) => {
+      const k = str(r.playbook_id);
+      m.set(k, [...(m.get(k) ?? []), r]);
+    });
+    return m;
+  }, [rules]);
 
-  // Edit rule modal
-  const [editRuleOpen, setEditRuleOpen] = useState(false);
-  const [editRuleData, setEditRuleData] = useState<R | null>(null);
-  const [editRuleTitle, setEditRuleTitle] = useState("");
-  const [editRuleInstruction, setEditRuleInstruction] = useState("");
+  const tablesByPb = useMemo(() => {
+    const m = new Map<string, Row[]>();
+    tables.forEach((t) => {
+      const k = str(t.playbook_id);
+      m.set(k, [...(m.get(k) ?? []), t]);
+    });
+    return m;
+  }, [tables]);
 
-  /* ── Toggle section expand/collapse ── */
+  const handoffByPb = useMemo(() => {
+    const m = new Map<string, Row[]>();
+    handoff.forEach((h) => {
+      const k = str(h.playbook_id);
+      m.set(k, [...(m.get(k) ?? []), h]);
+    });
+    return m;
+  }, [handoff]);
+
+  const stepsByState = useMemo(() => {
+    const m = new Map<string, Row[]>();
+    steps.forEach((s) => {
+      const k = str(s.state_id);
+      m.set(k, [...(m.get(k) ?? []), s]);
+    });
+    return m;
+  }, [steps]);
+
+  /* ── Data Loading ── */
+  const loadAll = useCallback(async () => {
+    if (!agentId) return;
+    try {
+      setError(null);
+
+      // Batch 1: agent + playbooks + states + bindings (all by agent_id)
+      const [agentRes, pbRes, stRes, bnRes] = await Promise.all([
+        fetchRows("agents", [{ field: "id", value: agentId }]),
+        fetchRows("agent_playbooks", [{ field: "agent_id", value: agentId }]),
+        fetchRows("agent_states", [{ field: "agent_id", value: agentId }]),
+        fetchRows("agent_channel_bindings", [
+          { field: "agent_id", value: agentId },
+        ]),
+      ]);
+
+      const agentRow = agentRes[0] ?? null;
+      setAgent(agentRow);
+      setPlaybooks(pbRes);
+      setStates(stRes);
+      setBindings(bnRes);
+
+      // Batch 2: children that depend on playbook/state IDs
+      const pbIds = pbRes.map((p) => str(p.id)).filter(Boolean);
+      const stIds = stRes.map((s) => str(s.id)).filter(Boolean);
+
+      const promises: Promise<Row[]>[] = [];
+
+      // Rules by playbook_id IN
+      if (pbIds.length > 0) {
+        promises.push(
+          fetchRows("agent_playbook_rules", [
+            { field: "playbook_id", value: pbIds.join(","), operator: "in" },
+          ]),
+        );
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+
+      // Tables by playbook_id IN
+      if (pbIds.length > 0) {
+        promises.push(
+          fetchRows("agent_playbook_tables", [
+            { field: "playbook_id", value: pbIds.join(","), operator: "in" },
+          ]),
+        );
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+
+      // Handoff by agent_id
+      promises.push(
+        fetchRows("agent_handoff_policies", [
+          { field: "agent_id", value: agentId },
+        ]),
+      );
+
+      // Steps by state_id IN
+      if (stIds.length > 0) {
+        promises.push(
+          fetchRows("agent_state_steps", [
+            { field: "state_id", value: stIds.join(","), operator: "in" },
+          ]),
+        );
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+
+      const [rulesRes, tablesRes, handoffRes, stepsRes] =
+        await Promise.all(promises);
+
+      setRules(rulesRes);
+      setTables(tablesRes);
+      setHandoff(handoffRes);
+      setSteps(stepsRes);
+    } catch (err) {
+      setError("Falha ao carregar dados do agente");
+      console.error("AgentDashboard loadAll:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [agentId]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadAll();
+  }, [loadAll]);
+
+  /* ── Toggle Section ── */
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -149,368 +548,381 @@ export default function AgentDashboardScreen() {
     });
   }, []);
 
-  /* ── Load all data ── */
-  const loadAll = useCallback(async () => {
-    if (!agentId) return;
-    try {
-      setError(null);
+  /* ── CRUD Operations ── */
+  const openCreate = useCallback(
+    (entityType: EntityType, parentIds: Row = {}) => {
+      const defaults: Record<string, string> = {};
+      FIELDS[entityType].forEach((f) => {
+        defaults[f.key] = "";
+      });
+      setFormState(defaults);
+      setModal({
+        open: true,
+        mode: "create",
+        entityType,
+        data: {},
+        parentIds,
+      });
+    },
+    [],
+  );
 
-      // Batch 1: agent + direct children (parallel)
-      const [agentRows, pbs, sts, bds] = await Promise.all([
-        fetchRows("agents", [{ field: "id", value: agentId }]),
-        fetchRows(
-          "agent_playbooks",
-          [
-            { field: "agent_id", value: agentId },
-            { field: "tenant_id", value: tenantId },
-          ],
-          "created_at ASC",
-        ),
-        fetchRows(
-          "agent_states",
-          [{ field: "agent_id", value: agentId }],
-          "state_key ASC",
-        ),
-        fetchRows("agent_channel_bindings", [
-          { field: "agent_id", value: agentId },
-          { field: "tenant_id", value: tenantId },
-        ]),
-      ]);
-
-      const ag = agentRows[0] ?? null;
-      setAgent(ag);
-      setPlaybooks(pbs);
-      setStates(sts);
-      setBindings(bds);
-
-      // Batch 2: playbook children (rules, tables, handoff)
-      const pbIds = pbs.map((p) => String(p.id ?? "")).filter(Boolean);
-
-      if (pbIds.length > 0) {
-        const idList = pbIds.join(",");
-        const [rls, tbs, hps] = await Promise.all([
-          fetchRows(
-            "agent_playbook_rules",
-            [
-              { field: "playbook_id", value: idList, operator: "in" },
-              { field: "tenant_id", value: tenantId },
-            ],
-            "rule_order ASC, created_at ASC",
-          ),
-          fetchRows(
-            "agent_playbook_tables",
-            [
-              { field: "playbook_id", value: idList, operator: "in" },
-              { field: "tenant_id", value: tenantId },
-            ],
-            "table_name ASC",
-          ),
-          fetchRows("agent_handoff_policies", [
-            { field: "playbook_id", value: idList, operator: "in" },
-            { field: "tenant_id", value: tenantId },
-          ]),
-        ]);
-        setRules(rls);
-        setTables(tbs);
-        setHandoff(hps);
+  const openEdit = useCallback((entityType: EntityType, row: Row) => {
+    const values: Record<string, string> = {};
+    FIELDS[entityType].forEach((f) => {
+      const v = row[f.key];
+      if (f.type === "json" && v != null && typeof v === "object") {
+        values[f.key] = JSON.stringify(v, null, 2);
+      } else if (f.type === "boolean") {
+        values[f.key] = v ? "true" : "false";
       } else {
-        setRules([]);
-        setTables([]);
-        setHandoff([]);
+        values[f.key] = str(v);
       }
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Falha ao carregar dados do agente"));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    });
+    setFormState(values);
+    setModal({
+      open: true,
+      mode: "edit",
+      entityType,
+      data: row,
+      parentIds: {},
+    });
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    const { entityType, mode, data, parentIds } = modal;
+    const fields = FIELDS[entityType];
+    const table = TABLES[entityType];
+
+    // Validation
+    for (const f of fields) {
+      if (f.required && !formState[f.key]?.trim()) {
+        showAlert("Campo obrigatório", `Preencha "${f.label}".`);
+        return;
+      }
     }
-  }, [agentId, tenantId]);
 
-  useEffect(() => {
-    setLoading(true);
-    loadAll();
-  }, [loadAll]);
+    // Build payload
+    const payload: Row = {};
+    for (const f of fields) {
+      const raw = formState[f.key] ?? "";
+      if (f.type === "boolean") {
+        payload[f.key] = isTruthy(raw);
+      } else if (f.type === "number") {
+        payload[f.key] = raw ? parseFloat(raw.replace(",", ".")) : 0;
+      } else if (f.type === "json") {
+        if (!raw.trim()) {
+          payload[f.key] = null;
+        } else {
+          try {
+            JSON.parse(raw);
+            payload[f.key] = raw.trim();
+          } catch {
+            showAlert("JSON inválido", `Campo "${f.label}" tem JSON inválido.`);
+            return;
+          }
+        }
+      } else {
+        payload[f.key] = raw.trim() || null;
+      }
+    }
 
-  /* ── Save handlers ── */
+    // Inject system fields
+    if (mode === "create") {
+      payload.tenant_id = tenantId;
+      payload.agent_id = agentId;
+      // Entity-specific parent IDs
+      if (parentIds.playbook_id) payload.playbook_id = parentIds.playbook_id;
+      if (parentIds.state_id) payload.state_id = parentIds.state_id;
+    }
+
+    try {
+      setSaving(true);
+      if (mode === "create") {
+        await createRow(table, payload);
+      } else {
+        payload.id = str(data.id);
+        await patchRow(table, payload);
+      }
+      setModal(EMPTY_MODAL);
+      await loadAll();
+    } catch (err) {
+      showAlert("Erro ao salvar", String((err as Error)?.message ?? err));
+    } finally {
+      setSaving(false);
+    }
+  }, [modal, formState, tenantId, agentId, loadAll]);
+
+  const handleDelete = useCallback(
+    (entityType: EntityType, row: Row) => {
+      confirmAction(
+        `Excluir ${LABELS[entityType]}`,
+        `Deseja excluir "${str(row.name || row.title || row.state_label || row.step_label || row.channel || row.table_name || row.id)}"?`,
+        async () => {
+          try {
+            setSaving(true);
+            await softDelete(TABLES[entityType], str(row.id));
+            await loadAll();
+          } catch (err) {
+            showAlert("Erro", String((err as Error)?.message ?? err));
+          } finally {
+            setSaving(false);
+          }
+        },
+      );
+    },
+    [loadAll],
+  );
+
+  /* ── Prompt Editor ── */
+  const openPrompt = useCallback(() => {
+    setPromptText(str(agent?.system_prompt));
+    setPromptModal(true);
+  }, [agent]);
+
   const savePrompt = useCallback(async () => {
     if (!agent?.id) return;
     try {
       setSaving(true);
       await patchRow("agents", {
-        id: agent.id,
-        system_prompt: editPromptText,
+        id: str(agent.id),
+        system_prompt: promptText,
       });
-      setAgent((prev) =>
-        prev ? { ...prev, system_prompt: editPromptText } : prev,
-      );
-      setEditPromptOpen(false);
-      Alert.alert("Sucesso", "System prompt atualizado!");
+      setPromptModal(false);
+      await loadAll();
     } catch (err) {
-      Alert.alert("Erro", getApiErrorMessage(err, "Falha ao salvar prompt."));
+      showAlert("Erro", String((err as Error)?.message ?? err));
     } finally {
       setSaving(false);
     }
-  }, [agent?.id, editPromptText]);
+  }, [agent, promptText, loadAll]);
 
-  const saveRule = useCallback(async () => {
-    if (!editRuleData?.id) return;
-    try {
-      setSaving(true);
-      await patchRow("agent_playbook_rules", {
-        id: editRuleData.id,
-        title: editRuleTitle,
-        instruction: editRuleInstruction,
-      });
-      setRules((prev) =>
-        prev.map((r) =>
-          r.id === editRuleData.id
-            ? { ...r, title: editRuleTitle, instruction: editRuleInstruction }
-            : r,
-        ),
-      );
-      setEditRuleOpen(false);
-      Alert.alert("Sucesso", "Regra atualizada!");
-    } catch (err) {
-      Alert.alert("Erro", getApiErrorMessage(err, "Falha ao salvar regra."));
-    } finally {
-      setSaving(false);
-    }
-  }, [editRuleData?.id, editRuleTitle, editRuleInstruction]);
+  /* ── Reusable UI Components ── */
 
-  const copyToClipboard = useCallback(async (text: string) => {
-    await Clipboard.setStringAsync(text);
-    Alert.alert("Copiado", "Texto copiado para a área de transferência.");
-  }, []);
-
-  /* ── Grouping helpers ── */
-  const rulesByPb = useCallback(
-    (pbId: string) => rules.filter((r) => String(r.playbook_id ?? "") === pbId),
-    [rules],
-  );
-  const tablesByPb = useCallback(
-    (pbId: string) =>
-      tables.filter((t) => String(t.playbook_id ?? "") === pbId),
-    [tables],
-  );
-  const handoffByPb = useCallback(
-    (pbId: string) =>
-      handoff.filter((h) => String(h.playbook_id ?? "") === pbId),
-    [handoff],
-  );
-
-  /* ── Counting ── */
-  const agentName = str(agent?.name || agent?.model || "Agente");
-  const promptText = str(agent?.system_prompt);
-  const promptLineCount = promptText.split("\n").length;
-
-  /* ═══════════════════════════════════════════════════════
-   * RENDER HELPERS — badges & section chrome
-   * ═══════════════════════════════════════════════════════ */
-
-  const Badge = ({
-    label,
-    color: c,
-    bg: b,
-  }: {
-    label: string;
-    color: string;
-    bg: string;
-  }) => (
-    <View
-      style={{
-        backgroundColor: b,
-        paddingHorizontal: 6,
-        paddingVertical: 1,
-        borderRadius: 4,
-      }}
-    >
-      <Text style={{ fontSize: 10, fontWeight: "600", color: c }}>{label}</Text>
-    </View>
-  );
-
-  const SEVERITY_COLORS: Record<string, { c: string; b: string }> = {
-    critical: { c: "#dc2626", b: "#dc262620" },
-    high: { c: "#ea580c", b: "#ea580c20" },
-    normal: { c: tintColor, b: `${tintColor}20` },
-  };
-
-  const TYPE_COLORS: Record<string, string> = {
-    policy: "#7c3aed",
-    flow: "#0284c7",
-    safety: "#dc2626",
-    tooling: "#059669",
-  };
-
-  const SeverityBadge = ({ severity }: { severity: string }) => {
-    const s = SEVERITY_COLORS[severity] ?? SEVERITY_COLORS.normal;
-    return <Badge label={severity} color={s.c} bg={s.b} />;
-  };
-
-  const TypeBadge = ({ type }: { type: string }) => {
-    const c = TYPE_COLORS[type] ?? mutedColor;
-    return <Badge label={type} color={c} bg={`${c}20`} />;
-  };
-
-  const ActiveBadge = ({ active }: { active: boolean }) => (
-    <Badge
-      label={active ? "Ativo" : "Inativo"}
-      color={active ? "#059669" : "#64748b"}
-      bg={active ? "#05966920" : "#64748b20"}
-    />
-  );
-
-  /* ── Section header with collapse chevron ── */
-  const SectionHeader = ({
-    sectionKey,
-    title,
-    count,
-    icon,
-  }: {
-    sectionKey: string;
-    title: string;
-    count?: number;
-    icon: string;
-  }) => {
-    const isExpanded = expanded.has(sectionKey);
-    return (
-      <TouchableOpacity
-        onPress={() => toggle(sectionKey)}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingVertical: 12,
-          paddingHorizontal: 16,
-          backgroundColor: cardBg,
-          borderRadius: 10,
-          borderWidth: 1,
-          borderColor,
-          marginBottom: isExpanded ? 0 : 12,
-          borderBottomLeftRadius: isExpanded ? 0 : 10,
-          borderBottomRightRadius: isExpanded ? 0 : 10,
-        }}
-        activeOpacity={0.7}
-      >
-        <Ionicons name={icon as any} size={18} color={tintColor} />
-        <Text
+  /** Section Header with collapse + add button */
+  const SectionHeader = useCallback(
+    ({
+      icon,
+      title,
+      count,
+      color,
+      sectionKey,
+      onAdd,
+    }: {
+      icon: string;
+      title: string;
+      count: number;
+      color: string;
+      sectionKey: string;
+      onAdd: () => void;
+    }) => {
+      const isOpen = expanded.has(sectionKey);
+      return (
+        <TouchableOpacity
+          onPress={() => toggle(sectionKey)}
+          activeOpacity={0.7}
           style={{
-            flex: 1,
-            fontSize: 15,
-            fontWeight: "700",
-            color: textColor,
-            marginLeft: 8,
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: color + "14",
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 10,
+            marginBottom: isOpen ? 8 : 0,
           }}
         >
-          {title}
-        </Text>
-        {count != null && (
+          <Ionicons name={icon as any} size={18} color={color} />
+          <ThemedText
+            style={{
+              color,
+              fontWeight: "700",
+              fontSize: 14,
+              marginLeft: 8,
+              flex: 1,
+            }}
+          >
+            {title}
+          </ThemedText>
           <View
             style={{
-              backgroundColor: `${tintColor}20`,
+              backgroundColor: color + "22",
               paddingHorizontal: 8,
               paddingVertical: 2,
               borderRadius: 10,
               marginRight: 8,
             }}
           >
-            <Text style={{ fontSize: 12, fontWeight: "600", color: tintColor }}>
+            <ThemedText style={{ color, fontSize: 11, fontWeight: "700" }}>
               {count}
-            </Text>
+            </ThemedText>
           </View>
-        )}
-        <Ionicons
-          name={isExpanded ? "chevron-up" : "chevron-down"}
-          size={18}
-          color={mutedColor}
-        />
-      </TouchableOpacity>
-    );
-  };
-
-  /* ── Section content wrapper ── */
-  const SectionContent = ({
-    sectionKey,
-    children,
-  }: {
-    sectionKey: string;
-    children: React.ReactNode;
-  }) => {
-    if (!expanded.has(sectionKey)) return null;
-    return (
-      <View
-        style={{
-          backgroundColor: cardBg,
-          borderWidth: 1,
-          borderTopWidth: 0,
-          borderColor,
-          borderBottomLeftRadius: 10,
-          borderBottomRightRadius: 10,
-          paddingHorizontal: 16,
-          paddingBottom: 16,
-          marginBottom: 12,
-        }}
-      >
-        {children}
-      </View>
-    );
-  };
-
-  /* ── Sub-section toggle (inside playbook) ── */
-  const SubSectionRow = ({
-    sectionKey,
-    label,
-    count,
-  }: {
-    sectionKey: string;
-    label: string;
-    count: number;
-  }) => (
-    <TouchableOpacity
-      onPress={() => toggle(sectionKey)}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        paddingVertical: 8,
-      }}
-      activeOpacity={0.7}
-    >
-      <Ionicons
-        name={expanded.has(sectionKey) ? "caret-down" : "caret-forward"}
-        size={14}
-        color={mutedColor}
-      />
-      <Text
-        style={{
-          fontSize: 13,
-          fontWeight: "600",
-          color: textColor,
-          marginLeft: 4,
-        }}
-      >
-        {label} ({count})
-      </Text>
-    </TouchableOpacity>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onAdd();
+            }}
+            hitSlop={8}
+            style={{
+              backgroundColor: color,
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              justifyContent: "center",
+              alignItems: "center",
+              marginRight: 8,
+            }}
+          >
+            <Ionicons name="add" size={16} color="#fff" />
+          </TouchableOpacity>
+          <Ionicons
+            name={isOpen ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={mutedColor}
+          />
+        </TouchableOpacity>
+      );
+    },
+    [expanded, toggle, mutedColor],
   );
 
-  /* ── Nav link ── */
-  const NavLink = ({
-    label,
-    onPress,
-  }: {
-    label: string;
-    onPress: () => void;
-  }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      style={{ marginTop: 6, paddingVertical: 4 }}
-    >
-      <Text style={{ fontSize: 12, color: tintColor, fontWeight: "600" }}>
-        {label} →
-      </Text>
-    </TouchableOpacity>
+  /** Inline item row with edit/delete */
+  const ItemRow = useCallback(
+    ({
+      label,
+      sublabel,
+      entityType,
+      row,
+      isActive,
+    }: {
+      label: string;
+      sublabel?: string;
+      entityType: EntityType;
+      row: Row;
+      isActive?: boolean;
+    }) => (
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: borderColor + "40",
+        }}
+      >
+        {isActive !== undefined && (
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: isActive ? "#22c55e" : "#94a3b8",
+              marginRight: 8,
+            }}
+          />
+        )}
+        <View style={{ flex: 1 }}>
+          <ThemedText
+            style={{ color: textColor, fontSize: 13, fontWeight: "600" }}
+            numberOfLines={1}
+          >
+            {label}
+          </ThemedText>
+          {sublabel ? (
+            <ThemedText
+              style={{ color: mutedColor, fontSize: 11, marginTop: 1 }}
+              numberOfLines={1}
+            >
+              {sublabel}
+            </ThemedText>
+          ) : null}
+        </View>
+        <TouchableOpacity
+          onPress={() => openEdit(entityType, row)}
+          hitSlop={6}
+          style={{ padding: 4 }}
+        >
+          <Ionicons name="pencil-outline" size={16} color={tintColor} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleDelete(entityType, row)}
+          hitSlop={6}
+          style={{ padding: 4, marginLeft: 4 }}
+        >
+          <Ionicons name="trash-outline" size={16} color="#ef4444" />
+        </TouchableOpacity>
+      </View>
+    ),
+    [borderColor, textColor, mutedColor, tintColor, openEdit, handleDelete],
+  );
+
+  /** Sub-section header (nested) */
+  const SubHeader = useCallback(
+    ({
+      icon,
+      title,
+      count,
+      sectionKey,
+      onAdd,
+    }: {
+      icon: string;
+      title: string;
+      count: number;
+      sectionKey: string;
+      onAdd: () => void;
+    }) => {
+      const isOpen = expanded.has(sectionKey);
+      return (
+        <TouchableOpacity
+          onPress={() => toggle(sectionKey)}
+          activeOpacity={0.7}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            marginTop: 2,
+          }}
+        >
+          <Ionicons
+            name={icon as any}
+            size={14}
+            color={mutedColor}
+            style={{ marginRight: 6 }}
+          />
+          <ThemedText
+            style={{
+              color: textColor,
+              fontSize: 12,
+              fontWeight: "600",
+              flex: 1,
+            }}
+          >
+            {title} ({count})
+          </ThemedText>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onAdd();
+            }}
+            hitSlop={8}
+            style={{ padding: 2, marginRight: 4 }}
+          >
+            <Ionicons name="add-circle-outline" size={16} color={tintColor} />
+          </TouchableOpacity>
+          <Ionicons
+            name={isOpen ? "chevron-up" : "chevron-down"}
+            size={14}
+            color={mutedColor}
+          />
+        </TouchableOpacity>
+      );
+    },
+    [expanded, toggle, mutedColor, textColor, tintColor],
   );
 
   /* ═══════════════════════════════════════════════════════
-   * LOADING / ERROR STATES
+   * RENDER
    * ═══════════════════════════════════════════════════════ */
 
   if (loading) {
@@ -518,15 +930,15 @@ export default function AgentDashboardScreen() {
       <View
         style={{
           flex: 1,
-          backgroundColor: bg,
           justifyContent: "center",
           alignItems: "center",
+          backgroundColor: bgColor,
         }}
       >
         <ActivityIndicator size="large" color={tintColor} />
-        <Text style={{ color: mutedColor, marginTop: 12, fontSize: 14 }}>
-          Carregando configuração do agente...
-        </Text>
+        <ThemedText style={{ color: mutedColor, marginTop: 12 }}>
+          Carregando agente...
+        </ThemedText>
       </View>
     );
   }
@@ -536,32 +948,24 @@ export default function AgentDashboardScreen() {
       <View
         style={{
           flex: 1,
-          backgroundColor: bg,
           justifyContent: "center",
           alignItems: "center",
+          backgroundColor: bgColor,
           padding: 24,
         }}
       >
-        <Ionicons name="warning-outline" size={48} color={mutedColor} />
-        <Text style={{ color: textColor, fontSize: 16, marginTop: 12 }}>
-          Agente não encontrado
-        </Text>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={{ marginTop: 16 }}
+        <Ionicons name="alert-circle-outline" size={48} color={mutedColor} />
+        <ThemedText
+          style={{ color: mutedColor, marginTop: 12, textAlign: "center" }}
         >
-          <Text style={{ color: tintColor, fontWeight: "600" }}>Voltar</Text>
-        </TouchableOpacity>
+          {error || "Agente não encontrado."}
+        </ThemedText>
       </View>
     );
   }
 
-  /* ═══════════════════════════════════════════════════════
-   * MAIN RENDER
-   * ═══════════════════════════════════════════════════════ */
-
   return (
-    <View style={{ flex: 1, backgroundColor: bg }}>
+    <View style={{ flex: 1, backgroundColor: bgColor }}>
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
         refreshControl={
@@ -574,796 +978,454 @@ export default function AgentDashboardScreen() {
           />
         }
       >
-        {/* ═══ Agent Header Card ═══ */}
+        {/* ══════ AGENT HEADER ══════ */}
         <View
           style={{
-            backgroundColor: cardBg,
-            borderRadius: 12,
-            padding: 16,
+            backgroundColor: cardColor,
+            borderRadius: 14,
             borderWidth: 1,
             borderColor,
-            marginBottom: 12,
+            padding: 16,
+            marginBottom: 16,
           }}
         >
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              gap: 10,
+              marginBottom: 10,
             }}
           >
-            <View
+            <Ionicons
+              name="hardware-chip-outline"
+              size={22}
+              color={tintColor}
+            />
+            <ThemedText
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: `${tintColor}20`,
-                justifyContent: "center",
-                alignItems: "center",
+                color: textColor,
+                fontSize: 18,
+                fontWeight: "700",
+                marginLeft: 8,
+                flex: 1,
               }}
             >
-              <Ionicons
-                name="hardware-chip-outline"
-                size={22}
-                color={tintColor}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
+              {str(agent.name) || str(agent.id).slice(0, 8)}
+            </ThemedText>
+            <View
+              style={{
+                backgroundColor: agent.is_active ? "#22c55e20" : "#ef444420",
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 8,
+              }}
+            >
+              <ThemedText
                 style={{
-                  fontSize: 18,
+                  color: agent.is_active ? "#22c55e" : "#ef4444",
+                  fontSize: 11,
                   fontWeight: "700",
-                  color: textColor,
                 }}
               >
-                {agentName}
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: 6,
-                  marginTop: 4,
-                  flexWrap: "wrap",
-                }}
-              >
-                <Badge
-                  label={str(agent.model)}
-                  color={tintColor}
-                  bg={`${tintColor}15`}
-                />
-                <Badge
-                  label={`Temp: ${str(agent.temperature)}`}
-                  color={tintColor}
-                  bg={`${tintColor}15`}
-                />
-                <Badge
-                  label={`Tokens: ${str(agent.max_tokens)}`}
-                  color={tintColor}
-                  bg={`${tintColor}15`}
-                />
-                <Badge
-                  label={`v${str(agent.version)}`}
-                  color={tintColor}
-                  bg={`${tintColor}15`}
-                />
-                <ActiveBadge active={isTruthy(agent.is_active)} />
-                {isTruthy(agent.is_default) && (
-                  <Badge label="Padrão" color="#f59e0b" bg="#f59e0b20" />
-                )}
-              </View>
+                {agent.is_active ? "Ativo" : "Inativo"}
+              </ThemedText>
             </View>
           </View>
 
-          {/* Stats row */}
+          {/* Stats badges */}
           <View
             style={{
               flexDirection: "row",
-              gap: 16,
-              marginTop: 14,
-              paddingTop: 12,
-              borderTopWidth: 1,
-              borderTopColor: borderColor,
               flexWrap: "wrap",
+              gap: 8,
+              marginBottom: 12,
             }}
           >
             {[
               {
+                label: "Model",
+                value: str(agent.model) || "—",
+                icon: "cube-outline",
+              },
+              {
                 label: "Playbooks",
-                value: playbooks.length,
+                value: String(playbooks.length),
                 icon: "book-outline",
               },
               {
-                label: "Regras",
-                value: rules.length,
-                icon: "list-outline",
-              },
-              {
-                label: "Estados",
-                value: states.length,
-                icon: "git-branch-outline",
+                label: "States",
+                value: String(states.length),
+                icon: "toggle-outline",
               },
               {
                 label: "Canais",
-                value: bindings.length,
-                icon: "radio-outline",
+                value: String(bindings.length),
+                icon: "link-outline",
               },
-            ].map((s) => (
+            ].map((b) => (
               <View
-                key={s.label}
+                key={b.label}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
+                  backgroundColor: tintColor + "10",
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 8,
                   gap: 4,
                 }}
               >
-                <Ionicons name={s.icon as any} size={14} color={mutedColor} />
-                <Text style={{ fontSize: 12, color: mutedColor }}>
-                  <Text style={{ fontWeight: "700", color: textColor }}>
-                    {s.value}
-                  </Text>{" "}
-                  {s.label}
-                </Text>
+                <Ionicons name={b.icon as any} size={12} color={tintColor} />
+                <ThemedText style={{ color: mutedColor, fontSize: 11 }}>
+                  {b.label}:
+                </ThemedText>
+                <ThemedText
+                  style={{ color: textColor, fontSize: 11, fontWeight: "700" }}
+                >
+                  {b.value}
+                </ThemedText>
               </View>
             ))}
+          </View>
+
+          {/* System Prompt */}
+          <View
+            style={{
+              backgroundColor: bgColor,
+              borderRadius: 8,
+              padding: 10,
+              borderWidth: 1,
+              borderColor: borderColor + "60",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 6,
+              }}
+            >
+              <ThemedText style={{ color: mutedColor, fontSize: 11, flex: 1 }}>
+                System Prompt
+              </ThemedText>
+              <TouchableOpacity
+                onPress={() =>
+                  Clipboard.setStringAsync(str(agent.system_prompt))
+                }
+                hitSlop={6}
+                style={{ padding: 2, marginRight: 6 }}
+              >
+                <Ionicons name="copy-outline" size={14} color={mutedColor} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={openPrompt}
+                hitSlop={6}
+                style={{ padding: 2 }}
+              >
+                <Ionicons name="pencil-outline" size={14} color={tintColor} />
+              </TouchableOpacity>
+            </View>
+            <ThemedText
+              style={{ color: textColor, fontSize: 12, lineHeight: 18 }}
+              numberOfLines={4}
+            >
+              {str(agent.system_prompt) || "(vazio)"}
+            </ThemedText>
           </View>
         </View>
 
         {error && (
           <View
             style={{
-              backgroundColor: "#dc262610",
+              backgroundColor: "#fee2e2",
+              borderRadius: 10,
               padding: 12,
-              borderRadius: 8,
               marginBottom: 12,
             }}
           >
-            <Text style={{ color: "#dc2626", fontSize: 13 }}>{error}</Text>
+            <ThemedText style={{ color: "#dc2626", fontSize: 13 }}>
+              {error}
+            </ThemedText>
           </View>
         )}
 
-        {/* ═══ System Prompt ═══ */}
-        <SectionHeader
-          sectionKey="prompt"
-          title="System Prompt"
-          count={promptLineCount}
-          icon="document-text-outline"
-        />
-        <SectionContent sectionKey="prompt">
-          <View
-            style={{
-              backgroundColor: inputBg,
-              borderRadius: 8,
-              padding: 12,
-              maxHeight: 300,
-            }}
-          >
-            <ScrollView nestedScrollEnabled>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: textColor,
-                  lineHeight: 18,
-                  fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-                }}
-              >
-                {promptText}
-              </Text>
-            </ScrollView>
-          </View>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-            <TouchableOpacity
-              onPress={() => {
-                setEditPromptText(String(agent.system_prompt ?? ""));
-                setEditPromptOpen(true);
-              }}
+        {/* ══════ PLAYBOOKS SECTION ══════ */}
+        <View style={{ marginBottom: 14 }}>
+          <SectionHeader
+            icon="book-outline"
+            title="Playbooks"
+            count={playbooks.length}
+            color="#16a34a"
+            sectionKey="playbooks"
+            onAdd={() => openCreate("playbook")}
+          />
+          {expanded.has("playbooks") && (
+            <View
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-                backgroundColor: tintColor,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 6,
-              }}
-            >
-              <Ionicons name="pencil" size={14} color="#fff" />
-              <Text
-                style={{
-                  color: "#fff",
-                  fontWeight: "600",
-                  fontSize: 13,
-                }}
-              >
-                Editar Prompt
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => copyToClipboard(String(agent.system_prompt ?? ""))}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
+                backgroundColor: cardColor,
+                borderRadius: 10,
                 borderWidth: 1,
                 borderColor,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 6,
+                overflow: "hidden",
               }}
             >
-              <Ionicons name="copy-outline" size={14} color={tintColor} />
-              <Text
-                style={{
-                  color: tintColor,
-                  fontWeight: "600",
-                  fontSize: 13,
-                }}
-              >
-                Copiar
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </SectionContent>
-
-        {/* ═══ Playbooks ═══ */}
-        <SectionHeader
-          sectionKey="playbooks"
-          title="Playbooks"
-          count={playbooks.length}
-          icon="book-outline"
-        />
-        <SectionContent sectionKey="playbooks">
-          {playbooks.length === 0 ? (
-            <Text
-              style={{
-                color: mutedColor,
-                fontStyle: "italic",
-                fontSize: 13,
-              }}
-            >
-              Nenhum playbook configurado.
-            </Text>
-          ) : (
-            playbooks.map((pb) => {
-              const pbId = String(pb.id ?? "");
-              const pbKey = `pb-${pbId}`;
-              const pbRules = rulesByPb(pbId);
-              const pbTables = tablesByPb(pbId);
-              const pbHandoff = handoffByPb(pbId);
-
-              return (
-                <View
-                  key={pbId}
+              {playbooks.length === 0 ? (
+                <ThemedText
                   style={{
-                    borderWidth: 1,
-                    borderColor,
-                    borderRadius: 8,
-                    marginBottom: 10,
-                    overflow: "hidden",
+                    color: mutedColor,
+                    fontSize: 12,
+                    padding: 14,
+                    fontStyle: "italic",
                   }}
                 >
-                  {/* Playbook header */}
-                  <TouchableOpacity
-                    onPress={() => toggle(pbKey)}
-                    style={{
-                      backgroundColor: `${tintColor}08`,
-                      padding: 12,
-                      flexDirection: "row",
-                      alignItems: "center",
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="book" size={16} color={tintColor} />
-                    <View style={{ flex: 1, marginLeft: 8 }}>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: "600",
-                          color: textColor,
-                        }}
-                      >
-                        {str(pb.name)}
-                      </Text>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          gap: 6,
-                          marginTop: 4,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <Badge
-                          label={str(pb.channel)}
-                          color={tintColor}
-                          bg={`${tintColor}15`}
-                        />
-                        {pb.state_machine_mode && (
-                          <Badge
-                            label={str(pb.state_machine_mode)}
-                            color={tintColor}
-                            bg={`${tintColor}15`}
-                          />
-                        )}
-                        <ActiveBadge active={isTruthy(pb.is_active)} />
-                      </View>
-                    </View>
-                    <Text
+                  Nenhum playbook configurado.
+                </ThemedText>
+              ) : (
+                playbooks.map((pb) => {
+                  const pbId = str(pb.id);
+                  const pbRules = rulesByPb.get(pbId) ?? [];
+                  const pbTables = tablesByPb.get(pbId) ?? [];
+                  const pbHandoff = handoffByPb.get(pbId) ?? [];
+
+                  return (
+                    <View
+                      key={pbId}
                       style={{
-                        fontSize: 11,
-                        color: mutedColor,
-                        marginRight: 6,
+                        borderBottomWidth: 1,
+                        borderBottomColor: borderColor + "30",
                       }}
                     >
-                      {pbRules.length}R · {pbTables.length}T ·{" "}
-                      {pbHandoff.length}H
-                    </Text>
-                    <Ionicons
-                      name={expanded.has(pbKey) ? "chevron-up" : "chevron-down"}
-                      size={16}
-                      color={mutedColor}
-                    />
-                  </TouchableOpacity>
-
-                  {expanded.has(pbKey) && (
-                    <View style={{ padding: 12 }}>
-                      {/* Playbook description (truncated) */}
-                      {pb.description && (
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: mutedColor,
-                            marginBottom: 10,
-                            lineHeight: 17,
-                          }}
-                          numberOfLines={4}
-                        >
-                          {String(pb.description)}
-                        </Text>
-                      )}
-
-                      {/* ── Regras ── */}
-                      <SubSectionRow
-                        sectionKey={`${pbKey}-rules`}
-                        label="Regras"
-                        count={pbRules.length}
+                      {/* Playbook row */}
+                      <ItemRow
+                        label={str(pb.name) || "Sem nome"}
+                        sublabel={`${str(pb.channel)} · ${str(pb.behavior_source)}`}
+                        entityType="playbook"
+                        row={pb}
+                        isActive={!!pb.is_active}
                       />
-                      {expanded.has(`${pbKey}-rules`) && (
-                        <View
-                          style={{
-                            marginLeft: 8,
-                            marginBottom: 8,
-                          }}
-                        >
-                          {pbRules.map((rule, idx) => (
-                            <TouchableOpacity
-                              key={String(rule.id)}
-                              onPress={() => {
-                                setEditRuleData(rule);
-                                setEditRuleTitle(String(rule.title ?? ""));
-                                setEditRuleInstruction(
-                                  String(rule.instruction ?? ""),
-                                );
-                                setEditRuleOpen(true);
-                              }}
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "flex-start",
-                                paddingVertical: 6,
-                                borderBottomWidth:
-                                  idx < pbRules.length - 1 ? 1 : 0,
-                                borderBottomColor: `${borderColor}80`,
-                                gap: 6,
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <Text
-                                style={{
-                                  fontSize: 11,
-                                  color: mutedColor,
-                                  fontWeight: "700",
-                                  minWidth: 22,
-                                }}
-                              >
-                                {str(rule.rule_order)}.
-                              </Text>
-                              <View style={{ flex: 1 }}>
-                                <Text
-                                  style={{
-                                    fontSize: 12,
-                                    fontWeight: "500",
-                                    color: textColor,
-                                  }}
-                                  numberOfLines={1}
-                                >
-                                  {str(rule.title)}
-                                </Text>
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    gap: 4,
-                                    marginTop: 3,
-                                  }}
-                                >
-                                  <TypeBadge
-                                    type={String(rule.rule_type ?? "policy")}
-                                  />
-                                  <SeverityBadge
-                                    severity={String(rule.severity ?? "normal")}
-                                  />
-                                  {!isTruthy(rule.is_active) && (
-                                    <ActiveBadge active={false} />
-                                  )}
-                                </View>
-                              </View>
-                              <Ionicons
-                                name="pencil-outline"
-                                size={14}
-                                color={mutedColor}
-                              />
-                            </TouchableOpacity>
-                          ))}
-                          <NavLink
-                            label="Gerenciar regras"
-                            onPress={() =>
-                              router.push({
-                                pathname:
-                                  "/Administrador/agent-playbook-rules" as any,
-                                params: {
-                                  playbookId: pbId,
-                                  tenantId,
-                                },
-                              })
-                            }
-                          />
-                        </View>
-                      )}
 
-                      {/* ── Tabelas ── */}
-                      <SubSectionRow
-                        sectionKey={`${pbKey}-tables`}
-                        label="Tabelas de Referência"
-                        count={pbTables.length}
-                      />
-                      {expanded.has(`${pbKey}-tables`) && (
-                        <View
-                          style={{
-                            marginLeft: 8,
-                            marginBottom: 8,
-                          }}
-                        >
-                          {pbTables.length === 0 ? (
-                            <Text
-                              style={{
-                                fontSize: 12,
-                                color: mutedColor,
-                                fontStyle: "italic",
-                              }}
-                            >
-                              Nenhuma tabela configurada.
-                            </Text>
-                          ) : (
-                            pbTables.map((t) => (
-                              <View
-                                key={String(t.id)}
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  paddingVertical: 4,
-                                  gap: 6,
-                                }}
-                              >
-                                <Ionicons
-                                  name="server-outline"
-                                  size={12}
-                                  color={mutedColor}
-                                />
-                                <Text
-                                  style={{
-                                    fontSize: 12,
-                                    fontWeight: "500",
-                                    color: textColor,
-                                  }}
-                                >
-                                  {str(t.table_name)}
-                                </Text>
-                                <Badge
-                                  label={str(t.access_mode)}
-                                  color={tintColor}
-                                  bg={`${tintColor}15`}
-                                />
-                                {isTruthy(t.is_required) && (
-                                  <Badge
-                                    label="obrigatória"
-                                    color="#f59e0b"
-                                    bg="#f59e0b20"
-                                  />
-                                )}
-                              </View>
-                            ))
-                          )}
-                          <NavLink
-                            label="Gerenciar tabelas"
-                            onPress={() =>
-                              router.push({
-                                pathname:
-                                  "/Administrador/agent-playbook-tables" as any,
-                                params: {
-                                  playbookId: pbId,
-                                  tenantId,
-                                },
-                              })
-                            }
-                          />
-                        </View>
-                      )}
-
-                      {/* ── Handoff ── */}
-                      <SubSectionRow
-                        sectionKey={`${pbKey}-handoff`}
-                        label="Handoff"
-                        count={pbHandoff.length}
-                      />
-                      {expanded.has(`${pbKey}-handoff`) && (
-                        <View
-                          style={{
-                            marginLeft: 8,
-                            marginBottom: 8,
-                          }}
-                        >
-                          {pbHandoff.length === 0 ? (
-                            <Text
-                              style={{
-                                fontSize: 12,
-                                color: mutedColor,
-                                fontStyle: "italic",
-                              }}
-                            >
-                              Nenhuma política configurada.
-                            </Text>
-                          ) : (
-                            pbHandoff.map((h) => (
-                              <View
-                                key={String(h.id)}
-                                style={{
-                                  flexDirection: "row",
-                                  alignItems: "center",
-                                  paddingVertical: 4,
-                                  gap: 6,
-                                }}
-                              >
-                                <Ionicons
-                                  name="swap-horizontal-outline"
-                                  size={12}
-                                  color={mutedColor}
-                                />
-                                <Text
-                                  style={{
-                                    fontSize: 12,
-                                    color: textColor,
-                                  }}
-                                >
-                                  {str(h.from_channel)} → {str(h.to_channel)}
-                                </Text>
-                                <Badge
-                                  label={str(h.trigger_type)}
-                                  color={tintColor}
-                                  bg={`${tintColor}15`}
-                                />
-                              </View>
-                            ))
-                          )}
-                          <NavLink
-                            label="Gerenciar handoff"
-                            onPress={() =>
-                              router.push({
-                                pathname:
-                                  "/Administrador/agent-handoff-policies" as any,
-                                params: {
-                                  playbookId: pbId,
-                                  tenantId,
-                                  agentId,
-                                },
-                              })
-                            }
-                          />
-                        </View>
-                      )}
-
-                      {/* Playbook deep link */}
-                      <View
-                        style={{
-                          borderTopWidth: 1,
-                          borderTopColor: `${borderColor}60`,
-                          marginTop: 6,
-                          paddingTop: 6,
-                        }}
-                      >
-                        <NavLink
-                          label="Editar playbook completo"
-                          onPress={() =>
-                            router.push({
-                              pathname: "/Administrador/agent-playbooks" as any,
-                              params: { agentId, tenantId },
-                            })
+                      {/* Nested: Rules */}
+                      <View style={{ paddingLeft: 16 }}>
+                        <SubHeader
+                          icon="list-circle-outline"
+                          title="Regras"
+                          count={pbRules.length}
+                          sectionKey={`rules-${pbId}`}
+                          onAdd={() =>
+                            openCreate("rule", { playbook_id: pbId })
                           }
                         />
+                        {expanded.has(`rules-${pbId}`) &&
+                          pbRules.map((r) => (
+                            <ItemRow
+                              key={str(r.id)}
+                              label={`#${str(r.rule_order)} ${str(r.title)}`}
+                              sublabel={`${str(r.rule_type)} · ${str(r.severity)}`}
+                              entityType="rule"
+                              row={r}
+                              isActive={!!r.is_active}
+                            />
+                          ))}
+                      </View>
+
+                      {/* Nested: Tables */}
+                      <View style={{ paddingLeft: 16 }}>
+                        <SubHeader
+                          icon="server-outline"
+                          title="Tabelas"
+                          count={pbTables.length}
+                          sectionKey={`tables-${pbId}`}
+                          onAdd={() =>
+                            openCreate("table", { playbook_id: pbId })
+                          }
+                        />
+                        {expanded.has(`tables-${pbId}`) &&
+                          pbTables.map((t) => (
+                            <ItemRow
+                              key={str(t.id)}
+                              label={str(t.table_name)}
+                              sublabel={`${str(t.access_mode)} · ${t.is_required ? "Obrigatória" : "Opcional"}`}
+                              entityType="table"
+                              row={t}
+                              isActive={!!t.is_active}
+                            />
+                          ))}
+                      </View>
+
+                      {/* Nested: Handoff */}
+                      <View style={{ paddingLeft: 16 }}>
+                        <SubHeader
+                          icon="swap-horizontal-outline"
+                          title="Handoff"
+                          count={pbHandoff.length}
+                          sectionKey={`handoff-${pbId}`}
+                          onAdd={() =>
+                            openCreate("handoff", { playbook_id: pbId })
+                          }
+                        />
+                        {expanded.has(`handoff-${pbId}`) &&
+                          pbHandoff.map((h) => (
+                            <ItemRow
+                              key={str(h.id)}
+                              label={`${str(h.from_channel)} → ${str(h.to_channel)}`}
+                              sublabel={str(h.trigger_type)}
+                              entityType="handoff"
+                              row={h}
+                              isActive={!!h.is_active}
+                            />
+                          ))}
                       </View>
                     </View>
-                  )}
-                </View>
-              );
-            })
+                  );
+                })
+              )}
+            </View>
           )}
-        </SectionContent>
+        </View>
 
-        {/* ═══ Estados ═══ */}
-        <SectionHeader
-          sectionKey="states"
-          title="Estados"
-          count={states.length}
-          icon="git-branch-outline"
-        />
-        <SectionContent sectionKey="states">
-          {states.length === 0 ? (
-            <Text
+        {/* ══════ STATES SECTION ══════ */}
+        <View style={{ marginBottom: 14 }}>
+          <SectionHeader
+            icon="toggle-outline"
+            title="Estados"
+            count={states.length}
+            color="#6366f1"
+            sectionKey="states"
+            onAdd={() => openCreate("state")}
+          />
+          {expanded.has("states") && (
+            <View
               style={{
-                color: mutedColor,
-                fontStyle: "italic",
-                fontSize: 13,
+                backgroundColor: cardColor,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor,
+                overflow: "hidden",
               }}
             >
-              Nenhum estado configurado.
-            </Text>
-          ) : (
-            states.map((st) => {
-              const isInitial = isTruthy(st.is_initial);
-              const isTerminal = isTruthy(st.is_terminal);
-              return (
-                <View
-                  key={String(st.id)}
+              {states.length === 0 ? (
+                <ThemedText
                   style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: 6,
-                    borderBottomWidth: 1,
-                    borderBottomColor: `${borderColor}60`,
-                    gap: 8,
+                    color: mutedColor,
+                    fontSize: 12,
+                    padding: 14,
+                    fontStyle: "italic",
                   }}
                 >
-                  <View
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: 11,
-                      backgroundColor: isInitial
-                        ? "#05966920"
-                        : isTerminal
-                          ? "#dc262620"
-                          : `${borderColor}40`,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: "700",
-                        color: isInitial
-                          ? "#059669"
-                          : isTerminal
-                            ? "#dc2626"
-                            : mutedColor,
-                      }}
-                    >
-                      {isInitial ? "★" : isTerminal ? "⊗" : "○"}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "600",
-                        color: textColor,
-                        fontFamily:
-                          Platform.OS === "ios" ? "Menlo" : "monospace",
-                      }}
-                      numberOfLines={1}
-                    >
-                      [{str(st.state_key)}]
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: mutedColor,
-                      }}
-                      numberOfLines={1}
-                    >
-                      {str(st.state_label)}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })
-          )}
-          <NavLink
-            label="Gerenciar estados"
-            onPress={() =>
-              router.push({
-                pathname: "/Administrador/agent_states" as any,
-                params: { agentId },
-              })
-            }
-          />
-        </SectionContent>
+                  Nenhum estado configurado.
+                </ThemedText>
+              ) : (
+                states.map((st) => {
+                  const stId = str(st.id);
+                  const stSteps = stepsByState.get(stId) ?? [];
+                  const badges: string[] = [];
+                  if (st.is_initial) badges.push("Inicial");
+                  if (st.is_terminal) badges.push("Terminal");
 
-        {/* ═══ Canais ═══ */}
-        <SectionHeader
-          sectionKey="channels"
-          title="Canais"
-          count={bindings.length}
-          icon="radio-outline"
-        />
-        <SectionContent sectionKey="channels">
-          {bindings.length === 0 ? (
-            <Text
+                  return (
+                    <View
+                      key={stId}
+                      style={{
+                        borderBottomWidth: 1,
+                        borderBottomColor: borderColor + "30",
+                      }}
+                    >
+                      <ItemRow
+                        label={str(st.state_label) || str(st.state_key)}
+                        sublabel={`${str(st.state_key)}${badges.length ? " · " + badges.join(", ") : ""}`}
+                        entityType="state"
+                        row={st}
+                      />
+
+                      {/* Nested steps */}
+                      <View style={{ paddingLeft: 16 }}>
+                        <SubHeader
+                          icon="footsteps-outline"
+                          title="Passos"
+                          count={stSteps.length}
+                          sectionKey={`steps-${stId}`}
+                          onAdd={() => openCreate("step", { state_id: stId })}
+                        />
+                        {expanded.has(`steps-${stId}`) &&
+                          stSteps
+                            .sort(
+                              (a, b) =>
+                                Number(a.step_order ?? 0) -
+                                Number(b.step_order ?? 0),
+                            )
+                            .map((sp) => (
+                              <ItemRow
+                                key={str(sp.id)}
+                                label={`#${str(sp.step_order)} ${str(sp.step_label)}`}
+                                sublabel={str(sp.step_key)}
+                                entityType="step"
+                                row={sp}
+                                isActive={!!sp.is_active}
+                              />
+                            ))}
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* ══════ CHANNELS SECTION ══════ */}
+        <View style={{ marginBottom: 14 }}>
+          <SectionHeader
+            icon="link-outline"
+            title="Canais (Bindings)"
+            count={bindings.length}
+            color="#0891b2"
+            sectionKey="channels"
+            onAdd={() => openCreate("binding")}
+          />
+          {expanded.has("channels") && (
+            <View
               style={{
-                color: mutedColor,
-                fontStyle: "italic",
-                fontSize: 13,
+                backgroundColor: cardColor,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor,
+                overflow: "hidden",
               }}
             >
-              Nenhum canal configurado.
-            </Text>
-          ) : (
-            bindings.map((b) => (
-              <View
-                key={String(b.id)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 8,
-                  gap: 8,
-                }}
-              >
-                <Ionicons name="radio" size={14} color={tintColor} />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "600",
-                      color: textColor,
-                    }}
-                  >
-                    {str(b.channel)}
-                  </Text>
-                  <Text
-                    style={{ fontSize: 11, color: mutedColor }}
-                    numberOfLines={1}
-                  >
-                    {str(b.webhook_url)}
-                  </Text>
-                </View>
-                <ActiveBadge active={isTruthy(b.is_active)} />
-              </View>
-            ))
+              {bindings.length === 0 ? (
+                <ThemedText
+                  style={{
+                    color: mutedColor,
+                    fontSize: 12,
+                    padding: 14,
+                    fontStyle: "italic",
+                  }}
+                >
+                  Nenhum canal configurado.
+                </ThemedText>
+              ) : (
+                bindings.map((bn) => (
+                  <ItemRow
+                    key={str(bn.id)}
+                    label={str(bn.channel)}
+                    sublabel={str(bn.webhook_url) || "Sem webhook"}
+                    entityType="binding"
+                    row={bn}
+                    isActive={!!bn.is_active}
+                  />
+                ))
+              )}
+            </View>
           )}
-          <NavLink
-            label="Gerenciar canais"
-            onPress={() =>
-              router.push({
-                pathname: "/Administrador/agent-channel-bindings" as any,
-                params: { agentId, tenantId },
-              })
-            }
-          />
-        </SectionContent>
+        </View>
       </ScrollView>
 
-      {/* ═══ Edit System Prompt Modal ═══ */}
+      {/* ══════ ENTITY MODAL ══════ */}
       <Modal
-        visible={editPromptOpen}
+        visible={modal.open}
         transparent
         animationType="slide"
-        onRequestClose={() => setEditPromptOpen(false)}
+        onRequestClose={() => setModal(EMPTY_MODAL)}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -1372,48 +1434,323 @@ export default function AgentDashboardScreen() {
           <View
             style={{
               flex: 1,
-              backgroundColor: "rgba(0,0,0,0.55)",
-              justifyContent: "center",
-              padding: 16,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "flex-end",
             }}
           >
             <View
               style={{
-                backgroundColor: cardBg,
-                borderRadius: 12,
-                padding: 16,
+                backgroundColor: cardColor,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                padding: 20,
                 maxHeight: "90%",
               }}
             >
-              <Text
+              {/* Header */}
+              <View
                 style={{
-                  fontSize: 16,
-                  fontWeight: "700",
-                  color: textColor,
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 14,
+                }}
+              >
+                <ThemedText
+                  style={{ color: textColor, fontSize: 18, fontWeight: "700" }}
+                >
+                  {modal.mode === "create" ? "Criar" : "Editar"}{" "}
+                  {LABELS[modal.entityType]}
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={() => setModal(EMPTY_MODAL)}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    backgroundColor: borderColor + "60",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText style={{ color: mutedColor, fontSize: 14 }}>
+                    ✕
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+
+              {/* Form Fields */}
+              <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
+                {FIELDS[modal.entityType].map((f) => {
+                  const val = formState[f.key] ?? "";
+
+                  return (
+                    <View key={f.key} style={{ marginBottom: 12 }}>
+                      <ThemedText
+                        style={{
+                          color: mutedColor,
+                          fontSize: 12,
+                          marginBottom: 4,
+                        }}
+                      >
+                        {f.label}
+                        {f.required ? " *" : ""}
+                      </ThemedText>
+
+                      {f.type === "boolean" ? (
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          {["true", "false"].map((opt) => (
+                            <TouchableOpacity
+                              key={opt}
+                              onPress={() =>
+                                setFormState((p) => ({ ...p, [f.key]: opt }))
+                              }
+                              style={{
+                                paddingHorizontal: 14,
+                                paddingVertical: 8,
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor,
+                                backgroundColor:
+                                  val === opt ? tintColor + "1A" : inputBg,
+                              }}
+                            >
+                              <ThemedText
+                                style={{ color: textColor, fontSize: 13 }}
+                              >
+                                {opt === "true" ? "Sim" : "Não"}
+                              </ThemedText>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      ) : f.type === "select" && f.options ? (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: 6,
+                          }}
+                        >
+                          {f.options.map((opt) => (
+                            <TouchableOpacity
+                              key={opt.value}
+                              onPress={() =>
+                                setFormState((p) => ({
+                                  ...p,
+                                  [f.key]: opt.value,
+                                }))
+                              }
+                              style={{
+                                paddingHorizontal: 12,
+                                paddingVertical: 6,
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor,
+                                backgroundColor:
+                                  val === opt.value
+                                    ? tintColor + "1A"
+                                    : inputBg,
+                              }}
+                            >
+                              <ThemedText
+                                style={{ color: textColor, fontSize: 12 }}
+                              >
+                                {opt.label}
+                              </ThemedText>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      ) : (
+                        <TextInput
+                          value={val}
+                          onChangeText={(t) =>
+                            setFormState((p) => ({ ...p, [f.key]: t }))
+                          }
+                          placeholder={f.placeholder ?? f.label}
+                          placeholderTextColor={mutedColor}
+                          multiline={
+                            f.type === "multiline" || f.type === "json"
+                          }
+                          keyboardType={
+                            f.type === "number"
+                              ? "decimal-pad"
+                              : f.type === "url"
+                                ? "url"
+                                : "default"
+                          }
+                          autoCapitalize={f.type === "url" ? "none" : undefined}
+                          style={{
+                            borderWidth: 1,
+                            borderColor,
+                            borderRadius: 8,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            backgroundColor: inputBg,
+                            color: textColor,
+                            fontSize: 13,
+                            minHeight:
+                              f.type === "multiline"
+                                ? 80
+                                : f.type === "json"
+                                  ? 100
+                                  : undefined,
+                            textAlignVertical:
+                              f.type === "multiline" || f.type === "json"
+                                ? "top"
+                                : "auto",
+                            fontFamily:
+                              f.type === "json"
+                                ? Platform.OS === "ios"
+                                  ? "Menlo"
+                                  : "monospace"
+                                : undefined,
+                          }}
+                        />
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Actions */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 8,
+                  marginTop: 8,
+                  justifyContent: "flex-end",
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => setModal(EMPTY_MODAL)}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor,
+                  }}
+                >
+                  <ThemedText style={{ color: textColor, fontWeight: "600" }}>
+                    Cancelar
+                  </ThemedText>
+                </TouchableOpacity>
+                {modal.mode === "edit" && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setModal(EMPTY_MODAL);
+                      handleDelete(modal.entityType, modal.data);
+                    }}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 16,
+                      borderRadius: 8,
+                      backgroundColor: "#ef4444",
+                    }}
+                  >
+                    <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+                      Excluir
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={handleSave}
+                  disabled={saving}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    borderRadius: 8,
+                    backgroundColor: saving ? mutedColor : tintColor,
+                  }}
+                >
+                  <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
+                    {saving ? "Salvando..." : "Salvar"}
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ══════ PROMPT MODAL ══════ */}
+      <Modal
+        visible={promptModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPromptModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "flex-end",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: cardColor,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                padding: 20,
+                maxHeight: "85%",
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
                   marginBottom: 12,
                 }}
               >
-                Editar System Prompt
-              </Text>
+                <ThemedText
+                  style={{ color: textColor, fontSize: 18, fontWeight: "700" }}
+                >
+                  System Prompt
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={() => setPromptModal(false)}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    backgroundColor: borderColor + "60",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText style={{ color: mutedColor, fontSize: 14 }}>
+                    ✕
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+
               <TextInput
-                value={editPromptText}
-                onChangeText={setEditPromptText}
+                value={promptText}
+                onChangeText={setPromptText}
                 multiline
+                placeholder="System prompt do agente..."
+                placeholderTextColor={mutedColor}
                 style={{
                   borderWidth: 1,
                   borderColor,
                   borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
                   backgroundColor: inputBg,
                   color: textColor,
-                  padding: 12,
-                  minHeight: 300,
-                  maxHeight: 500,
                   fontSize: 13,
-                  lineHeight: 18,
+                  minHeight: 200,
                   textAlignVertical: "top",
-                  fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                  lineHeight: 20,
                 }}
               />
+
               <View
                 style={{
                   flexDirection: "row",
@@ -1423,191 +1760,59 @@ export default function AgentDashboardScreen() {
                 }}
               >
                 <TouchableOpacity
-                  onPress={() => setEditPromptOpen(false)}
+                  onPress={() => setPromptModal(false)}
                   style={{
                     paddingVertical: 10,
-                    paddingHorizontal: 14,
-                    borderRadius: 6,
+                    paddingHorizontal: 16,
+                    borderRadius: 8,
                     borderWidth: 1,
                     borderColor,
                   }}
                 >
-                  <Text style={{ color: textColor, fontWeight: "600" }}>
+                  <ThemedText style={{ color: textColor, fontWeight: "600" }}>
                     Cancelar
-                  </Text>
+                  </ThemedText>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={savePrompt}
                   disabled={saving}
                   style={{
                     paddingVertical: 10,
-                    paddingHorizontal: 14,
-                    borderRadius: 6,
-                    backgroundColor: saving ? mutedColor : tintColor,
-                  }}
-                >
-                  <Text style={{ color: "#fff", fontWeight: "700" }}>
-                    {saving ? "Salvando..." : "Salvar"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ═══ Edit Rule Modal ═══ */}
-      <Modal
-        visible={editRuleOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setEditRuleOpen(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.55)",
-              justifyContent: "center",
-              padding: 16,
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: cardBg,
-                borderRadius: 12,
-                padding: 16,
-                maxHeight: "90%",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: "700",
-                  color: textColor,
-                  marginBottom: 4,
-                }}
-              >
-                Editar Regra
-              </Text>
-              {editRuleData && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: 4,
-                    marginBottom: 12,
-                  }}
-                >
-                  <TypeBadge
-                    type={String(editRuleData.rule_type ?? "policy")}
-                  />
-                  <SeverityBadge
-                    severity={String(editRuleData.severity ?? "normal")}
-                  />
-                  <Text style={{ fontSize: 11, color: mutedColor }}>
-                    #{String(editRuleData.rule_order ?? "")}
-                  </Text>
-                </View>
-              )}
-
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: mutedColor,
-                  marginBottom: 4,
-                }}
-              >
-                Título
-              </Text>
-              <TextInput
-                value={editRuleTitle}
-                onChangeText={setEditRuleTitle}
-                style={{
-                  borderWidth: 1,
-                  borderColor,
-                  borderRadius: 8,
-                  backgroundColor: inputBg,
-                  color: textColor,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  fontSize: 14,
-                  marginBottom: 12,
-                }}
-              />
-
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: mutedColor,
-                  marginBottom: 4,
-                }}
-              >
-                Instrução
-              </Text>
-              <ScrollView style={{ maxHeight: 300 }}>
-                <TextInput
-                  value={editRuleInstruction}
-                  onChangeText={setEditRuleInstruction}
-                  multiline
-                  style={{
-                    borderWidth: 1,
-                    borderColor,
+                    paddingHorizontal: 16,
                     borderRadius: 8,
-                    backgroundColor: inputBg,
-                    color: textColor,
-                    padding: 12,
-                    minHeight: 200,
-                    fontSize: 13,
-                    lineHeight: 18,
-                    textAlignVertical: "top",
-                  }}
-                />
-              </ScrollView>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: 8,
-                  marginTop: 12,
-                  justifyContent: "flex-end",
-                }}
-              >
-                <TouchableOpacity
-                  onPress={() => setEditRuleOpen(false)}
-                  style={{
-                    paddingVertical: 10,
-                    paddingHorizontal: 14,
-                    borderRadius: 6,
-                    borderWidth: 1,
-                    borderColor,
-                  }}
-                >
-                  <Text style={{ color: textColor, fontWeight: "600" }}>
-                    Cancelar
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={saveRule}
-                  disabled={saving}
-                  style={{
-                    paddingVertical: 10,
-                    paddingHorizontal: 14,
-                    borderRadius: 6,
                     backgroundColor: saving ? mutedColor : tintColor,
                   }}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "700" }}>
+                  <ThemedText style={{ color: "#fff", fontWeight: "700" }}>
                     {saving ? "Salvando..." : "Salvar"}
-                  </Text>
+                  </ThemedText>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ══════ SAVING OVERLAY ══════ */}
+      {saving && (
+        <View
+          style={{
+            ...({
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.25)",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 9999,
+            } as any),
+          }}
+        >
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      )}
     </View>
   );
 }

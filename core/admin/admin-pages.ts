@@ -876,6 +876,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "book-outline",
     route: "/Administrador/agent-playbooks",
     requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
+    hidden: true,
   },
   {
     id: "agent_playbook_rules",
@@ -886,6 +887,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "list-circle-outline",
     route: "/Administrador/agent-playbook-rules",
     requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
+    hidden: true,
   },
   {
     id: "agent_playbook_tables",
@@ -896,6 +898,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "server-outline",
     route: "/Administrador/agent-playbook-tables",
     requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
+    hidden: true,
   },
   {
     id: "agent_handoff_policies",
@@ -906,6 +909,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "swap-horizontal-outline",
     route: "/Administrador/agent-handoff-policies",
     requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
+    hidden: true,
   },
   {
     id: "agent_state_steps",
@@ -916,6 +920,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "footsteps-outline",
     route: "/Administrador/agent-state-steps",
     requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
+    hidden: true,
   },
   {
     id: "agent_channel_bindings",
@@ -926,6 +931,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "link-outline",
     route: "/Administrador/agent-channel-bindings",
     requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
+    hidden: true,
   },
   {
     id: "agent_dashboard",
@@ -936,6 +942,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "analytics-outline",
     route: "/Administrador/agent-dashboard",
     requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
+    hidden: true,
   },
   {
     id: "agent_states",
@@ -946,6 +953,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "toggle-outline",
     route: "/Administrador/agent_states",
     requiredAnyPermissions: [PERMISSIONS.AGENT_MANAGE],
+    hidden: true,
   },
   {
     id: "automations",

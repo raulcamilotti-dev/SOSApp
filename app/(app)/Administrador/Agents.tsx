@@ -181,7 +181,6 @@ export default function AgentsScreen() {
       renderItemActions={(item) => {
         const agentId = String(item.id ?? "");
         const tenantId = String(item.tenant_id ?? "");
-        const statesCount = Number(item.agent_states_count ?? 0);
         const automationsCount = Number(item.automations_count ?? 0);
 
         return (
@@ -210,28 +209,6 @@ export default function AgentsScreen() {
             <TouchableOpacity
               onPress={() =>
                 router.push({
-                  pathname: "/Administrador/agent_states" as any,
-                  params: { agentId },
-                })
-              }
-              style={{
-                borderWidth: 1,
-                borderColor,
-                borderRadius: 999,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <ThemedText
-                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
-              >
-                States ({Number.isFinite(statesCount) ? statesCount : 0})
-              </ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
                   pathname: "/Administrador/automations" as any,
                   params: { agentId, tenantId },
                 })
@@ -247,52 +224,8 @@ export default function AgentsScreen() {
               <ThemedText
                 style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
               >
-                Automations (
+                Automações (
                 {Number.isFinite(automationsCount) ? automationsCount : 0})
-              </ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: "/Administrador/agent-playbooks" as any,
-                  params: { agentId, tenantId },
-                })
-              }
-              style={{
-                borderWidth: 1,
-                borderColor,
-                borderRadius: 999,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <ThemedText
-                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
-              >
-                Playbooks
-              </ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: "/Administrador/agent-channel-bindings" as any,
-                  params: { agentId, tenantId },
-                })
-              }
-              style={{
-                borderWidth: 1,
-                borderColor,
-                borderRadius: 999,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <ThemedText
-                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
-              >
-                Canais
               </ThemedText>
             </TouchableOpacity>
           </View>
