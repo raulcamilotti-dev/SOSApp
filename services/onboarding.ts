@@ -10,6 +10,7 @@ import { assignDefaultPermissionsToRole } from "@/core/auth/permissions.sync";
 import type { PackSummary } from "@/data/template-packs";
 import { getAllPackSummaries, getPackByKey } from "@/data/template-packs";
 import { api, getApiErrorMessage } from "./api";
+import { seedDefaultChartOfAccounts } from "./chart-of-accounts";
 import { createSubdomainDNS } from "./cloudflare-dns";
 import {
     buildSearchParams,
@@ -403,6 +404,18 @@ export async function runOnboarding(
         errors.push(`Erro ao aplicar template: ${getApiErrorMessage(err)}`);
       }
     }
+  }
+
+  // Step 3b — Seed default chart of accounts (idempotent — skips if pack already created accounts)
+  onProgress?.("Configurando plano de contas...", 0.87);
+  try {
+    await seedDefaultChartOfAccounts(tenantId);
+  } catch (chartErr) {
+    console.warn(
+      "[onboarding] seedDefaultChartOfAccounts failed (non-blocking):",
+      chartErr,
+    );
+    errors.push("Não foi possível criar plano de contas padrão.");
   }
 
   // Step 4 — Ensure admin role is assigned correctly
