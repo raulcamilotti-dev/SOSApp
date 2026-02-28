@@ -93,6 +93,7 @@ export function AuthGate({ children }: Props) {
 
     if (!user && !inAuthGroup && !inPublicGroup) {
       router.replace("/(auth)/login");
+      return;
     }
 
     if (user && inAuthGroup) {
@@ -124,6 +125,7 @@ export function AuthGate({ children }: Props) {
       }
 
       router.replace("/");
+      return;
     }
 
     if (
@@ -205,10 +207,12 @@ export function AuthGate({ children }: Props) {
     hasAnyPermission,
   ]);
 
-  if (loading || permissionsLoading) return null;
+  // Never block rendering for public routes — they don't need auth
+  const isPublic = isPublicWebRoute() || inPublicGroup;
 
-  if (!user && !inAuthGroup && !inPublicGroup && !isPublicWebRoute())
-    return null;
+  if ((loading || permissionsLoading) && !isPublic) return null;
+
+  if (!user && !inAuthGroup && !isPublic) return null;
 
   return <>{children}</>;
 }

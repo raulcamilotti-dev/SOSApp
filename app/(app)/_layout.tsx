@@ -12,6 +12,9 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { Redirect, Slot } from "expo-router";
 import { View } from "react-native";
 
+/** Public path regex — must match the one in AuthGate.tsx */
+const PUBLIC_PATH_REGEX = /^\/(loja|p|q|f|blog|lp)(\/|$)/;
+
 export default function AppLayout() {
   const { user, loading } = useAuth();
   const backgroundColor = useThemeColor({}, "background");
@@ -21,14 +24,18 @@ export default function AppLayout() {
     return null;
   }
 
+  // Don't render the authenticated app layout (header/footer/breadcrumbs)
+  // when the browser URL is a public route. During expo-router group
+  // resolution, this layout can briefly render for (public) routes —
+  // returning null prevents flashing the authenticated chrome.
+  if (
+    typeof window !== "undefined" &&
+    PUBLIC_PATH_REGEX.test(window.location.pathname)
+  ) {
+    return null;
+  }
+
   if (!user) {
-    // Don't redirect to login when browser URL is a public route
-    if (
-      typeof window !== "undefined" &&
-      /^\/(loja|p|q|f|blog|lp)(\/|$)/.test(window.location.pathname)
-    ) {
-      return null;
-    }
     return <Redirect href="/(auth)/login" />;
   }
 
