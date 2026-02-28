@@ -503,8 +503,20 @@ REGRAS GERAIS:
       agent_ref: "agent_principal",
       state_key: "saudacao",
       state_label: "Saudação",
-      system_prompt:
-        "Estado inicial. Cumprimente o cliente, identifique-o e descubra o que ele precisa.",
+      system_prompt: `OBJETIVO: Recepcionar o cliente, identificá-lo e classificar sua intenção.
+
+AÇÕES:
+1. Cumprimente com saudação adequada ao horário.
+2. Se o cliente já é conhecido (retornou), cumprimente pelo nome.
+3. Se não está identificado, peça nome e CPF/CNPJ. Busque em customers.
+4. Descubra o que ele precisa e transite para o estado adequado.
+
+TRANSIÇÕES POSSÍVEIS:
+- "Quero saber o status" → consulta_status
+- "Quero agendar" → agendamento
+- "Tenho uma dúvida" → duvidas
+- "Quero ver minhas faturas" → financeiro
+- "Quero falar com alguém" → encaminhamento_humano`,
       rules: {
         transitions: [
           "consulta_status",
@@ -514,6 +526,9 @@ REGRAS GERAIS:
           "encaminhamento_humano",
         ],
       },
+      tools: {
+        available: ["busca_cliente"],
+      },
       is_initial: true,
       is_terminal: false,
     },
@@ -522,10 +537,23 @@ REGRAS GERAIS:
       agent_ref: "agent_principal",
       state_key: "consulta_status",
       state_label: "Consulta de Status",
-      system_prompt:
-        "O cliente quer saber o status de um serviço ou processo. Busque em service_orders pelo customer_id e informe o andamento.",
+      system_prompt: `OBJETIVO: Informar o cliente sobre o andamento de seus serviços/processos.
+
+AÇÕES:
+1. Identifique o customer_id (já deve estar identificado da saudação).
+2. Busque em service_orders pelo customer_id.
+3. Informe: etapa atual, próximos passos, previsão de conclusão.
+4. Se houver pendências do cliente (documentos, pagamentos), informe.
+
+TRANSIÇÕES POSSÍVEIS:
+- Cliente satisfeito com a resposta → saudacao (perguntar se precisa de mais algo)
+- Cliente quer agendar algo → agendamento
+- Questão complexa que não consigo resolver → encaminhamento_humano`,
       rules: {
         transitions: ["saudacao", "agendamento", "encaminhamento_humano"],
+      },
+      tools: {
+        available: ["busca_cliente"],
       },
       is_initial: false,
       is_terminal: false,
@@ -535,8 +563,19 @@ REGRAS GERAIS:
       agent_ref: "agent_principal",
       state_key: "agendamento",
       state_label: "Agendamento",
-      system_prompt:
-        "O cliente quer agendar um serviço. Colete: tipo de serviço, data/horário preferido, confirme os dados e crie o agendamento.",
+      system_prompt: `OBJETIVO: Agendar um serviço para o cliente.
+
+AÇÕES:
+1. Pergunte qual serviço deseja agendar. Mostre opções de service_types.
+2. Colete: data e horário preferidos.
+3. Verifique disponibilidade (partner_availability se aplicável).
+4. Resuma todos os dados e peça confirmação EXPLÍCITA antes de criar.
+5. Só crie o agendamento após o cliente confirmar.
+
+TRANSIÇÕES POSSÍVEIS:
+- Agendamento confirmado → encerramento
+- Cliente desistiu → saudacao
+- Precisa de ajuda humana → encaminhamento_humano`,
       rules: {
         transitions: ["saudacao", "encerramento", "encaminhamento_humano"],
       },
@@ -548,8 +587,19 @@ REGRAS GERAIS:
       agent_ref: "agent_principal",
       state_key: "duvidas",
       state_label: "Dúvidas Gerais",
-      system_prompt:
-        "O cliente tem dúvidas sobre serviços, preços, prazos ou funcionamento. Responda com base no catálogo de serviços e informações disponíveis.",
+      system_prompt: `OBJETIVO: Responder dúvidas do cliente sobre serviços, preços, prazos e funcionamento.
+
+AÇÕES:
+1. Identifique a dúvida específica do cliente.
+2. Consulte service_types e service_categories para informações sobre serviços.
+3. Responda de forma clara e objetiva.
+4. Se não tiver a informação, diga que vai verificar e encaminhe ao operador.
+
+TRANSIÇÕES POSSÍVEIS:
+- Cliente quer agendar → agendamento
+- Cliente quer ver status → consulta_status
+- Dúvida respondida, voltar ao início → saudacao
+- Precisa de ajuda humana → encaminhamento_humano`,
       rules: {
         transitions: [
           "saudacao",
@@ -566,8 +616,19 @@ REGRAS GERAIS:
       agent_ref: "agent_principal",
       state_key: "financeiro",
       state_label: "Consulta Financeira",
-      system_prompt:
-        "O cliente quer saber sobre pagamentos, faturas ou pendências financeiras. Consulte accounts_receivable pelo customer_id. Informe valores e status. Para ações (pagar, cancelar), encaminhe ao operador.",
+      system_prompt: `OBJETIVO: Informar o cliente sobre sua situação financeira (faturas, pagamentos, pendências).
+
+AÇÕES:
+1. Identifique o customer_id (deve estar identificado da saudação).
+2. Consulte accounts_receivable pelo customer_id.
+3. Informe: faturas em aberto, valores, datas de vencimento, status.
+4. Para ações financeiras (pagar, cancelar, renegociar), encaminhe ao operador.
+5. NUNCA realize operações financeiras autonomamente.
+
+TRANSIÇÕES POSSÍVEIS:
+- Informação financeira prestada → saudacao
+- Cliente quer ação financeira → encaminhamento_humano
+- Atendimento concluído → encerramento`,
       rules: {
         transitions: ["saudacao", "encaminhamento_humano", "encerramento"],
       },
@@ -579,8 +640,15 @@ REGRAS GERAIS:
       agent_ref: "agent_principal",
       state_key: "encaminhamento_humano",
       state_label: "Encaminhamento Humano",
-      system_prompt:
-        "O cliente precisa de atendimento humano. Informe que está encaminhando para um operador, resuma o contexto da conversa e faça o handoff.",
+      system_prompt: `OBJETIVO: Transferir o atendimento para um operador humano.
+
+AÇÕES:
+1. Informe ao cliente que está encaminhando para um operador.
+2. Resuma internamente: nome do cliente, o que ele pediu, o que já foi feito.
+3. Diga que o operador vai dar continuidade em breve.
+4. Execute o handoff.
+
+Este é um estado TERMINAL — após o handoff, o bot encerra sua participação.`,
       is_initial: false,
       is_terminal: true,
     },
@@ -589,8 +657,17 @@ REGRAS GERAIS:
       agent_ref: "agent_principal",
       state_key: "encerramento",
       state_label: "Encerramento",
-      system_prompt:
-        "O atendimento está sendo encerrado. Pergunte se pode ajudar em mais algo. Se não, despeça-se cordialmente.",
+      system_prompt: `OBJETIVO: Encerrar o atendimento de forma cordial.
+
+AÇÕES:
+1. Pergunte se pode ajudar em mais alguma coisa.
+2. Se sim → volte para saudacao.
+3. Se não → despeça-se cordialmente, agradeça pelo contato.
+
+Este é um estado TERMINAL — encerra a conversa após despedida.`,
+      rules: {
+        transitions: ["saudacao"],
+      },
       is_initial: false,
       is_terminal: true,
     },
@@ -640,6 +717,8 @@ REGRAS GERAIS:
       expected_outputs: {
         next_state: "string",
       },
+      on_success_action:
+        "transition:consulta_status|agendamento|duvidas|financeiro|encaminhamento_humano",
       handoff_to_operator: false,
       return_to_bot_allowed: false,
       is_active: true,
@@ -681,6 +760,7 @@ REGRAS GERAIS:
       instruction:
         "Resuma os dados coletados (serviço, data, horário, cliente) e peça confirmação. Só crie o agendamento após confirmação explícita.",
       expected_outputs: { created: "boolean" },
+      on_success_action: "transition:encerramento",
       handoff_to_operator: false,
       return_to_bot_allowed: false,
       is_active: true,

@@ -20,6 +20,13 @@ type RobotGovernanceRuntime = {
     state_machine_mode: string;
     inherit_system_prompt: boolean;
   } | null;
+  current_state: {
+    state_key: string;
+    state_label: string;
+    system_prompt: string;
+    is_initial: boolean;
+    is_terminal: boolean;
+  } | null;
   rules: Array<{
     order: number;
     type: string;
@@ -163,6 +170,7 @@ const loadGovernanceRuntime = async (
       channel: normalizedChannel,
       webhook_url: DEFAULT_N8N_WEBHOOK_URL,
       playbook: null,
+      current_state: null,
       rules: [],
       tables: [],
       handoff: null,
@@ -174,55 +182,69 @@ const loadGovernanceRuntime = async (
   const playbookId = String(playbook.id);
   const agentId = String(playbook.agent_id ?? "");
 
-  const [rulesRows, tableRows, handoffRows, stepsRows, bindingRows] =
-    await Promise.all([
-      loadList(
-        "agent_playbook_rules",
-        [
-          { field: "tenant_id", value: tenantId },
-          { field: "playbook_id", value: playbookId },
-          { field: "is_active", value: "true", operator: "equal" },
-        ],
-        "rule_order ASC, created_at ASC",
-      ),
-      loadList(
-        "agent_playbook_tables",
-        [
-          { field: "tenant_id", value: tenantId },
-          { field: "playbook_id", value: playbookId },
-          { field: "is_active", value: "true", operator: "equal" },
-        ],
-        "table_name ASC",
-      ),
-      loadList(
-        "agent_handoff_policies",
-        [
-          { field: "tenant_id", value: tenantId },
-          { field: "agent_id", value: agentId },
-          { field: "is_active", value: "true", operator: "equal" },
-        ],
-        "updated_at DESC",
-      ),
-      loadList(
-        "agent_state_steps",
-        [
-          { field: "tenant_id", value: tenantId },
-          { field: "agent_id", value: agentId },
-          { field: "is_active", value: "true", operator: "equal" },
-        ],
-        "step_order ASC, created_at ASC",
-      ),
-      loadList(
-        "agent_channel_bindings",
-        [
-          { field: "tenant_id", value: tenantId },
-          { field: "agent_id", value: agentId },
-          { field: "channel", value: normalizedChannel },
-          { field: "is_active", value: "true", operator: "equal" },
-        ],
-        "updated_at DESC",
-      ),
-    ]);
+  const [
+    rulesRows,
+    tableRows,
+    handoffRows,
+    stepsRows,
+    bindingRows,
+    statesRows,
+  ] = await Promise.all([
+    loadList(
+      "agent_playbook_rules",
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "playbook_id", value: playbookId },
+        { field: "is_active", value: "true", operator: "equal" },
+      ],
+      "rule_order ASC, created_at ASC",
+    ),
+    loadList(
+      "agent_playbook_tables",
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "playbook_id", value: playbookId },
+        { field: "is_active", value: "true", operator: "equal" },
+      ],
+      "table_name ASC",
+    ),
+    loadList(
+      "agent_handoff_policies",
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "agent_id", value: agentId },
+        { field: "is_active", value: "true", operator: "equal" },
+      ],
+      "updated_at DESC",
+    ),
+    loadList(
+      "agent_state_steps",
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "agent_id", value: agentId },
+        { field: "is_active", value: "true", operator: "equal" },
+      ],
+      "step_order ASC, created_at ASC",
+    ),
+    loadList(
+      "agent_channel_bindings",
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "agent_id", value: agentId },
+        { field: "channel", value: normalizedChannel },
+        { field: "is_active", value: "true", operator: "equal" },
+      ],
+      "updated_at DESC",
+    ),
+    loadList(
+      "agent_states",
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "agent_id", value: agentId },
+      ],
+      "created_at ASC",
+    ),
+  ]);
 
   const resolvedSteps = stepsRows
     .filter((step) => {
@@ -267,6 +289,31 @@ const loadGovernanceRuntime = async (
       }
     : null;
 
+  // Resolve current state — find the matching state by currentStateKey,
+  // or fall back to the initial state if none specified
+  const resolvedState = (() => {
+    const matchByKey = currentStateKey
+      ? statesRows.find(
+          (row) => String(row.state_key ?? "") === currentStateKey,
+        )
+      : null;
+
+    const fallbackInitial = !matchByKey
+      ? statesRows.find((row) => asBoolean(row.is_initial))
+      : null;
+
+    const stateRow = matchByKey || fallbackInitial;
+    if (!stateRow) return null;
+
+    return {
+      state_key: String(stateRow.state_key ?? ""),
+      state_label: String(stateRow.state_label ?? ""),
+      system_prompt: String(stateRow.system_prompt ?? ""),
+      is_initial: asBoolean(stateRow.is_initial),
+      is_terminal: asBoolean(stateRow.is_terminal),
+    };
+  })();
+
   const compactRules = rules
     .slice(0, 12)
     .map((rule) => `${rule.order}. [${rule.type}] ${rule.instruction}`)
@@ -282,7 +329,13 @@ const loadGovernanceRuntime = async (
     .map((step) => `${step.step_order}-${step.step_key}:${step.instruction}`)
     .join("\n");
 
+  // State context is injected FIRST so the LLM understands what stage it's in
+  const stateContext = resolvedState?.system_prompt
+    ? `[ETAPA ATUAL: ${resolvedState.state_label}]\n${resolvedState.system_prompt}`
+    : "";
+
   const instructionsCompact = [
+    stateContext,
     compactRules ? `Regras:\n${compactRules}` : "",
     compactTables ? `Tabelas: ${compactTables}` : "",
     compactSteps ? `Steps:\n${compactSteps}` : "",
@@ -306,6 +359,7 @@ const loadGovernanceRuntime = async (
       state_machine_mode: String(playbook.state_machine_mode ?? "guided"),
       inherit_system_prompt: asBoolean(playbook.inherit_system_prompt),
     },
+    current_state: resolvedState,
     rules,
     tables,
     handoff,
