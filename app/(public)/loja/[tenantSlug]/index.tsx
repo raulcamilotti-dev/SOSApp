@@ -499,7 +499,9 @@ export default function PublicStoreListing() {
                 activeOpacity={0.7}
               >
                 <Ionicons name="document-text-outline" size={14} color="#fff" />
-                <Text style={st.addToCartText}>Solicitar Orçamento</Text>
+                <Text style={st.addToCartText} numberOfLines={1}>
+                  Solicitar Orçamento
+                </Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -793,7 +795,7 @@ const st = StyleSheet.create({
 
   /* Header */
   header: {
-    paddingTop: Platform.OS === "web" ? 0 : 48,
+    paddingTop: Platform.OS === "web" ? 14 : 48,
     paddingBottom: 16,
     paddingHorizontal: 20,
     zIndex: 10,
@@ -1167,6 +1169,7 @@ const st = StyleSheet.create({
     gap: 5,
     borderRadius: 22,
     paddingVertical: 10,
+    paddingHorizontal: 14,
     marginTop: 10,
   },
   addToCartText: {
