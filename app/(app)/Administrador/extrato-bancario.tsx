@@ -67,22 +67,6 @@ const TRANSACTION_TYPE_OPTIONS = [
   { label: "Débito (saída)", value: "debit" },
 ];
 
-const CATEGORY_OPTIONS = [
-  { label: "Receita de Serviço", value: "service_revenue" },
-  { label: "Receita de Produto", value: "product_revenue" },
-  { label: "Transferência Recebida", value: "transfer_in" },
-  { label: "Transferência Enviada", value: "transfer_out" },
-  { label: "Pagamento Fornecedor", value: "supplier_payment" },
-  { label: "Pagamento Parceiro", value: "partner_payment" },
-  { label: "Salário / RH", value: "payroll" },
-  { label: "Imposto / Taxa", value: "tax" },
-  { label: "Tarifa Bancária", value: "bank_fee" },
-  { label: "Empréstimo / Financiamento", value: "loan" },
-  { label: "Investimento", value: "investment" },
-  { label: "Retirada / Pró-labore", value: "withdrawal" },
-  { label: "Outro", value: "other" },
-];
-
 const REFERENCE_TYPE_OPTIONS = [
   { label: "Fatura", value: "invoice" },
   { label: "Pagamento", value: "payment" },
@@ -131,11 +115,25 @@ const fields: CrudFieldConfig<Row>[] = [
     required: true,
   },
   {
-    key: "category",
-    label: "Categoria",
-    type: "select",
-    options: CATEGORY_OPTIONS,
+    key: "chart_account_id",
+    label: "Conta do Plano",
+    type: "reference",
+    referenceTable: "chart_of_accounts",
+    referenceLabelField: "name",
+    referenceSearchField: "name",
+    referenceIdField: "id",
     section: "Classificação",
+    referenceLabelFormatter: (
+      item: Record<string, unknown>,
+      _defaultLabel: string,
+    ) => {
+      const code = String(item.code ?? "");
+      const name = String(item.name ?? "");
+      return code ? `${code} — ${name}` : name;
+    },
+    referenceFilter: (item: Record<string, unknown>) => {
+      return item.is_leaf === true || item.is_leaf === "true";
+    },
   },
   {
     key: "reference_type",
@@ -172,22 +170,6 @@ const fields: CrudFieldConfig<Row>[] = [
     visibleInList: false,
   },
 ];
-
-const CATEGORY_LABELS: Record<string, string> = {
-  service_revenue: "Receita de Serviço",
-  product_revenue: "Receita de Produto",
-  transfer_in: "Transferência Recebida",
-  transfer_out: "Transferência Enviada",
-  supplier_payment: "Pag. Fornecedor",
-  partner_payment: "Pag. Parceiro",
-  payroll: "Salário / RH",
-  tax: "Imposto / Taxa",
-  bank_fee: "Tarifa Bancária",
-  loan: "Empréstimo",
-  investment: "Investimento",
-  withdrawal: "Retirada",
-  other: "Outro",
-};
 
 const formatCurrency = (value: unknown): string => {
   if (value === null || value === undefined || value === "") return "-";
@@ -249,7 +231,7 @@ export default function ExtratoBancarioScreen() {
           : "Todas as movimentações bancárias"
       }
       searchPlaceholder="Buscar movimentação..."
-      searchFields={["description", "category", "notes"]}
+      searchFields={["description", "notes"]}
       fields={fields}
       loadItems={loadFiltered}
       createItem={createWithAccount}
@@ -276,12 +258,7 @@ export default function ExtratoBancarioScreen() {
             label: "Valor",
             value: amountDisplay,
           },
-          {
-            label: "Categoria",
-            value:
-              CATEGORY_LABELS[String(item.category ?? "")] ??
-              String(item.category ?? "-"),
-          },
+
           {
             label: "Conciliado",
             value: item.reconciled ? "✅ Sim" : "Não",

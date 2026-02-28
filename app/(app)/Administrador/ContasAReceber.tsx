@@ -220,9 +220,25 @@ const fields: CrudFieldConfig<Row>[] = [
     visibleInList: true,
   },
   {
-    key: "category",
-    label: "Categoria",
-    placeholder: "Ex: Honorários, Mensalidade, Entrada",
+    key: "chart_account_id",
+    label: "Conta do Plano",
+    type: "reference",
+    referenceTable: "chart_of_accounts",
+    referenceLabelField: "name",
+    referenceSearchField: "name",
+    referenceIdField: "id",
+    placeholder: "Selecione a conta",
+    referenceLabelFormatter: (
+      item: Record<string, unknown>,
+      _defaultLabel: string,
+    ) => {
+      const code = String(item.code ?? "");
+      const name = String(item.name ?? "");
+      return code ? `${code} \u2014 ${name}` : name;
+    },
+    referenceFilter: (item: Record<string, unknown>) => {
+      return item.is_leaf === true || item.is_leaf === "true";
+    },
   },
 
   // --- Vínculos ---
@@ -750,7 +766,7 @@ export default function ContasAReceberScreen() {
       title="Contas a Receber"
       subtitle="Recebíveis de clientes, faturas e serviços"
       searchPlaceholder="Buscar por descrição, categoria..."
-      searchFields={["description", "category", "notes"]}
+      searchFields={["description", "notes"]}
       fields={fields}
       loadItems={loadItems}
       paginatedLoadItems={paginatedLoadItems}
@@ -795,10 +811,7 @@ export default function ContasAReceberScreen() {
             RECURRENCE_LABELS[String(item.recurrence ?? "none")] ??
             "Sem recorrência",
         },
-        {
-          label: "Categoria",
-          value: String(item.category ?? "—"),
-        },
+
         {
           label: "PIX",
           value: item.pix_key

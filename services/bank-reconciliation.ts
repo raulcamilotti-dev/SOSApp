@@ -506,7 +506,7 @@ export async function createEntryFromTransaction(
   importId: string,
   overrides: {
     description?: string;
-    category?: string;
+    chart_account_id?: string;
     type?: string;
     customerId?: string;
     supplierName?: string;
@@ -517,7 +517,7 @@ export async function createEntryFromTransaction(
   try {
     const now = new Date().toISOString();
     const description = overrides.description || transaction.description;
-    const category = overrides.category || "Importado do banco";
+    const chartAccountId = overrides.chart_account_id || undefined;
     const entryType = overrides.type || "other";
 
     let entryId: string;
@@ -529,7 +529,7 @@ export async function createEntryFromTransaction(
         tenant_id: tenantId,
         description,
         type: entryType as AccountReceivable["type"],
-        category,
+        chart_account_id: chartAccountId,
         customer_id: overrides.customerId ?? undefined,
         amount: transaction.absoluteAmount,
         amount_received: transaction.absoluteAmount,
@@ -557,7 +557,7 @@ export async function createEntryFromTransaction(
         tenant_id: tenantId,
         description,
         type: entryType as AccountPayable["type"],
-        category,
+        chart_account_id: chartAccountId,
         supplier_name: overrides.supplierName ?? undefined,
         amount: transaction.absoluteAmount,
         amount_paid: transaction.absoluteAmount,

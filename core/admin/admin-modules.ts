@@ -138,6 +138,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "bancos",
       "contas_bancarias",
       "extrato_bancario",
+      "plano_contas",
     ],
   },
   {

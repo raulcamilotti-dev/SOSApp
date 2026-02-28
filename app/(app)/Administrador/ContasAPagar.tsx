@@ -267,9 +267,25 @@ const fields: CrudFieldConfig<Row>[] = [
     visibleInList: true,
   },
   {
-    key: "category",
-    label: "Categoria",
-    placeholder: "Ex: Aluguel, Software, Impostos",
+    key: "chart_account_id",
+    label: "Conta do Plano",
+    type: "reference",
+    referenceTable: "chart_of_accounts",
+    referenceLabelField: "name",
+    referenceSearchField: "name",
+    referenceIdField: "id",
+    placeholder: "Selecione a conta",
+    referenceLabelFormatter: (
+      item: Record<string, unknown>,
+      _defaultLabel: string,
+    ) => {
+      const code = String(item.code ?? "");
+      const name = String(item.name ?? "");
+      return code ? `${code} \u2014 ${name}` : name;
+    },
+    referenceFilter: (item: Record<string, unknown>) => {
+      return item.is_leaf === true || item.is_leaf === "true";
+    },
   },
 
   // --- Vínculos ---
@@ -903,7 +919,7 @@ export default function ContasAPagarScreen() {
         title="Contas a Pagar"
         subtitle="Despesas, pagamentos a parceiros, impostos e salários"
         searchPlaceholder="Buscar por descrição, fornecedor..."
-        searchFields={["description", "supplier_name", "category", "notes"]}
+        searchFields={["description", "supplier_name", "notes"]}
         fields={fields}
         loadItems={loadItems}
         paginatedLoadItems={paginatedLoadItems}
@@ -952,10 +968,6 @@ export default function ContasAPagarScreen() {
           {
             label: "Fornecedor",
             value: String(item.supplier_name ?? "—"),
-          },
-          {
-            label: "Categoria",
-            value: String(item.category ?? "—"),
           },
           {
             label: "PIX",

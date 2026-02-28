@@ -100,6 +100,7 @@ export const breadcrumbMap: Record<string, string> = {
   "perfil-marketing": "Perfil de Marketing",
   permissions: "Permissões",
   permissions_sync: "Sincronizar Permissões",
+  "plano-contas": "Plano de Contas",
   "quote-templates": "Modelos de Orçamento",
   "recebimentos-config": "Configuração de Recebimentos",
   RegrasDesconto: "Regras de Desconto",

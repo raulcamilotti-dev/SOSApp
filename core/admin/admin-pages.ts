@@ -866,6 +866,19 @@ export const ADMIN_PAGES: AdminPage[] = [
     ],
   },
   {
+    id: "plano_contas",
+    group: "Financeiro",
+    module: "operacao",
+    title: "Plano de Contas",
+    description: "Classificação hierárquica para lançamentos financeiros",
+    icon: "albums-outline",
+    route: "/Administrador/plano-contas",
+    requiredAnyPermissions: [
+      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.FINANCIAL_WRITE,
+    ],
+  },
+  {
     id: "usuarios",
     group: "Clientes & Usuários",
     module: "cliente",

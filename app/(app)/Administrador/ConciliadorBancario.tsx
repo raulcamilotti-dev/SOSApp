@@ -19,7 +19,7 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -54,6 +54,8 @@ import {
     getTotalDebits,
     parseOFX,
 } from "@/services/ofx-parser";
+import type { ChartAccount } from "@/services/chart-of-accounts";
+import { loadLeafAccounts } from "@/services/chart-of-accounts";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -92,22 +94,6 @@ const STATUS_ICONS: Record<
   ignored: { icon: "eye-off-outline", color: "#9ca3af", label: "Ignorado" },
 };
 
-const CATEGORY_OPTIONS = [
-  "Serviços",
-  "Vendas",
-  "Mensalidades",
-  "Comissões",
-  "Taxas bancárias",
-  "Aluguel",
-  "Salários",
-  "Fornecedores",
-  "Impostos",
-  "Marketing",
-  "Tecnologia",
-  "Importado do banco",
-  "Outros",
-];
-
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -144,14 +130,25 @@ export default function ConciliadorBancarioScreen() {
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createDescription, setCreateDescription] = useState("");
-  const [createCategory, setCreateCategory] = useState("Importado do banco");
+  const [createChartAccountId, setCreateChartAccountId] = useState("");
   const [createCompetenceDate, setCreateCompetenceDate] = useState("");
+
+  // Chart of accounts (leaf accounts for selector)
+  const [leafAccounts, setLeafAccounts] = useState<ChartAccount[]>([]);
 
   // Processing
   const [processingFitId, setProcessingFitId] = useState<string | null>(null);
 
   // --- Derived ---
   const summary = useMemo(() => calculateSummary(items), [items]);
+
+  // Load leaf chart of accounts on mount
+  useEffect(() => {
+    if (!tenantId) return;
+    loadLeafAccounts(tenantId)
+      .then((accounts) => setLeafAccounts(accounts))
+      .catch(() => setLeafAccounts([]));
+  }, [tenantId]);
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -321,7 +318,7 @@ export default function ConciliadorBancarioScreen() {
         importId,
         {
           description: createDescription || undefined,
-          category: createCategory,
+          chart_account_id: createChartAccountId || undefined,
           competenceDate: createCompetenceDate || undefined,
         },
         userId,
@@ -350,7 +347,7 @@ export default function ConciliadorBancarioScreen() {
       setShowCreateModal(false);
       setSelectedItem(null);
       setCreateDescription("");
-      setCreateCategory("Importado do banco");
+      setCreateChartAccountId("");
       setCreateCompetenceDate("");
     }
   }, [
@@ -358,7 +355,7 @@ export default function ConciliadorBancarioScreen() {
     selectedItem,
     importId,
     createDescription,
-    createCategory,
+    createChartAccountId,
     createCompetenceDate,
     userId,
     items,
@@ -1252,7 +1249,7 @@ export default function ConciliadorBancarioScreen() {
                   />
                 </View>
 
-                {/* Category */}
+                {/* Conta do Plano */}
                 <View style={{ gap: 4 }}>
                   <Text
                     style={{
@@ -1261,39 +1258,44 @@ export default function ConciliadorBancarioScreen() {
                       color: textColor,
                     }}
                   >
-                    Categoria
+                    Conta do Plano
                   </Text>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={{ gap: 6 }}
                   >
-                    {CATEGORY_OPTIONS.map((cat) => (
+                    {leafAccounts.map((acc) => (
                       <Pressable
-                        key={cat}
-                        onPress={() => setCreateCategory(cat)}
+                        key={acc.id}
+                        onPress={() => setCreateChartAccountId(acc.id)}
                         style={{
                           paddingHorizontal: 12,
                           paddingVertical: 6,
                           borderRadius: 16,
                           backgroundColor:
-                            createCategory === cat ? tintColor : cardBg,
+                            createChartAccountId === acc.id ? tintColor : cardBg,
                           borderWidth: 1,
                           borderColor:
-                            createCategory === cat ? tintColor : borderColor,
+                            createChartAccountId === acc.id ? tintColor : borderColor,
                         }}
                       >
                         <Text
                           style={{
                             fontSize: 12,
                             fontWeight: "600",
-                            color: createCategory === cat ? "#fff" : textColor,
+                            color: createChartAccountId === acc.id ? "#fff" : textColor,
                           }}
                         >
-                          {cat}
+                          {acc.code} — {acc.name}
                         </Text>
                       </Pressable>
                     ))}
+                    {leafAccounts.length === 0 && (
+                      <Text style={{ fontSize: 12, color: mutedColor, fontStyle: "italic" }}>
+                        Nenhuma conta cadastrada
+                      </Text>
+                    )}
                   </ScrollView>
                 </View>
 
