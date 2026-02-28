@@ -135,6 +135,9 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "inadimplentes",
       "conciliador_bancario",
       "fechamento_contabil",
+      "bancos",
+      "contas_bancarias",
+      "extrato_bancario",
     ],
   },
   {
@@ -205,6 +208,14 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "workflow_editor",
       "workflow_steps",
     ],
+  },
+  {
+    key: "administrativo",
+    label: "Administrativo",
+    description: "Processos internos, compras, RH e manutenção",
+    icon: "briefcase-outline",
+    color: "#0ea5e9",
+    pageIds: ["kanban_administrativo"],
   },
   {
     key: "auditoria",

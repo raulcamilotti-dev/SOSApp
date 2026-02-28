@@ -144,18 +144,6 @@ export default function WorkflowTemplatesScreen() {
   const fields: CrudFieldConfig<Row>[] = [
     { key: "id", label: "Id", placeholder: "Id", visibleInForm: false },
     {
-      key: "service_type_id",
-      label: "Tipo de Serviço Principal",
-      placeholder: "Tipo de Serviço",
-      type: "reference",
-      referenceTable: "service_types",
-      referenceLabelField: "name",
-      referenceSearchField: "name",
-      referenceIdField: "id",
-      visibleInList: true,
-      visibleInForm: !serviceId,
-    },
-    {
       key: "name",
       label: "Nome",
       placeholder: "Nome do workflow",
@@ -172,6 +160,21 @@ export default function WorkflowTemplatesScreen() {
         { label: "Administrativo", value: "administrative" },
       ],
       visibleInList: true,
+    },
+    {
+      key: "service_type_id",
+      label: "Tipo de Serviço Principal",
+      placeholder: "Tipo de Serviço",
+      type: "reference",
+      referenceTable: "service_types",
+      referenceLabelField: "name",
+      referenceSearchField: "name",
+      referenceIdField: "id",
+      visibleInList: true,
+      visibleInForm: !serviceId,
+      required: false,
+      showWhen: (formState) =>
+        (formState.workflow_scope || "operational") === "operational",
     },
     {
       key: "created_at",

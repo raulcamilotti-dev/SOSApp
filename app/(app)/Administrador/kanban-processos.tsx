@@ -217,7 +217,7 @@ export default function ProcessKanbanScreen({
       const tenantFilter = tenantId
         ? [{ field: "tenant_id", value: tenantId }]
         : [];
-      const [catRes, typesRes, ordersRes] = await Promise.all([
+      const [catRes, typesRes, ordersRes, templatesRes] = await Promise.all([
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "service_categories",
@@ -247,16 +247,50 @@ export default function ProcessKanbanScreen({
             { sortColumn: "created_at DESC" },
           ),
         }),
+        // Also load workflow templates to filter types by scope
+        api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "workflow_templates",
+          ...buildSearchParams(tenantFilter, { sortColumn: "created_at" }),
+        }),
       ]);
-      setServiceCategories(
-        normalizeCrudList<ServiceCategory>(catRes.data)
-          .filter((c) => c.is_active !== false && !(c as any).deleted_at)
-          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+
+      const allTypes = normalizeCrudList<ServiceType>(typesRes.data).filter(
+        (t) => t.is_active !== false && !(t as any).deleted_at,
       );
-      setServiceTypes(
-        normalizeCrudList<ServiceType>(typesRes.data).filter(
-          (t) => t.is_active !== false && !(t as any).deleted_at,
-        ),
+      const allCategories = normalizeCrudList<ServiceCategory>(catRes.data)
+        .filter((c) => c.is_active !== false && !(c as any).deleted_at)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+      // Filter service types to only those with a workflow template in the current scope
+      const scopeTemplates = normalizeCrudList<{
+        id: string;
+        service_type_id?: string;
+        workflow_scope?: string;
+        deleted_at?: string;
+      }>(templatesRes.data).filter((t) => {
+        if ((t as any).deleted_at) return false;
+        const tScope = t.workflow_scope || "operational";
+        return tScope === scope;
+      });
+      const typesWithScopeTemplate = new Set(
+        scopeTemplates
+          .map((t) => t.service_type_id)
+          .filter(Boolean) as string[],
+      );
+
+      // For the current scope, only show types that have a matching template
+      const filteredTypes = allTypes.filter((t) =>
+        typesWithScopeTemplate.has(t.id),
+      );
+      setServiceTypes(filteredTypes);
+
+      // Only show categories that have at least one visible type
+      const usedCategoryIds = new Set(
+        filteredTypes.map((t) => t.category_id).filter(Boolean),
+      );
+      setServiceCategories(
+        allCategories.filter((c) => usedCategoryIds.has(c.id)),
       );
 
       const orders = normalizeCrudList<{
@@ -276,7 +310,7 @@ export default function ProcessKanbanScreen({
     } finally {
       setTypesLoading(false);
     }
-  }, [user?.tenant_id]);
+  }, [user?.tenant_id, scope]);
 
   useEffect(() => {
     loadServiceTypes();
