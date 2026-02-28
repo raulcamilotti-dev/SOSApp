@@ -969,7 +969,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     id: "workflow_templates",
     group: "Automação & Workflows",
     module: "admin",
-    title: "Templates de Workflow",
+    title: "Workflow",
     description: "Gestão de templates de workflow",
     icon: "git-branch-outline",
     route: "/Administrador/workflow_templates",
@@ -987,6 +987,7 @@ export const ADMIN_PAGES: AdminPage[] = [
       PERMISSIONS.WORKFLOW_READ,
       PERMISSIONS.WORKFLOW_WRITE,
     ],
+    hidden: true,
   },
   {
     id: "workflow_steps",
@@ -997,6 +998,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "list-outline",
     route: "/Administrador/workflow_steps",
     requiredAnyPermissions: [PERMISSIONS.WORKFLOW_READ],
+    hidden: true,
   },
   {
     id: "servicos_workflow",
