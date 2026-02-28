@@ -166,6 +166,27 @@ const fields: CrudFieldConfig<Row>[] = [
     referenceSearchField: "title",
   },
   {
+    key: "bank_account_id",
+    label: "Conta Corrente",
+    type: "reference",
+    referenceTable: "bank_accounts",
+    referenceLabelField: "account_name",
+    referenceSearchField: "account_name",
+    referenceIdField: "id",
+    placeholder: "Selecione a conta corrente",
+    referenceLabelFormatter: (
+      item: Record<string, unknown>,
+      _defaultLabel: string,
+    ) => {
+      const name = String(item.account_name ?? "");
+      const num = String(item.account_number ?? "");
+      return num ? `${name} \u2014 ${num}` : name;
+    },
+    referenceFilter: (item: Record<string, unknown>) => {
+      return item.is_active === true || item.is_active === "true";
+    },
+  },
+  {
     key: "invoice_number",
     label: "Número da Fatura",
     placeholder: "Ex: NF-001",

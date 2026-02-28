@@ -601,9 +601,10 @@ export async function createSale(
   // 9. Auto-classify chart of accounts based on sale item composition
   const hasProducts = createdItems.some((i) => i.item_kind === "product");
   const hasServices = createdItems.some((i) => i.item_kind === "service");
-  const revenueCode = hasProducts && !hasServices
-    ? KNOWN_ACCOUNT_CODES.RECEITA_PRODUTOS
-    : KNOWN_ACCOUNT_CODES.RECEITA_SERVICOS; // default to services (or mixed)
+  const revenueCode =
+    hasProducts && !hasServices
+      ? KNOWN_ACCOUNT_CODES.RECEITA_PRODUTOS
+      : KNOWN_ACCOUNT_CODES.RECEITA_SERVICOS; // default to services (or mixed)
   const chartAccountId = await resolveChartAccountId(tenantId, revenueCode);
 
   // 10. Create accounts_receivable
