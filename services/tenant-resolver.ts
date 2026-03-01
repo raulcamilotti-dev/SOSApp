@@ -59,6 +59,24 @@ const PLATFORM_ROOT_HOSTS = new Set([
   "localhost:19006",
 ]);
 
+/**
+ * B12 fix: Sanitize slug/hostname to prevent injection via query parameters.
+ * Slug: only lowercase alphanumeric + hyphens, max 63 chars (DNS label limit).
+ * Hostname: only valid hostname chars (alphanumeric, hyphens, dots, colon for port).
+ */
+const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]?$/;
+const HOSTNAME_REGEX = /^[a-z0-9][a-z0-9.\-:]{0,253}[a-z0-9]$/;
+
+function sanitizeSlug(raw: string): string {
+  const cleaned = raw.replace(/[^a-z0-9-]/g, "").slice(0, 63);
+  return SLUG_REGEX.test(cleaned) ? cleaned : "";
+}
+
+function sanitizeHostname(raw: string): string {
+  const cleaned = raw.replace(/[^a-z0-9.\-:]/g, "").slice(0, 255);
+  return HOSTNAME_REGEX.test(cleaned) ? cleaned : "";
+}
+
 /* ------------------------------------------------------------------ */
 /*  Resolver                                                           */
 /* ------------------------------------------------------------------ */
@@ -72,12 +90,14 @@ const PLATFORM_ROOT_HOSTS = new Set([
 export async function resolveTenantFromContext(
   context: TenantContextPayload,
 ): Promise<TenantResolutionResult> {
-  const hostname = (context.hostname ?? context.host ?? "")
-    .toLowerCase()
-    .trim();
-  const slug = (context.tenant_slug ?? context.tenant_subdomain ?? "")
-    .toLowerCase()
-    .trim();
+  const hostname = sanitizeHostname(
+    (context.hostname ?? context.host ?? "").toLowerCase().trim(),
+  );
+  const slug = sanitizeSlug(
+    (context.tenant_slug ?? context.tenant_subdomain ?? "")
+      .toLowerCase()
+      .trim(),
+  );
 
   // Check if this is the platform root (no tenant to resolve)
   if (!hostname || PLATFORM_ROOT_HOSTS.has(hostname)) {
@@ -90,56 +110,52 @@ export async function resolveTenantFromContext(
   }
 
   // 1. Try slug match (from subdomain detection)
-  if (slug) {
-    try {
-      const res = await api.post(CRUD_ENDPOINT, {
-        action: "list",
-        table: "tenants",
-        ...buildSearchParams([
-          { field: "slug", value: slug, operator: "equal" },
-        ]),
-      });
-      const tenants = normalizeCrudList<ResolvedTenant>(res.data).filter(
-        (t) => !(t as any).deleted_at,
-      );
-      if (tenants.length > 0) {
-        return {
-          resolved: true,
-          tenant: tenants[0],
-          method: "slug",
-          isPlatformRoot: false,
-        };
-      }
-    } catch {
-      // Continue to next resolution method
-    }
-  }
-
-  // 2. Try custom_domains match (for non-radul.com.br domains)
-  // We search all tenants and check client-side because JSONB containment
-  // isn't supported by api_crud. With few tenants (<100), this is fast.
+  // 2. Try custom_domains match
+  // B6 fix: Use dedicated /resolve-domain endpoint instead of fetching ALL tenants
   try {
-    const res = await api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "tenants",
+    const res = await api.post("/resolve-domain", {
+      slug: slug || undefined,
+      hostname: hostname || undefined,
     });
-    const allTenants = normalizeCrudList<
-      ResolvedTenant & { deleted_at?: string }
-    >(res.data).filter((t) => !t.deleted_at);
-
-    for (const tenant of allTenants) {
-      const domains = parseDomains(tenant.custom_domains);
-      if (domains.some((d) => d === hostname)) {
-        return {
-          resolved: true,
-          tenant,
-          method: "custom_domain",
-          isPlatformRoot: false,
-        };
-      }
+    const data = res.data as {
+      resolved: boolean;
+      tenant: ResolvedTenant | null;
+      method: "slug" | "custom_domain" | "none";
+    };
+    if (data.resolved && data.tenant) {
+      return {
+        resolved: true,
+        tenant: data.tenant,
+        method: data.method as "slug" | "custom_domain",
+        isPlatformRoot: false,
+      };
     }
   } catch {
-    // Resolution failed — user goes through normal flow
+    // Resolution failed — try legacy slug fallback
+    if (slug) {
+      try {
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "tenants",
+          ...buildSearchParams([
+            { field: "slug", value: slug, operator: "equal" },
+          ]),
+        });
+        const tenants = normalizeCrudList<ResolvedTenant>(res.data).filter(
+          (t) => !(t as any).deleted_at,
+        );
+        if (tenants.length > 0) {
+          return {
+            resolved: true,
+            tenant: tenants[0],
+            method: "slug",
+            isPlatformRoot: false,
+          };
+        }
+      } catch {
+        // Continue to unresolved
+      }
+    }
   }
 
   // 3. No match — could be an unknown domain or platform root

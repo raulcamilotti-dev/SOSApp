@@ -1,16 +1,24 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
-import { CRUD_ENDPOINT } from "@/services/crud";
 
 type Row = Record<string, unknown>;
 
-const listRows = async (): Promise<Row[]> => {
+const listRows = async (templateId?: string): Promise<Row[]> => {
+  const filters = templateId
+    ? buildSearchParams([{ field: "template_id", value: templateId }], {
+        sortColumn: "step_order ASC",
+      })
+    : { sort_column: "step_order ASC" };
+
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "workflow_steps",
+    ...filters,
+    auto_exclude_deleted: true,
   });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
@@ -64,13 +72,7 @@ export default function WorkflowStepsScreen() {
 
   const loadFilteredRows = useMemo(() => {
     return async (): Promise<Row[]> => {
-      const rows = await listRows();
-      return rows.filter((item) => {
-        if (templateId && String(item.template_id ?? "") !== templateId) {
-          return false;
-        }
-        return true;
-      });
+      return listRows(templateId);
     };
   }, [templateId]);
 

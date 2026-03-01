@@ -1,38 +1,39 @@
 import {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 import { api, N8N_API_KEY, setAuthToken } from "@/services/api";
 import { autoLinkUserToCompanies } from "@/services/companies";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import {
-    autoLinkUserToTenant,
-    resolveTenantFromContext,
+  autoLinkUserToTenant,
+  resolveTenantFromContext,
 } from "@/services/tenant-resolver";
 import {
-    getSelectedTenant,
-    getTenantOptions,
-    getToken,
-    getUser,
-    saveSelectedTenant,
-    saveTenantOptions,
-    saveToken,
-    saveUser,
+  getSelectedTenant,
+  getTenantOptions,
+  getToken,
+  getUser,
+  saveSelectedTenant,
+  saveTenantOptions,
+  saveToken,
+  saveUser,
 } from "./auth.storage";
 import {
-    AuthContextData,
-    AuthProviderProps,
-    LoginResponse,
-    RegisterPayload,
-    RegisterResponse,
-    TenantOption,
-    User,
+  AuthContextData,
+  AuthProviderProps,
+  LoginResponse,
+  RegisterPayload,
+  RegisterResponse,
+  TenantOption,
+  User,
 } from "./auth.types";
+import { isPlatformAdminStable } from "./auth.utils";
 import { buildTenantContextPayload } from "./tenant-context";
 import { useAutoSyncPermissions } from "./useAutoSyncPermissions";
 
@@ -96,8 +97,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true);
   const [tenantLoading, setTenantLoading] = useState(false);
 
-  // Auto-sincronizar permissões quando o app iniciar
-  useAutoSyncPermissions(!loading && !!user);
+  // Auto-sincronizar permissões quando o app iniciar (admin only —
+  // syncPermissions writes to DB, should not run for regular users)
+  const _isAdmin = useMemo(() => {
+    if (!user) return false;
+    const role = String(
+      (user as any).role ?? (user as any).perfil ?? "",
+    ).toLowerCase();
+    return [
+      "admin",
+      "superadmin",
+      "super_admin",
+      "admin_tenant",
+      "administrador",
+    ].includes(role);
+  }, [user]);
+  useAutoSyncPermissions(!loading && !!user && _isAdmin);
 
   function normalizeUser(input: any): User | undefined {
     if (!input || typeof input !== "object") return undefined;
@@ -121,10 +136,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const applyTenantToUser = useCallback(
     async (baseUser: User, tenantId: string, roleName?: string) => {
+      // Platform admins always get superadmin role regardless of per-tenant
+      // user_tenants configuration. Uses stable check (email/flag, not tenant_id)
+      // since tenant_id is about to change.
+      const effectiveRole = isPlatformAdminStable(baseUser)
+        ? "superadmin"
+        : roleName;
+
       const nextUser = {
         ...baseUser,
         tenant_id: tenantId,
-        ...(roleName ? { role: roleName } : {}),
+        ...(effectiveRole ? { role: effectiveRole } : {}),
       } as User;
       setUser(nextUser);
       await saveUser(nextUser);
@@ -147,28 +169,63 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setTenantLoading(true);
       try {
-        const [userTenantsRes, tenantsRes, rolesRes] = await Promise.all([
-          api.post(CRUD_ENDPOINT, {
-            action: "list",
-            table: "user_tenants",
-            ...buildSearchParams([
-              { field: "user_id", value: String(baseUser.id) },
-            ]),
-          }),
-          api.post(CRUD_ENDPOINT, {
-            action: "list",
-            table: "tenants",
-          }),
-          api.post(CRUD_ENDPOINT, {
-            action: "list",
-            table: "roles",
-          }),
-        ]);
+        // Step 1: Fetch user_tenants scoped by user_id
+        const userTenantsRes = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "user_tenants",
+          ...buildSearchParams([
+            { field: "user_id", value: String(baseUser.id) },
+          ]),
+        });
 
         const userTenants = normalizeList(userTenantsRes.data).filter(
           (row: any) =>
             String(row?.user_id ?? row?.id_user ?? "") === String(baseUser.id),
         );
+
+        // Extract tenant_ids and role_ids to scope subsequent queries
+        // (avoids fetching ALL tenants and ALL roles — data exposure fix)
+        const utTenantIds = [
+          ...new Set(
+            userTenants
+              .map((row: any) =>
+                String(row?.tenant_id ?? row?.id_tenant ?? "").trim(),
+              )
+              .filter(Boolean),
+          ),
+        ];
+        const utRoleIds = [
+          ...new Set(
+            userTenants
+              .map((row: any) =>
+                String(row?.role_id ?? row?.id_role ?? "").trim(),
+              )
+              .filter(Boolean),
+          ),
+        ];
+
+        // Step 2: Fetch ONLY the tenants and roles this user has access to
+        const [tenantsRes, rolesRes] = await Promise.all([
+          utTenantIds.length > 0
+            ? api.post(CRUD_ENDPOINT, {
+                action: "list",
+                table: "tenants",
+                ...buildSearchParams([
+                  { field: "id", value: utTenantIds.join(","), operator: "in" },
+                ]),
+              })
+            : Promise.resolve({ data: [] }),
+          utRoleIds.length > 0
+            ? api.post(CRUD_ENDPOINT, {
+                action: "list",
+                table: "roles",
+                ...buildSearchParams([
+                  { field: "id", value: utRoleIds.join(","), operator: "in" },
+                ]),
+              })
+            : Promise.resolve({ data: [] }),
+        ]);
+
         const tenants = normalizeList(tenantsRes.data);
         const tenantsById = new Map(
           tenants.map((tenant: any) => [String(tenant?.id ?? ""), tenant]),
@@ -259,13 +316,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const currentOption = mergedOptions.find(
             (o) => String(o.id) === String(baseUser.tenant_id ?? ""),
           );
-          if (
-            currentOption?.role_name &&
-            currentOption.role_name !== baseUser.role
-          ) {
+
+          // Platform admins always get superadmin role, even if user_tenants
+          // has a different role (e.g. "client" from auto-link)
+          const isPlatformAdmin = isPlatformAdminStable(baseUser);
+          const effectiveRole = isPlatformAdmin
+            ? "superadmin"
+            : currentOption?.role_name;
+
+          const needsRoleUpdate =
+            effectiveRole && effectiveRole !== baseUser.role;
+
+          if (needsRoleUpdate) {
             const userWithRole = {
               ...baseUser,
-              role: currentOption.role_name,
+              role: effectiveRole,
             } as User;
             setUser(userWithRole);
             await saveUser(userWithRole);
@@ -774,7 +839,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error("Usuário não encontrado");
     }
 
-    const userId = patch.id ?? currentUser.id;
+    // Always use currentUser.id — never allow callers to override the target user
+    // (prevents IDOR where patch.id could point to another user's record)
+    const userId = currentUser.id;
     if (!userId) {
       throw new Error("ID do usuário não encontrado");
     }

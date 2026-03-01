@@ -1,11 +1,12 @@
 import { styles } from "@/app/theme/styles";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
+import { useAuth } from "@/core/auth/AuthContext";
 import { PERMISSIONS } from "@/core/auth/permissions";
+import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { CRUD_ENDPOINT } from "@/services/crud";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -56,6 +57,8 @@ const makeKey = (roleId: string, permissionId: string) =>
   `${roleId}::${permissionId}`;
 
 export default function RolePermissionsMatrixScreen() {
+  const { user } = useAuth();
+  const tenantId = user?.tenant_id;
   const params = useLocalSearchParams<{
     roleId?: string;
     permissionId?: string;
@@ -95,7 +98,13 @@ export default function RolePermissionsMatrixScreen() {
 
       const [rolesRes, permissionsRes, rolePermissionsRes, tenantsRes] =
         await Promise.all([
-          api.post(CRUD_ENDPOINT, { action: "list", table: "roles" }),
+          api.post(CRUD_ENDPOINT, {
+            action: "list",
+            table: "roles",
+            ...(tenantId
+              ? buildSearchParams([{ field: "tenant_id", value: tenantId }])
+              : {}),
+          }),
           api.post(CRUD_ENDPOINT, { action: "list", table: "permissions" }),
           api.post(CRUD_ENDPOINT, {
             action: "list",
@@ -175,7 +184,7 @@ export default function RolePermissionsMatrixScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     if (isFocused) {

@@ -3,9 +3,9 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
 import {
-    CRUD_ENDPOINT,
-    buildSearchParams,
-    normalizeCrudList,
+  CRUD_ENDPOINT,
+  buildSearchParams,
+  normalizeCrudList,
 } from "@/services/crud";
 import { useMemo } from "react";
 
@@ -78,6 +78,8 @@ const fields: CrudFieldConfig<Row>[] = [
     referenceLabelField: "company_name",
     referenceSearchField: "company_name",
     required: true,
+    visibleInForm: false,
+    visibleInList: false,
   },
   {
     key: "invoice_id",
@@ -224,6 +226,13 @@ export default function PagamentosScreen() {
     [tenantId],
   );
 
+  const createWithTenant = useMemo(
+    () => async (payload: Partial<Row>) => {
+      return createItem({ ...payload, tenant_id: tenantId });
+    },
+    [tenantId],
+  );
+
   return (
     <CrudScreen<Row>
       title="Pagamentos"
@@ -234,7 +243,7 @@ export default function PagamentosScreen() {
       loadItems={loadItems}
       paginatedLoadItems={paginatedLoadItems}
       pageSize={20}
-      createItem={createItem}
+      createItem={createWithTenant}
       updateItem={updateItem}
       getId={(item) => String(item.id ?? "")}
       getTitle={(item) => {

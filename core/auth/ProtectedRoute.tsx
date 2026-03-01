@@ -81,7 +81,10 @@ export function ProtectedRoute({
     return <>{children}</>;
   }
 
-  // Admin tem acesso a tudo
+  // Admin has access to all routes (UI-level only).
+  // B14 note: This is intentional UX — admins see everything.
+  // Actual data protection MUST be enforced server-side on each endpoint.
+  // This guard only controls route visibility, not data access.
   if (isAdmin) {
     return <>{children}</>;
   }

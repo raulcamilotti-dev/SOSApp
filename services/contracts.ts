@@ -25,13 +25,13 @@
 
 import { api } from "./api";
 import {
-    aggregateCrud,
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    normalizeCrudOne,
-    type CrudFilter,
-    type CrudListOptions,
+  aggregateCrud,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  normalizeCrudOne,
+  type CrudFilter,
+  type CrudListOptions,
 } from "./crud";
 
 /* ------------------------------------------------------------------ */
@@ -62,6 +62,7 @@ export type BillingModel =
 export interface Contract {
   id: string;
   tenant_id: string;
+  partner_id?: string | null;
   customer_id: string;
   title: string;
   description?: string | null;
@@ -229,11 +230,16 @@ export async function listContracts(
 
 export async function getContractById(
   contractId: string,
+  tenantId?: string,
 ): Promise<Contract | null> {
+  const filters: CrudFilter[] = [{ field: "id", value: contractId }];
+  if (tenantId) {
+    filters.push({ field: "tenant_id", value: tenantId });
+  }
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "contracts",
-    ...buildSearchParams([{ field: "id", value: contractId }]),
+    ...buildSearchParams(filters),
   });
   const list = normalizeCrudList<Contract>(res.data);
   return list.length > 0 ? list[0] : null;
@@ -887,6 +893,19 @@ export async function generateContractInvoice(
   const adjustment = Number(input.adjustmentAmount ?? 0);
   const total = Math.max(0, subtotal + adjustment);
 
+  // Auto-classify chart of accounts (contracts = recurring revenue) + default bank
+  const revenueCode =
+    billingModel === "fixed_monthly" || billingModel === "fixed_plus_excess"
+      ? KNOWN_ACCOUNT_CODES.MENSALIDADES
+      : KNOWN_ACCOUNT_CODES.RECEITA_SERVICOS;
+  const [chartAccountId, defaultBankAccountId] = await Promise.all([
+    resolveChartAccountId(contract.tenant_id, revenueCode),
+    getDefaultBankAccountId(contract.tenant_id),
+  ]);
+
+  const now = new Date().toISOString();
+  const dueAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
   // Create invoice
   const invoiceRes = await api.post(CRUD_ENDPOINT, {
     action: "create",
@@ -901,8 +920,8 @@ export async function generateContractInvoice(
       discount: adjustment < 0 ? Math.abs(adjustment) : 0,
       tax: 0,
       total,
-      issued_at: new Date().toISOString(),
-      due_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      issued_at: now,
+      due_at: dueAt,
       notes: [
         input.notes,
         input.adjustmentDescription
@@ -912,6 +931,8 @@ export async function generateContractInvoice(
         .filter(Boolean)
         .join("\n"),
       created_by: createdBy ?? null,
+      chart_account_id: chartAccountId,
+      bank_account_id: defaultBankAccountId,
     },
   });
   const invoice = normalizeCrudOne<{ id: string }>(invoiceRes.data);
@@ -944,6 +965,41 @@ export async function generateContractInvoice(
         sort_order: 2,
       },
     });
+  }
+
+  // Create accounts_receivable for contract invoice
+  // CRITICAL: If this fails, the invoice exists but has no AR entry.
+  // We throw the error so callers know the operation is incomplete.
+  try {
+    await api.post(CRUD_ENDPOINT, {
+      action: "create",
+      table: "accounts_receivable",
+      payload: {
+        tenant_id: contract.tenant_id,
+        customer_id: contract.customer_id,
+        description: `Contrato — ${contract.title}`,
+        type: "invoice",
+        invoice_id: invoice.id,
+        amount: total,
+        amount_received: 0,
+        status: "pending",
+        currency: "BRL",
+        due_date: dueAt.slice(0, 10),
+        recurrence: "none",
+        chart_account_id: chartAccountId,
+        bank_account_id: defaultBankAccountId,
+      },
+    });
+  } catch (arError) {
+    console.error(
+      "[contracts] CRITICAL: Failed to create AR for invoice",
+      invoice.id,
+      arError,
+    );
+    // Throw so the caller knows the invoice was created but AR is missing
+    throw new Error(
+      `Invoice ${invoice.id} created but accounts_receivable failed: ${arError instanceof Error ? arError.message : String(arError)}`,
+    );
   }
 
   // Link contract ↔ invoice

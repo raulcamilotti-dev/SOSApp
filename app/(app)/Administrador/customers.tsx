@@ -1,11 +1,12 @@
 import { ThemedText } from "@/components/themed-text";
 import {
-  convertTableInfoToFields,
-  CrudScreen,
-  type CrudFieldConfig,
+    convertTableInfoToFields,
+    CrudScreen,
+    type CrudFieldConfig,
 } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
+import { useSafeTenantId } from "@/hooks/use-safe-tenant-id";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import { formatCpf, validateCpf } from "@/services/brasil-api";
@@ -15,10 +16,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const log = __DEV__ ? console.log : () => {};
@@ -162,9 +163,10 @@ export default function CustomersAdminScreen() {
   const userIdParam = Array.isArray(params.userId)
     ? params.userId[0]
     : params.userId;
-  const tenantIdParam = Array.isArray(params.tenantId)
+  const urlTenantParam = Array.isArray(params.tenantId)
     ? params.tenantId[0]
     : params.tenantId;
+  const { tenantId: safeTenantId } = useSafeTenantId(urlTenantParam);
   const customerIdParam = Array.isArray(params.customerId)
     ? params.customerId[0]
     : params.customerId;
@@ -224,7 +226,7 @@ export default function CustomersAdminScreen() {
       try {
         const [customersRows, usersRes, propertiesRes, userTenantsRows] =
           await Promise.all([
-            listRows(tenantIdParam || tenantId),
+            listRows(safeTenantId),
             api.post(CRUD_ENDPOINT, {
               action: "list",
               table: "users",
@@ -271,12 +273,12 @@ export default function CustomersAdminScreen() {
             excludedByCustomerId += 1;
             return false;
           }
-          if (tenantIdParam && String(item.tenant_id ?? "") !== tenantIdParam) {
+          if (safeTenantId && String(item.tenant_id ?? "") !== safeTenantId) {
             excludedByTenantId += 1;
             return false;
           }
 
-          if (userIdParam && !tenantIdParam) {
+          if (userIdParam && !safeTenantId) {
             const rowUserId = String(item.user_id ?? "");
             if (rowUserId && rowUserId === userIdParam) return true;
 
@@ -426,7 +428,7 @@ export default function CustomersAdminScreen() {
           excludedByUserContext,
           context: {
             customerId: customerIdParam ?? "",
-            tenantId: tenantIdParam ?? "",
+            tenantId: safeTenantId ?? "",
             userId: userIdParam ?? "",
           },
           timestamp: new Date().toISOString(),
@@ -452,7 +454,7 @@ export default function CustomersAdminScreen() {
           excludedByUserContext: 0,
           context: {
             customerId: customerIdParam ?? "",
-            tenantId: tenantIdParam ?? "",
+            tenantId: safeTenantId ?? "",
             userId: userIdParam ?? "",
           },
           timestamp: new Date().toISOString(),
@@ -463,7 +465,7 @@ export default function CustomersAdminScreen() {
         throw error;
       }
     };
-  }, [customerIdParam, tenantIdParam, userIdParam]);
+  }, [customerIdParam, safeTenantId, userIdParam]);
 
   const subtitle = useMemo(() => {
     if (!debugInfo) return "Gestão de clientes";
@@ -493,11 +495,11 @@ export default function CustomersAdminScreen() {
       }
       return createRow({
         ...payload,
-        tenant_id: tenantIdParam ?? tenantId ?? payload.tenant_id,
+        tenant_id: safeTenantId ?? payload.tenant_id,
         user_id: userId || undefined,
       });
     };
-  }, [tenantIdParam, tenantId, userIdParam]);
+  }, [safeTenantId, userIdParam]);
 
   const updateWithContext = useMemo(() => {
     return async (
@@ -523,11 +525,11 @@ export default function CustomersAdminScreen() {
       }
       return updateRow({
         ...payload,
-        tenant_id: tenantIdParam ?? tenantId ?? payload.tenant_id,
+        tenant_id: safeTenantId ?? payload.tenant_id,
         user_id: userId || undefined,
       });
     };
-  }, [tenantIdParam, tenantId, userIdParam]);
+  }, [safeTenantId, userIdParam]);
 
   const contextualFields = useMemo(() => {
     return fields.map((field) => {

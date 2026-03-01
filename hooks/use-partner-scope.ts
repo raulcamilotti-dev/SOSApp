@@ -15,11 +15,12 @@
 import { useAuth } from "@/core/auth/AuthContext";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  type CrudFilter,
+  normalizeCrudList,
 } from "@/services/crud";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 export interface PartnerScope {
   /** UUID of the partner this user belongs to (null if not a partner user) */
@@ -32,6 +33,14 @@ export interface PartnerScope {
   isInternalPartner: boolean;
   /** Loading state */
   loading: boolean;
+  /**
+   * Ready-to-use CrudFilter array for tables that have a `partner_id` column.
+   * Returns `[{ field: "partner_id", value: partnerId }]` for partner users,
+   * or `[]` for admins (no filter needed — see all).
+   *
+   * Usage: `buildSearchParams([...otherFilters, ...partnerFilter], options)`
+   */
+  partnerFilter: CrudFilter[];
 }
 
 export function usePartnerScope(): PartnerScope {
@@ -42,6 +51,7 @@ export function usePartnerScope(): PartnerScope {
   const [loading, setLoading] = useState(true);
 
   const userPartnerId_dep = (user as any)?.partner_id as string | undefined;
+  const canViewAllPartners_dep = (user as any)?.can_view_all_partners === true;
 
   const resolve = useCallback(async () => {
     if (!user?.id) {
@@ -56,8 +66,8 @@ export function usePartnerScope(): PartnerScope {
       // 1. Check if user has a partner_id
       const userPartnerId = userPartnerId_dep;
 
-      if (!userPartnerId) {
-        // Not a partner user — admin/tenant operator, full access
+      if (!userPartnerId || canViewAllPartners_dep) {
+        // Not a partner user, OR has permission to view all partners — full access
         setPartnerId(null);
         setCustomerIds([]);
         setIsInternalPartner(false);
@@ -107,12 +117,17 @@ export function usePartnerScope(): PartnerScope {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, userPartnerId_dep]);
+  }, [user?.id, userPartnerId_dep, canViewAllPartners_dep]);
 
   useEffect(() => {
     setLoading(true);
     resolve();
   }, [resolve]);
+
+  const partnerFilter: CrudFilter[] = useMemo(() => {
+    if (!partnerId) return [];
+    return [{ field: "partner_id", value: partnerId }];
+  }, [partnerId]);
 
   return {
     partnerId,
@@ -120,5 +135,6 @@ export function usePartnerScope(): PartnerScope {
     customerIds,
     isInternalPartner,
     loading,
+    partnerFilter,
   };
 }

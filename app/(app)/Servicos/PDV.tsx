@@ -14,42 +14,42 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { generatePixPayload, generatePixQRCodeBase64 } from "@/services/pix";
 import {
-    listPreSaleItems,
-    listPreSales,
-    markPreSaleClosed,
-    type PreSale,
+  listPreSaleItems,
+  listPreSales,
+  markPreSaleClosed,
+  type PreSale,
 } from "@/services/pre-sales";
 import {
-    createSale,
-    type CreateSaleResult,
-    type SaleItemInput,
+  createSale,
+  type CreateSaleResult,
+  type SaleItemInput,
 } from "@/services/sales";
 import { Ionicons } from "@expo/vector-icons";
 import * as ExpoClipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    SectionList,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  SectionList,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 /* ------------------------------------------------------------------ */
@@ -170,6 +170,13 @@ export default function PDVScreen() {
   const [discountPercent, setDiscountPercent] = useState("");
   const [maxDiscount, setMaxDiscount] = useState<number>(100);
   const [discountWarning, setDiscountWarning] = useState("");
+  const [canEditPrice, setCanEditPrice] = useState(false);
+
+  // Price editing
+  const [editingPriceItemId, setEditingPriceItemId] = useState<string | null>(
+    null,
+  );
+  const [editingPriceValue, setEditingPriceValue] = useState("");
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>("pix");
@@ -310,11 +317,14 @@ export default function PDVScreen() {
         const rules = normalizeCrudList<Record<string, unknown>>(res.data);
         if (rules.length > 0) {
           setMaxDiscount(Number(rules[0].max_discount_percent ?? 0));
+          setCanEditPrice(Boolean(rules[0].can_edit_price));
         } else {
           setMaxDiscount(0);
+          setCanEditPrice(false);
         }
       } catch {
         setMaxDiscount(0);
+        setCanEditPrice(false);
       }
     })();
   }, [tenantId, currentRoleId]);
@@ -443,6 +453,14 @@ export default function PDVScreen() {
     setCart((prev) => prev.filter((c) => c.catalogItem.id !== itemId));
   }, []);
 
+  const updateCartPrice = useCallback((itemId: string, newPrice: number) => {
+    setCart((prev) =>
+      prev.map((c) =>
+        c.catalogItem.id === itemId ? { ...c, unitPrice: newPrice } : c,
+      ),
+    );
+  }, []);
+
   const clearCart = useCallback(() => {
     setCart([]);
     setCustomerMode("none");
@@ -455,6 +473,8 @@ export default function PDVScreen() {
     setPixQrImage(null);
     setPixCopied(false);
     setActivePreSale(null);
+    setEditingPriceItemId(null);
+    setEditingPriceValue("");
   }, []);
 
   /* ---------------------------------------------------------------- */
@@ -574,7 +594,13 @@ export default function PDVScreen() {
           tenantRes.data,
         );
         const tenant = tenants[0];
-        if (!tenant) return;
+        if (!tenant) {
+          Alert.alert(
+            "PIX indisponível",
+            "Não foi possível carregar as configurações do tenant. Verifique sua conexão.",
+          );
+          return;
+        }
 
         const config =
           typeof tenant.config === "string"
@@ -587,7 +613,13 @@ export default function PDVScreen() {
         );
         const merchantCity = String(billing.pix_merchant_city ?? "Brasil");
 
-        if (!pixKey) return;
+        if (!pixKey) {
+          Alert.alert(
+            "PIX não configurado",
+            "Chave PIX não encontrada. Configure em Administrador → Tenants → Config → billing → pix_key.",
+          );
+          return;
+        }
 
         const txId = `V${saleId.replace(/-/g, "").slice(0, 20)}`;
         const pixParams = {
@@ -599,12 +631,27 @@ export default function PDVScreen() {
           description: "Venda PDV",
         };
         const brCode = generatePixPayload(pixParams);
+        if (!brCode) {
+          Alert.alert(
+            "Erro ao gerar PIX",
+            "Não foi possível gerar o código PIX. Verifique se a chave PIX está correta.",
+          );
+          return;
+        }
         setPixBrCode(brCode);
 
         const qr = await generatePixQRCodeBase64(pixParams);
+        if (!qr) {
+          // BRCode worked but QR image failed — still usable via copy-paste
+          console.warn("PDV: PIX QR image generation failed, BRCode available");
+        }
         setPixQrImage(qr);
       } catch (err) {
         console.error("PDV: PIX generation error", err);
+        Alert.alert(
+          "Erro ao gerar PIX",
+          "Ocorreu um erro inesperado ao gerar o código PIX. A venda foi registrada.",
+        );
       }
     },
     [tenantId],
@@ -801,86 +848,199 @@ export default function PDVScreen() {
   const renderCartItem = useCallback(
     (ci: CartItem, _index: number) => {
       const itemTotal = ci.unitPrice * ci.quantity;
+      const isEditingPrice = editingPriceItemId === ci.catalogItem.id;
+      const priceChanged = ci.unitPrice !== ci.catalogItem.sell_price;
       return (
         <View
           key={ci.catalogItem.id}
           style={{
-            flexDirection: "row",
-            alignItems: "center",
             paddingVertical: 8,
             borderBottomWidth: 1,
             borderBottomColor: borderColor,
-            gap: 8,
           }}
         >
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{ color: textColor, fontWeight: "600", fontSize: 13 }}
-              numberOfLines={1}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ color: textColor, fontWeight: "600", fontSize: 13 }}
+                numberOfLines={1}
+              >
+                {ci.catalogItem.item_kind === "product" ? "📦 " : "🔧 "}
+                {ci.catalogItem.name}
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  marginTop: 2,
+                }}
+              >
+                <Text style={{ color: mutedColor, fontSize: 12 }}>
+                  {ci.quantity}x {fmt(ci.unitPrice)} = {fmt(itemTotal)}
+                </Text>
+                {canEditPrice && !isEditingPrice && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditingPriceItemId(ci.catalogItem.id);
+                      setEditingPriceValue(
+                        ci.unitPrice.toFixed(2).replace(".", ","),
+                      );
+                    }}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="pencil" size={14} color={tintColor} />
+                  </TouchableOpacity>
+                )}
+                {priceChanged && !isEditingPrice && (
+                  <Text
+                    style={{
+                      color: warningColor,
+                      fontSize: 10,
+                      fontWeight: "600",
+                    }}
+                  >
+                    (catálogo: {fmt(ci.catalogItem.sell_price)})
+                  </Text>
+                )}
+              </View>
+            </View>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
             >
-              {ci.catalogItem.item_kind === "product" ? "📦 " : "🔧 "}
-              {ci.catalogItem.name}
-            </Text>
-            <Text style={{ color: mutedColor, fontSize: 12 }}>
-              {ci.quantity}x {fmt(ci.unitPrice)} = {fmt(itemTotal)}
-            </Text>
+              <TouchableOpacity
+                onPress={() => updateCartQty(ci.catalogItem.id, -1)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: errorColor + "20",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="remove" size={18} color={errorColor} />
+              </TouchableOpacity>
+              <Text
+                style={{
+                  color: textColor,
+                  fontWeight: "700",
+                  fontSize: 15,
+                  minWidth: 28,
+                  textAlign: "center",
+                }}
+              >
+                {ci.quantity}
+              </Text>
+              <TouchableOpacity
+                onPress={() => updateCartQty(ci.catalogItem.id, 1)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: successColor + "20",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="add" size={18} color={successColor} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => removeFromCart(ci.catalogItem.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{
+                  marginLeft: 6,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: errorColor + "12",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color={errorColor} />
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <TouchableOpacity
-              onPress={() => updateCartQty(ci.catalogItem.id, -1)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+
+          {/* Inline price editor */}
+          {isEditingPrice && (
+            <View
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: errorColor + "20",
-                justifyContent: "center",
+                flexDirection: "row",
                 alignItems: "center",
+                gap: 6,
+                marginTop: 6,
+                paddingLeft: 4,
               }}
             >
-              <Ionicons name="remove" size={18} color={errorColor} />
-            </TouchableOpacity>
-            <Text
-              style={{
-                color: textColor,
-                fontWeight: "700",
-                fontSize: 15,
-                minWidth: 28,
-                textAlign: "center",
-              }}
-            >
-              {ci.quantity}
-            </Text>
-            <TouchableOpacity
-              onPress={() => updateCartQty(ci.catalogItem.id, 1)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: successColor + "20",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Ionicons name="add" size={18} color={successColor} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => removeFromCart(ci.catalogItem.id)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{
-                marginLeft: 6,
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: errorColor + "12",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Ionicons name="trash-outline" size={18} color={errorColor} />
-            </TouchableOpacity>
-          </View>
+              <Text style={{ color: mutedColor, fontSize: 12 }}>R$</Text>
+              <TextInput
+                value={editingPriceValue}
+                onChangeText={(t) =>
+                  setEditingPriceValue(t.replace(/[^\d.,]/g, ""))
+                }
+                keyboardType="decimal-pad"
+                autoFocus
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor: tintColor,
+                  borderRadius: 6,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  color: textColor,
+                  fontSize: 13,
+                  maxWidth: 120,
+                }}
+                onSubmitEditing={() => {
+                  const parsed = parseFloat(
+                    editingPriceValue.replace(",", "."),
+                  );
+                  if (!isNaN(parsed) && parsed >= 0) {
+                    updateCartPrice(ci.catalogItem.id, parsed);
+                  }
+                  setEditingPriceItemId(null);
+                }}
+              />
+              <TouchableOpacity
+                onPress={() => {
+                  const parsed = parseFloat(
+                    editingPriceValue.replace(",", "."),
+                  );
+                  if (!isNaN(parsed) && parsed >= 0) {
+                    updateCartPrice(ci.catalogItem.id, parsed);
+                  }
+                  setEditingPriceItemId(null);
+                }}
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  backgroundColor: tintColor,
+                  borderRadius: 6,
+                }}
+              >
+                <Ionicons name="checkmark" size={16} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setEditingPriceItemId(null)}
+                style={{
+                  paddingHorizontal: 6,
+                  paddingVertical: 4,
+                }}
+              >
+                <Ionicons name="close" size={16} color={mutedColor} />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       );
     },
@@ -888,10 +1048,16 @@ export default function PDVScreen() {
       borderColor,
       textColor,
       mutedColor,
+      tintColor,
+      warningColor,
       errorColor,
       successColor,
+      canEditPrice,
+      editingPriceItemId,
+      editingPriceValue,
       updateCartQty,
       removeFromCart,
+      updateCartPrice,
     ],
   );
 

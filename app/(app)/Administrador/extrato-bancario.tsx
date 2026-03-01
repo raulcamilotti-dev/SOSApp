@@ -1,4 +1,5 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
 import {
@@ -13,10 +14,19 @@ type Row = Record<string, unknown>;
 
 const TABLE = "bank_transactions";
 
-const listRows = async (accountId?: string): Promise<Row[]> => {
-  const filters = accountId
-    ? buildSearchParams([{ field: "bank_account_id", value: accountId }], {
+const listRows = async (
+  tenantId?: string,
+  accountId?: string,
+): Promise<Row[]> => {
+  const filterFields: { field: string; value: string }[] = [];
+  if (tenantId) filterFields.push({ field: "tenant_id", value: tenantId });
+  if (accountId)
+    filterFields.push({ field: "bank_account_id", value: accountId });
+
+  const filters = filterFields.length
+    ? buildSearchParams(filterFields, {
         sortColumn: "transaction_date DESC, created_at DESC",
+        combineType: "AND",
       })
     : { sort_column: "transaction_date DESC, created_at DESC" };
 
@@ -202,6 +212,8 @@ const formatDateBR = (value: unknown): string => {
 };
 
 export default function ExtratoBancarioScreen() {
+  const { user } = useAuth();
+  const tenantId = user?.tenant_id;
   const params = useLocalSearchParams<{ accountId?: string }>();
   const accountId = Array.isArray(params.accountId)
     ? params.accountId[0]
@@ -209,9 +221,9 @@ export default function ExtratoBancarioScreen() {
 
   const loadFiltered = useMemo(() => {
     return async (): Promise<Row[]> => {
-      return listRows(accountId);
+      return listRows(tenantId, accountId);
     };
-  }, [accountId]);
+  }, [tenantId, accountId]);
 
   const createWithAccount = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {

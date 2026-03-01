@@ -1,6 +1,7 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
+import { useSafeTenantId } from "@/hooks/use-safe-tenant-id";
 import { api } from "@/services/api";
 import {
     CRUD_ENDPOINT,
@@ -67,7 +68,7 @@ export default function AgentChannelBindingsScreen() {
   const agentIdParam = Array.isArray(params.agentId)
     ? params.agentId[0]
     : params.agentId;
-  const tenantId = tenantIdParam || user?.tenant_id;
+  const { tenantId } = useSafeTenantId(tenantIdParam);
 
   const loadItems = useMemo(() => {
     return async (): Promise<Row[]> => {

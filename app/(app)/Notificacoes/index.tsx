@@ -159,7 +159,7 @@ export default function NotificationsScreen() {
   const handleNotificationPress = async (notification: Notification) => {
     if (!notification.is_read) {
       try {
-        await markAsRead(notification.id);
+        await markAsRead(notification.id, user?.id);
         setNotifications((prev) =>
           prev.map((n) =>
             n.id === notification.id ? { ...n, is_read: true } : n,
@@ -180,7 +180,7 @@ export default function NotificationsScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteNotification(id);
+            await deleteNotification(id, user?.id);
             setNotifications((prev) => prev.filter((n) => n.id !== id));
             if (selectedNotification?.id === id) {
               setSelectedNotification(null);

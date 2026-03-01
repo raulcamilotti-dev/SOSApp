@@ -13,9 +13,9 @@ import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
@@ -522,6 +522,7 @@ export default function ServicesScreen() {
       }}
       renderItemActions={(item) => {
         const serviceId = String(item.id ?? "");
+        const serviceName = String(item.name ?? "");
         const count = Number(item.workflow_templates_count ?? 0);
 
         return (
@@ -545,6 +546,27 @@ export default function ServicesScreen() {
                 style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
               >
                 Templates ({Number.isFinite(count) ? count : 0})
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/Administrador/split-servicos" as any,
+                  params: { serviceId, serviceName },
+                })
+              }
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <ThemedText
+                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+              >
+                💰 Splits
               </ThemedText>
             </TouchableOpacity>
             {item.is_composition && (

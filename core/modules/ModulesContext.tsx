@@ -16,12 +16,12 @@ import { MODULE_KEYS, type ModuleKey } from "@/core/modules/module-config";
 import { api } from "@/services/api";
 import { CRUD_ENDPOINT, normalizeCrudList } from "@/services/crud";
 import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 /* ------------------------------------------------------------------ */
@@ -96,11 +96,8 @@ export function ModulesProvider({ children }: { children: React.ReactNode }) {
       setEnabledModules(keys);
     } catch (error) {
       console.error("Failed to load tenant modules:", error);
-      // On error, enable all modules to avoid blocking users
-      const allKeys = new Set<ModuleKey>(
-        Object.values(MODULE_KEYS) as ModuleKey[],
-      );
-      setEnabledModules(allKeys);
+      // On error, fail-closed: only core module enabled (security-safe default)
+      setEnabledModules(new Set<ModuleKey>([MODULE_KEYS.CORE]));
     } finally {
       setLoading(false);
     }

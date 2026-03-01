@@ -11,10 +11,10 @@
 
 import { api } from "./api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    type CrudFilter
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  type CrudFilter,
 } from "./crud";
 
 /* ------------------------------------------------------------------ */
@@ -90,11 +90,14 @@ export async function recordStockMovement(params: {
   reason?: string;
   userId?: string;
 }): Promise<StockMovement> {
-  // Get current stock
+  // Get current stock (scoped to tenant to prevent cross-tenant references)
   const svcRes = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "services",
-    ...buildSearchParams([{ field: "id", value: params.serviceId }]),
+    ...buildSearchParams([
+      { field: "id", value: params.serviceId },
+      { field: "tenant_id", value: params.tenantId },
+    ]),
   });
   const services = normalizeCrudList<Record<string, unknown>>(svcRes.data);
   const service = services[0];
@@ -155,7 +158,6 @@ export async function getStockPosition(
       [
         { field: "tenant_id", value: tenantId },
         { field: "track_stock", value: "true", operator: "equal" },
-        { field: "item_kind", value: "product", operator: "equal" },
       ],
       { sortColumn: "name ASC", autoExcludeDeleted: true },
     ),
@@ -198,9 +200,12 @@ export async function getLowStockAlerts(
  */
 export async function getStockMovements(
   serviceId: string,
-  filters?: { startDate?: string; endDate?: string },
+  filters?: { startDate?: string; endDate?: string; tenantId?: string },
 ): Promise<StockMovement[]> {
   const crudFilters: CrudFilter[] = [{ field: "service_id", value: serviceId }];
+  if (filters?.tenantId) {
+    crudFilters.push({ field: "tenant_id", value: filters.tenantId });
+  }
   if (filters?.startDate) {
     crudFilters.push({
       field: "created_at",
@@ -262,6 +267,72 @@ export async function adjustStock(
     reason,
     userId,
   });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Recalculate Stock from Movements                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Recalculate stock_quantity on services by summing all stock_movements.
+ * This ensures the cached stock_quantity always reflects reality.
+ * Returns count of items recalculated and any corrections made.
+ */
+export async function recalculateStockFromMovements(
+  tenantId: string,
+): Promise<{ recalculated: number; corrected: number }> {
+  // 1. Get all tracked items for this tenant
+  const svcRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "services",
+    ...buildSearchParams(
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "track_stock", value: "true", operator: "equal" },
+      ],
+      { sortColumn: "name ASC", autoExcludeDeleted: true },
+    ),
+  });
+  const items = normalizeCrudList<Record<string, unknown>>(svcRes.data);
+
+  let corrected = 0;
+
+  for (const item of items) {
+    const serviceId = String(item.id);
+    const currentQty = Number(item.stock_quantity ?? 0);
+
+    // 2. Get all movements for this product (scoped to tenant)
+    const mvRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "stock_movements",
+      ...buildSearchParams([
+        { field: "service_id", value: serviceId },
+        { field: "tenant_id", value: tenantId },
+      ]),
+    });
+    const movements = normalizeCrudList<StockMovement>(mvRes.data);
+
+    // 3. Sum all movement quantities to get the real stock
+    const computedQty = movements.reduce(
+      (sum, mv) => sum + Number(mv.quantity ?? 0),
+      0,
+    );
+
+    // 4. If mismatch, correct
+    if (Math.abs(computedQty - currentQty) > 0.001) {
+      await api.post(CRUD_ENDPOINT, {
+        action: "update",
+        table: "services",
+        payload: {
+          id: serviceId,
+          stock_quantity: computedQty,
+        },
+      });
+      corrected += 1;
+    }
+  }
+
+  return { recalculated: items.length, corrected };
 }
 
 /**

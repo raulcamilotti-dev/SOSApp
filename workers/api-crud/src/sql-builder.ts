@@ -11,6 +11,12 @@ import type { CrudRequestBody, QueryResult } from "./types";
 
 const IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
+/**
+ * Columns that MUST NOT be set via the generic api_crud endpoint.
+ * These require dedicated secure endpoints (e.g., /auth/set-password).
+ */
+const PROTECTED_COLUMNS = new Set(["password_hash"]);
+
 export function validateIdentifier(name: string): string {
   if (!IDENTIFIER_RE.test(name)) {
     throw new Error("Invalid identifier: " + name);
@@ -205,7 +211,9 @@ export function buildCreate(body: CrudRequestBody): QueryResult {
     throw new Error("payload object is required for create");
   }
 
-  const keys = Object.keys(payload).filter((k) => IDENTIFIER_RE.test(k));
+  const keys = Object.keys(payload).filter(
+    (k) => IDENTIFIER_RE.test(k) && !PROTECTED_COLUMNS.has(k),
+  );
   if (keys.length === 0) throw new Error("No valid columns in payload");
 
   const columns = keys.map((k) => '"' + k + '"').join(", ");
@@ -247,7 +255,8 @@ export function buildUpdate(body: CrudRequestBody): QueryResult {
   if (!matchValue) throw new Error(matchColumn + " is required for update");
 
   const keys = Object.keys(payload).filter(
-    (k) => k !== matchColumn && IDENTIFIER_RE.test(k),
+    (k) =>
+      k !== matchColumn && IDENTIFIER_RE.test(k) && !PROTECTED_COLUMNS.has(k),
   );
   if (keys.length === 0) throw new Error("No columns to update");
 
@@ -438,7 +447,9 @@ export function buildBatchCreate(body: CrudRequestBody): QueryResult {
   }
 
   const first = items[0] as Record<string, unknown>;
-  const keys = Object.keys(first).filter((k) => IDENTIFIER_RE.test(k));
+  const keys = Object.keys(first).filter(
+    (k) => IDENTIFIER_RE.test(k) && !PROTECTED_COLUMNS.has(k),
+  );
   if (keys.length === 0) throw new Error("No valid columns in payload");
 
   const columns = keys.map((k) => '"' + k + '"').join(", ");

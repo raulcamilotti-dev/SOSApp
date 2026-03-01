@@ -1,16 +1,16 @@
 import { useAuth } from "@/core/auth/AuthContext";
 import {
-  deleteNotification,
-  listNotifications,
-  markAsRead,
-  type Notification
+    deleteNotification,
+    listNotifications,
+    markAsRead,
+    type Notification,
 } from "@/services/notifications";
 import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
 } from "react";
 
 interface NotificationsContextType {
@@ -64,26 +64,32 @@ export function NotificationsProvider({
     }
   }, [user?.id, fetchNotifications]);
 
-  const markAsReadNotification = useCallback(async (id: string) => {
-    try {
-      await markAsRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error("Erro ao marcar como lido:", error);
-    }
-  }, []);
+  const markAsReadNotification = useCallback(
+    async (id: string) => {
+      try {
+        await markAsRead(id, user?.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error("Erro ao marcar como lido:", error);
+      }
+    },
+    [user?.id],
+  );
 
-  const deleteNotificationItem = useCallback(async (id: string) => {
-    try {
-      await deleteNotification(id);
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-    } catch (error) {
-      console.error("Erro ao deletar notificação:", error);
-    }
-  }, []);
+  const deleteNotificationItem = useCallback(
+    async (id: string) => {
+      try {
+        await deleteNotification(id, user?.id);
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+      } catch (error) {
+        console.error("Erro ao deletar notificação:", error);
+      }
+    },
+    [user?.id],
+  );
 
   useEffect(() => {
     fetchNotifications();

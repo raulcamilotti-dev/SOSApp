@@ -2,7 +2,7 @@ import { ADMIN_PAGES } from "@/core/admin/admin-pages";
 import { useRouter, useSegments } from "expo-router";
 import { ReactNode, useEffect } from "react";
 import { useAuth } from "./AuthContext";
-import { isUserProfileComplete } from "./auth.utils";
+import { isRadulUser, isUserProfileComplete } from "./auth.utils";
 import { ADMIN_PANEL_PERMISSIONS } from "./permissions";
 import {
     clearReturnTo,
@@ -57,14 +57,20 @@ export function AuthGate({ children }: Props) {
       adminRoutePath.toLowerCase(),
   );
 
+  const isSuperAdmin = isRadulUser(user);
+
   const canAccessCurrentAdminPage = currentAdminPage
-    ? currentAdminPage.requiredAnyPermissions?.length
-      ? hasAnyPermission(currentAdminPage.requiredAnyPermissions)
-      : // Pages without explicit permissions: allow if user can access
-        // the admin panel at all. Individual pages use ProtectedRoute
-        // for fine-grained access control.
-        canAccessAdmin
-    : true;
+    ? // Enforce superAdminOnly pages — only Radul platform users can access
+      currentAdminPage.superAdminOnly && !isSuperAdmin
+      ? false
+      : currentAdminPage.requiredAnyPermissions?.length
+        ? hasAnyPermission(currentAdminPage.requiredAnyPermissions)
+        : // Pages without explicit permissions: allow if user can access
+          // the admin panel at all. Individual pages use ProtectedRoute
+          // for fine-grained access control.
+          canAccessAdmin
+    : // Unregistered pages default to requiring admin access (deny-by-default)
+      canAccessAdmin;
   const isProfileCompletionRoute = segments.some(
     (segment) => segment === "complete-profile",
   );

@@ -1,20 +1,29 @@
 import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { filterActive } from "@/core/utils/soft-delete";
+import { useSafeTenantId } from "@/hooks/use-safe-tenant-id";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import {  buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import {
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    type CrudFilter,
+} from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
 import { TouchableOpacity, View } from "react-native";
 
 type Row = Record<string, unknown>;
 
-const listRows = async (): Promise<Row[]> => {
+const listRows = async (tenantId?: string): Promise<Row[]> => {
+  const filters: CrudFilter[] = [];
+  if (tenantId) {
+    filters.push({ field: "tenant_id", value: tenantId });
+  }
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "service_reviews",
-    ...buildSearchParams([], { sortColumn: "created_at" }),
+    ...buildSearchParams(filters, { sortColumn: "created_at" }),
   });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
@@ -53,14 +62,22 @@ export default function AvaliacoesServicoAdminScreen() {
   const tenantIdParam = Array.isArray(params.tenantId)
     ? params.tenantId[0]
     : params.tenantId;
+  const { tenantId, isUrlOverride } = useSafeTenantId(tenantIdParam);
   const tintColor = useThemeColor({}, "tint");
   const borderColor = useThemeColor({}, "border");
 
   const loadRowsWithRelations = useMemo(() => {
     return async (): Promise<Row[]> => {
+      const tenantFilters: CrudFilter[] = tenantId
+        ? [{ field: "tenant_id", value: tenantId }]
+        : [];
       const [reviewRows, logsResponse] = await Promise.all([
-        listRows(),
-        api.post(CRUD_ENDPOINT, { action: "list", table: "review_logs" }),
+        listRows(tenantId),
+        api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "review_logs",
+          ...buildSearchParams(tenantFilters),
+        }),
       ]);
 
       const logsRaw = logsResponse.data;
@@ -73,12 +90,6 @@ export default function AvaliacoesServicoAdminScreen() {
       return reviewRows
         .filter((review) => {
           if (reviewIdParam && String(review.id ?? "") !== reviewIdParam) {
-            return false;
-          }
-          if (
-            tenantIdParam &&
-            String(review.tenant_id ?? "") !== tenantIdParam
-          ) {
             return false;
           }
           return true;
@@ -95,16 +106,16 @@ export default function AvaliacoesServicoAdminScreen() {
           };
         });
     };
-  }, [reviewIdParam, tenantIdParam]);
+  }, [reviewIdParam, tenantId]);
 
   const createWithContext = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {
       return createRow({
         ...payload,
-        tenant_id: tenantIdParam ?? payload.tenant_id,
+        tenant_id: tenantId ?? payload.tenant_id,
       });
     };
-  }, [tenantIdParam]);
+  }, [tenantId]);
 
   const updateWithContext = useMemo(() => {
     return async (
@@ -112,10 +123,10 @@ export default function AvaliacoesServicoAdminScreen() {
     ): Promise<unknown> => {
       return updateRow({
         ...payload,
-        tenant_id: tenantIdParam ?? payload.tenant_id,
+        tenant_id: tenantId ?? payload.tenant_id,
       });
     };
-  }, [tenantIdParam]);
+  }, [tenantId]);
 
   const fields: CrudFieldConfig<Row>[] = [
     {
@@ -128,7 +139,7 @@ export default function AvaliacoesServicoAdminScreen() {
       referenceIdField: "id",
       required: true,
       visibleInList: true,
-      visibleInForm: !tenantIdParam,
+      visibleInForm: !isUrlOverride,
     },
     {
       key: "service_id",

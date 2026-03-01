@@ -33,16 +33,48 @@ export async function getToken() {
 }
 
 export async function saveUser(user: User | null) {
-  if (user) {
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
-  } else {
-    await AsyncStorage.removeItem(USER_KEY);
+  const json = user ? JSON.stringify(user) : null;
+  try {
+    if (json) {
+      await SecureStore.setItemAsync(USER_KEY, json);
+    } else {
+      await SecureStore.deleteItemAsync(USER_KEY);
+    }
+    // Clean up legacy AsyncStorage entry if it exists
+    try {
+      await AsyncStorage.removeItem(USER_KEY);
+    } catch {
+      /* best-effort cleanup */
+    }
+  } catch {
+    // Fallback for web / environments without SecureStore
+    if (json) {
+      await AsyncStorage.setItem(USER_KEY, json);
+    } else {
+      await AsyncStorage.removeItem(USER_KEY);
+    }
   }
 }
 
 export async function getUser(): Promise<User | null> {
+  try {
+    const secure = await SecureStore.getItemAsync(USER_KEY);
+    if (secure) return JSON.parse(secure);
+  } catch {
+    /* SecureStore unavailable — fall through to AsyncStorage */
+  }
+  // Fallback: check AsyncStorage (legacy or web)
   const raw = await AsyncStorage.getItem(USER_KEY);
-  return raw ? JSON.parse(raw) : null;
+  if (!raw) return null;
+  const user: User = JSON.parse(raw);
+  // Migrate legacy data to SecureStore on next read
+  try {
+    await SecureStore.setItemAsync(USER_KEY, raw);
+    await AsyncStorage.removeItem(USER_KEY);
+  } catch {
+    /* best-effort migration */
+  }
+  return user;
 }
 
 export async function saveTenantOptions(tenants: TenantOption[]) {

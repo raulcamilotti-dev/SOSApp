@@ -1,26 +1,34 @@
 /**
  * Estoque — Admin screen
  *
- * CrudScreen showing current stock position for all products (track_stock=true).
+ * CrudScreen showing current stock position for all items with track_stock=true.
  * Read-only list — stock changes come from sales, purchases, and manual adjustments.
  * Low-stock items highlighted with a warning indicator.
+ * Recalculate button ensures stock_quantity matches the sum of all movements.
  */
 
 import { ThemedText } from "@/components/themed-text";
+import type { CrudScreenHandle } from "@/components/ui/CrudScreen";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
-import { adjustStock } from "@/services/stock";
+import { adjustStock, recalculateStockFromMovements } from "@/services/stock";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { Alert, Text, TouchableOpacity, View } from "react-native";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type Row = Record<string, unknown>;
 
@@ -38,25 +46,46 @@ export default function EstoqueScreen() {
   const borderColor = useThemeColor({}, "border");
   const warningColor = "#f59e0b";
 
+  const crudRef = useRef<CrudScreenHandle | null>(null);
+  const [recalculating, setRecalculating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   const loadItems = useMemo(() => {
     return async (): Promise<Row[]> => {
       const filters = [
         ...(tenantId ? [{ field: "tenant_id", value: tenantId }] : []),
-        { field: "item_kind", value: "product", operator: "equal" as const },
         { field: "track_stock", value: "true", operator: "equal" as const },
-        { field: "is_active", value: "true", operator: "equal" as const },
       ];
       const res = await api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "services",
-        ...buildSearchParams(filters, { sortColumn: "name ASC" }),
+        ...buildSearchParams(filters, {
+          sortColumn: "name ASC",
+          autoExcludeDeleted: true,
+        }),
       });
-      return normalizeCrudList<Row>(res.data).filter((r) => !r.deleted_at);
+      return normalizeCrudList<Row>(res.data);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, reloadKey]);
+
+  const handleRecalculate = useCallback(async () => {
+    if (!tenantId) return;
+    setRecalculating(true);
+    try {
+      const result = await recalculateStockFromMovements(tenantId);
+      const msg =
+        result.corrected > 0
+          ? `${result.recalculated} itens verificados, ${result.corrected} corrigido(s).`
+          : `${result.recalculated} itens verificados. Estoque já está correto.`;
+      Alert.alert("Recálculo concluído", msg);
+      setReloadKey((k) => k + 1);
+    } catch (err: any) {
+      Alert.alert("Erro", err?.message ?? "Falha ao recalcular estoque.");
+    } finally {
+      setRecalculating(false);
+    }
+  }, [tenantId]);
 
   // Read-only — no create/delete.
   // Only adjustments via renderItemActions.
@@ -128,13 +157,24 @@ export default function EstoqueScreen() {
     { key: "id", label: "Id", visibleInForm: false },
     {
       key: "name",
-      label: "Produto",
+      label: "Item",
       readOnly: true,
       visibleInList: true,
     },
     {
       key: "sku",
       label: "SKU",
+      readOnly: true,
+      visibleInList: true,
+    },
+    {
+      key: "item_kind",
+      label: "Tipo",
+      type: "select",
+      options: [
+        { label: "Produto", value: "product" },
+        { label: "Serviço", value: "service" },
+      ],
       readOnly: true,
       visibleInList: true,
     },
@@ -168,21 +208,52 @@ export default function EstoqueScreen() {
   return (
     <CrudScreen<Row>
       title="Estoque"
-      subtitle="Posição de estoque dos produtos"
-      searchPlaceholder="Buscar produto..."
+      subtitle="Posição de estoque — todos os itens rastreados"
+      searchPlaceholder="Buscar item..."
       searchFields={["name", "sku"]}
       fields={fields}
       loadItems={loadItems}
       createItem={noop}
       updateItem={updateStock}
+      controlRef={crudRef}
+      headerActions={
+        <TouchableOpacity
+          onPress={handleRecalculate}
+          disabled={recalculating}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            borderWidth: 1,
+            borderColor: tintColor,
+            borderRadius: 8,
+            paddingHorizontal: 12,
+            paddingVertical: 8,
+            opacity: recalculating ? 0.6 : 1,
+          }}
+        >
+          {recalculating ? (
+            <ActivityIndicator size="small" color={tintColor} />
+          ) : (
+            <Ionicons name="refresh-outline" size={16} color={tintColor} />
+          )}
+          <ThemedText
+            style={{ color: tintColor, fontWeight: "700", fontSize: 13 }}
+          >
+            {recalculating ? "Recalculando..." : "Recalcular Estoque"}
+          </ThemedText>
+        </TouchableOpacity>
+      }
       getDetails={(item) => {
         const qty = Number(item.stock_quantity ?? 0);
         const min = Number(item.min_stock ?? 0);
         const isLow = min > 0 && qty <= min;
+        const kind = item.item_kind === "product" ? "Produto" : "Serviço";
 
         return [
-          { label: "Produto", value: String(item.name ?? "-") },
+          { label: "Item", value: String(item.name ?? "-") },
           { label: "SKU", value: String(item.sku ?? "-") },
+          { label: "Tipo", value: kind },
           {
             label: "Estoque",
             value: `${qty}${isLow ? " ⚠️ BAIXO" : ""}`,
@@ -280,7 +351,7 @@ export default function EstoqueScreen() {
         const qty = Number(item.stock_quantity ?? 0);
         const min = Number(item.min_stock ?? 0);
         const isLow = min > 0 && qty <= min;
-        return `📦 ${item.name ?? "Produto"} — ${qty} un${isLow ? " ⚠️" : ""}`;
+        return `📦 ${item.name ?? "Item"} — ${qty} un${isLow ? " ⚠️" : ""}`;
       }}
     />
   );

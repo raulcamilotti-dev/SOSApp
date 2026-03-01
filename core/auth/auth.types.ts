@@ -10,6 +10,9 @@ export interface User {
   fullname?: string;
   tenant_id?: string;
 
+  /** Server-set flag for Radul platform admins (B13 fix) */
+  is_platform_admin?: boolean;
+
   // opcionais (não obrigar agora)
   name?: string;
   phone?: string;

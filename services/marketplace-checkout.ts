@@ -20,24 +20,29 @@
  */
 
 import { api } from "./api";
+import {
+  getDefaultBankAccountId,
+  KNOWN_ACCOUNT_CODES,
+  resolveChartAccountId,
+} from "./chart-of-accounts";
 import { explodeComposition, type ExplodedItem } from "./compositions";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    type CrudFilter,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  type CrudFilter,
 } from "./crud";
 import { getMarketplaceConfig, type MarketplaceConfig } from "./marketplace";
 import { asaasCreateCharge } from "./partner";
 import {
-    generatePixPayload,
-    generatePixQRCodeBase64,
-    type PixPayloadParams,
+  generatePixPayload,
+  generatePixQRCodeBase64,
+  type PixPayloadParams,
 } from "./pix";
 import {
-    clearCart,
-    getCartWithItems,
-    type CartWithItems,
+  clearCart,
+  getCartWithItems,
+  type CartWithItems,
 } from "./shopping-cart";
 
 /* ------------------------------------------------------------------ */
@@ -584,6 +589,12 @@ export async function createOnlineOrder(
     };
   });
 
+  // Resolve chart of accounts (marketplace channel) + default bank account
+  const [chartAccountId, defaultBankAccountId] = await Promise.all([
+    resolveChartAccountId(tenantId, KNOWN_ACCOUNT_CODES.VENDAS_MARKETPLACE),
+    getDefaultBankAccountId(tenantId),
+  ]);
+
   // Build invoice payload (title set by Worker using sale_id)
   const invoicePayload: Record<string, unknown> = {
     tenant_id: tenantId,
@@ -596,6 +607,8 @@ export async function createOnlineOrder(
     issued_at: toIsoNow(),
     due_at: toIsoNow(),
     paid_at: null,
+    chart_account_id: chartAccountId,
+    bank_account_id: defaultBankAccountId,
   };
 
   // Build invoice items (non-composition-parent items)
@@ -621,6 +634,8 @@ export async function createOnlineOrder(
     due_date: toIsoNow().slice(0, 10),
     recurrence: "none",
     payment_method: "pix",
+    chart_account_id: chartAccountId,
+    bank_account_id: defaultBankAccountId,
   };
 
   // Build partner earning (if applicable)

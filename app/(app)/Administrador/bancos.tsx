@@ -1,21 +1,28 @@
 import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { CRUD_ENDPOINT, normalizeCrudList } from "@/services/crud";
+import {
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+} from "@/services/crud";
 import { useRouter } from "expo-router";
+import { useMemo } from "react";
 import { TouchableOpacity } from "react-native";
 
 type Row = Record<string, unknown>;
 
 const TABLE = "banks";
 
-const listRows = async (): Promise<Row[]> => {
+const listRowsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
+  const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: TABLE,
-    sort_column: "name ASC",
+    ...buildSearchParams(filters, { sortColumn: "name ASC" }),
   });
   return filterActive(normalizeCrudList<Row>(res.data));
 };
@@ -96,6 +103,13 @@ const fields: CrudFieldConfig<Row>[] = [
 export default function BancosScreen() {
   const router = useRouter();
   const tintColor = useThemeColor({}, "tint");
+  const { user } = useAuth();
+  const tenantId = user?.tenant_id;
+
+  const loadItems = useMemo(
+    () => () => listRowsForTenant(tenantId),
+    [tenantId],
+  );
 
   return (
     <CrudScreen<Row>
@@ -104,7 +118,7 @@ export default function BancosScreen() {
       searchPlaceholder="Buscar banco..."
       searchFields={["name", "bank_code"]}
       fields={fields}
-      loadItems={listRows}
+      loadItems={loadItems}
       createItem={createRow}
       updateItem={updateRow}
       deleteItem={deleteRow}

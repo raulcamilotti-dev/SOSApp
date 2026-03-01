@@ -1,7 +1,7 @@
 import {
-    ADMIN_PANEL_PERMISSIONS,
-    PERMISSIONS,
-    type Permission,
+  ADMIN_PANEL_PERMISSIONS,
+  PERMISSIONS,
+  type Permission,
 } from "@/core/auth/permissions";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -695,19 +695,6 @@ export const ADMIN_PAGES: AdminPage[] = [
     ],
   },
   {
-    id: "split_servicos",
-    group: "Financeiro",
-    module: "operacao",
-    title: "Splits por Servico",
-    description: "Regras de divisao por servico e parceiro",
-    icon: "git-branch-outline",
-    route: "/Administrador/split-servicos",
-    requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
-    ],
-  },
-  {
     id: "dashboard_financeiro",
     group: "Financeiro",
     module: "operacao",
@@ -1352,5 +1339,39 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "reader-outline",
     route: "/Administrador/contract-detail",
     hidden: true,
+  },
+
+  // ---- Telas legado / auxiliares ----
+  {
+    id: "agenda_legacy",
+    group: "Agenda",
+    module: "operacao",
+    title: "Agenda (Legado)",
+    description: "Gestão de agendamentos de serviços (tela legado)",
+    icon: "calendar-outline",
+    route: "/Administrador/Agenda",
+    hidden: true,
+    requiredAnyPermissions: [PERMISSIONS.APPOINTMENT_READ],
+  },
+  {
+    id: "split_servicos",
+    group: "Serviços",
+    module: "operacao",
+    title: "Regras de Split de Serviços",
+    description: "Configuração de regras de divisão de serviços",
+    icon: "git-branch-outline",
+    route: "/Administrador/split-servicos",
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_TYPE_READ],
+  },
+  {
+    id: "solicitacao_compras",
+    group: "Estoque & Compras",
+    module: "operacao",
+    title: "Solicitação de Compra (Detalhado)",
+    description: "Requisições internas com workflow de aprovação detalhado",
+    icon: "clipboard-outline",
+    route: "/Administrador/SolicitacaoCompras",
+    hidden: true,
+    requiredAnyPermissions: [PERMISSIONS.PURCHASE_WRITE],
   },
 ];

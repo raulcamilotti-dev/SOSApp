@@ -10,9 +10,9 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { useMemo } from "react";
 
@@ -151,6 +151,13 @@ export default function RegrasDescontoScreen() {
       section: "Limites",
     },
     {
+      key: "can_edit_price",
+      label: "Pode Editar Preço de Venda",
+      type: "boolean",
+      visibleInList: true,
+      section: "Limites",
+    },
+    {
       key: "is_active",
       label: "Ativo",
       type: "boolean",
@@ -185,6 +192,10 @@ export default function RegrasDescontoScreen() {
           value: item.requires_approval_above
             ? `${item.requires_approval_above}%`
             : "Sem limite de aprovação",
+        },
+        {
+          label: "Editar Preço",
+          value: item.can_edit_price ? "Sim" : "Não",
         },
         { label: "Ativo", value: item.is_active ? "Sim" : "Não" },
       ]}

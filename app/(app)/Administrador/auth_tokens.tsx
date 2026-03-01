@@ -1,16 +1,19 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
+import { PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
-import { CRUD_ENDPOINT } from "@/services/crud";
 
 type Row = Record<string, unknown>;
 
-const listRows = async (): Promise<Row[]> => {
+const listRows = async (userId?: string): Promise<Row[]> => {
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "auth_tokens",
+    ...(userId ? buildSearchParams([{ field: "user_id", value: userId }]) : {}),
   });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
@@ -64,11 +67,7 @@ export default function AuthTokensScreen() {
 
   const loadFilteredRows = useMemo(() => {
     return async (): Promise<Row[]> => {
-      const rows = await listRows();
-      return rows.filter((item) => {
-        if (userId && String(item.user_id ?? "") !== userId) return false;
-        return true;
-      });
+      return listRows(userId);
     };
   }, [userId]);
 
@@ -123,23 +122,25 @@ export default function AuthTokensScreen() {
   ];
 
   return (
-    <CrudScreen<Row>
-      title="Auth Tokens"
-      subtitle="Gestao de auth tokens"
-      searchPlaceholder="Buscar por token ou usuário"
-      searchFields={["token", "user_id"]}
-      fields={fields}
-      loadItems={loadFilteredRows}
-      createItem={createWithContext}
-      updateItem={updateWithContext}
-      deleteItem={deleteRow}
-      getDetails={(item) => [
-        { label: "Usuário", value: String(item.user_id ?? "-") },
-        { label: "Expira em", value: String(item.expires_at ?? "-") },
-        { label: "Revogado em", value: String(item.revoked_at ?? "-") },
-      ]}
-      getId={(item) => String(item.id ?? "")}
-      getTitle={(item) => String(item.token ?? "Auth Token")}
-    />
+    <ProtectedRoute requiredPermission={PERMISSIONS.ADMIN_FULL}>
+      <CrudScreen<Row>
+        title="Auth Tokens"
+        subtitle="Gestao de auth tokens"
+        searchPlaceholder="Buscar por token ou usuário"
+        searchFields={["token", "user_id"]}
+        fields={fields}
+        loadItems={loadFilteredRows}
+        createItem={createWithContext}
+        updateItem={updateWithContext}
+        deleteItem={deleteRow}
+        getDetails={(item) => [
+          { label: "Usuário", value: String(item.user_id ?? "-") },
+          { label: "Expira em", value: String(item.expires_at ?? "-") },
+          { label: "Revogado em", value: String(item.revoked_at ?? "-") },
+        ]}
+        getId={(item) => String(item.id ?? "")}
+        getTitle={(item) => String(item.token ?? "Auth Token")}
+      />
+    </ProtectedRoute>
   );
 }

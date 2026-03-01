@@ -4,6 +4,7 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
 import { PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
+import { useSafeTenantId } from "@/hooks/use-safe-tenant-id";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
@@ -83,9 +84,10 @@ export default function UsersManagementScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ tenantId?: string; roleId?: string }>();
-  const tenantIdParam =
-    (Array.isArray(params.tenantId) ? params.tenantId[0] : params.tenantId) ||
-    user?.tenant_id;
+  const urlTenantParam = Array.isArray(params.tenantId)
+    ? params.tenantId[0]
+    : params.tenantId;
+  const { tenantId: safeTenantId } = useSafeTenantId(urlTenantParam);
   const roleIdParam = Array.isArray(params.roleId)
     ? params.roleId[0]
     : params.roleId;
@@ -134,14 +136,10 @@ export default function UsersManagementScreen() {
     setPasswordSaving(true);
     setPasswordError(null);
     try {
-      await api.post(CRUD_ENDPOINT, {
-        action: "update",
-        table: "users",
-        payload: {
-          id: passwordUserId,
-          password_hash: trimmed,
-          updated_at: new Date().toISOString(),
-        },
+      // Use dedicated /auth/set-password endpoint that hashes with bcrypt
+      await api.post("/auth/set-password", {
+        user_id: passwordUserId,
+        password: trimmed,
       });
       setPasswordSuccess(true);
       setNewPassword("");
@@ -162,7 +160,7 @@ export default function UsersManagementScreen() {
     return async (): Promise<User[]> => {
       const [rows, userTenants] = await Promise.all([
         listUsers(),
-        tenantIdParam || roleIdParam ? listUserTenants() : Promise.resolve([]),
+        safeTenantId || roleIdParam ? listUserTenants() : Promise.resolve([]),
       ]);
 
       const tenantsByUser = new Map<string, Set<string>>();
@@ -192,11 +190,11 @@ export default function UsersManagementScreen() {
       return rows.filter((item) => {
         const userId = String(item.id ?? "");
 
-        if (tenantIdParam) {
+        if (safeTenantId) {
           const directTenantId = String(item.tenant_id ?? "");
           const linkedTenants = tenantsByUser.get(userId);
-          const hasTenantLink = Boolean(linkedTenants?.has(tenantIdParam));
-          if (directTenantId !== tenantIdParam && !hasTenantLink) {
+          const hasTenantLink = Boolean(linkedTenants?.has(safeTenantId));
+          if (directTenantId !== safeTenantId && !hasTenantLink) {
             return false;
           }
         }
@@ -211,11 +209,11 @@ export default function UsersManagementScreen() {
         return true;
       });
     };
-  }, [roleIdParam, tenantIdParam]);
+  }, [roleIdParam, safeTenantId]);
 
   const createWithContext = useMemo(() => {
     return async (payload: Partial<User>): Promise<unknown> => {
-      const effectiveTenantId = tenantIdParam ?? payload.tenant_id;
+      const effectiveTenantId = safeTenantId ?? payload.tenant_id;
       const effectiveRoleId = roleIdParam ?? payload.role_id;
       const email = String(payload.email ?? "")
         .trim()
@@ -305,7 +303,7 @@ export default function UsersManagementScreen() {
         role_id: effectiveRoleId,
       });
     };
-  }, [roleIdParam, tenantIdParam]);
+  }, [roleIdParam, safeTenantId]);
 
   const updateWithContext = useMemo(() => {
     return async (
@@ -313,11 +311,11 @@ export default function UsersManagementScreen() {
     ): Promise<unknown> => {
       return updateUser({
         ...payload,
-        tenant_id: tenantIdParam ?? payload.tenant_id,
+        tenant_id: safeTenantId ?? payload.tenant_id,
         role_id: roleIdParam ?? payload.role_id,
       });
     };
-  }, [roleIdParam, tenantIdParam]);
+  }, [roleIdParam, safeTenantId]);
 
   const fields: CrudFieldConfig<User>[] = [
     { key: "id", label: "Id", placeholder: "Id", visibleInForm: false },
@@ -359,8 +357,8 @@ export default function UsersManagementScreen() {
       visibleInList: true,
       visibleInForm: !roleIdParam,
       referenceFilter: (item) => {
-        // Filter roles by the tenant context (tenantIdParam or form's tenant_id)
-        const targetTenantId = tenantIdParam;
+        // Filter roles by the tenant context (safeTenantId or form's tenant_id)
+        const targetTenantId = safeTenantId;
         if (!targetTenantId) return true; // No tenant context — show all
         return String(item.tenant_id ?? "") === targetTenantId;
       },
@@ -374,7 +372,15 @@ export default function UsersManagementScreen() {
       referenceLabelField: "company_name",
       referenceSearchField: "company_name",
       referenceIdField: "id",
-      visibleInForm: !tenantIdParam,
+      visibleInForm: !safeTenantId,
+    },
+    {
+      key: "can_view_all_partners",
+      label: "Ver todos os parceiros",
+      type: "boolean",
+      visibleInList: false,
+      visibleInForm: true,
+      section: "Permissões",
     },
     {
       key: "created_at",

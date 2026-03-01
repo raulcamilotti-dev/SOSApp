@@ -8,10 +8,10 @@
 import { api } from "./api";
 import type { CrudFilter } from "./crud";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    normalizeCrudOne,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  normalizeCrudOne,
 } from "./crud";
 
 // ── Types ──
@@ -19,6 +19,7 @@ import {
 export interface ServiceOrder {
   id: string;
   tenant_id: string;
+  partner_id?: string | null;
   customer_id?: string | null;
   service_type_id?: string | null;
   service_id?: string | null;

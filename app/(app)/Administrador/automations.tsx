@@ -1,16 +1,29 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { useAuth } from "@/core/auth/AuthContext";
+import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
+import { PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
-import { CRUD_ENDPOINT } from "@/services/crud";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
 
 type Row = Record<string, unknown>;
 
-const listRows = async (): Promise<Row[]> => {
+const listRows = async (filters: {
+  tenantId?: string;
+  agentId?: string;
+}): Promise<Row[]> => {
+  const searchFilters = [];
+  if (filters.tenantId)
+    searchFilters.push({ field: "tenant_id", value: filters.tenantId });
+  if (filters.agentId)
+    searchFilters.push({ field: "agent_id", value: filters.agentId });
+
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "automations",
+    ...(searchFilters.length > 0 ? buildSearchParams(searchFilters) : {}),
   });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
@@ -57,6 +70,7 @@ const deleteRow = async (
 };
 
 export default function AutomationsScreen() {
+  const { user } = useAuth();
   const params = useLocalSearchParams<{
     agentId?: string;
     tenantId?: string;
@@ -64,20 +78,17 @@ export default function AutomationsScreen() {
   const agentId = Array.isArray(params.agentId)
     ? params.agentId[0]
     : params.agentId;
-  const tenantId = Array.isArray(params.tenantId)
+  const paramTenantId = Array.isArray(params.tenantId)
     ? params.tenantId[0]
     : params.tenantId;
+  // Use URL param tenant or fall back to current user's tenant for scoping
+  const tenantId = paramTenantId ?? user?.tenant_id;
 
   const loadFilteredRows = useMemo(() => {
     return async (): Promise<Row[]> => {
-      const rows = await listRows();
-      return rows.filter((item) => {
-        if (agentId && String(item.agent_id ?? "") !== agentId) return false;
-        if (tenantId && String(item.tenant_id ?? "") !== tenantId) return false;
-        return true;
-      });
+      return listRows({ tenantId, agentId });
     };
-  }, [agentId, tenantId]);
+  }, [tenantId, agentId]);
 
   const createWithContext = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {
@@ -161,22 +172,24 @@ export default function AutomationsScreen() {
   ];
 
   return (
-    <CrudScreen<Row>
-      title="Automations"
-      subtitle="Gestao de automations"
-      fields={fields}
-      loadItems={loadFilteredRows}
-      createItem={createWithContext}
-      updateItem={updateWithContext}
-      deleteItem={deleteRow}
-      getDetails={(item) => [
-        { label: "Tenant", value: String(item.tenant_id ?? "-") },
-        { label: "Agent", value: String(item.agent_id ?? "-") },
-        { label: "Trigger", value: String(item.trigger ?? "-") },
-        { label: "Action", value: String(item.action ?? "-") },
-      ]}
-      getId={(item) => String(item.id ?? "")}
-      getTitle={(item) => String(item.trigger ?? "Automation")}
-    />
+    <ProtectedRoute requiredPermission={PERMISSIONS.ADMIN_FULL}>
+      <CrudScreen<Row>
+        title="Automations"
+        subtitle="Gestao de automations"
+        fields={fields}
+        loadItems={loadFilteredRows}
+        createItem={createWithContext}
+        updateItem={updateWithContext}
+        deleteItem={deleteRow}
+        getDetails={(item) => [
+          { label: "Tenant", value: String(item.tenant_id ?? "-") },
+          { label: "Agent", value: String(item.agent_id ?? "-") },
+          { label: "Trigger", value: String(item.trigger ?? "-") },
+          { label: "Action", value: String(item.action ?? "-") },
+        ]}
+        getId={(item) => String(item.id ?? "")}
+        getTitle={(item) => String(item.trigger ?? "Automation")}
+      />
+    </ProtectedRoute>
   );
 }

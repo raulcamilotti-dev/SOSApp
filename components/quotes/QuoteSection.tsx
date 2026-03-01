@@ -8,41 +8,41 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
-    applyTemplateToQuote,
-    formatTemplateCurrency,
-    listQuoteTemplates,
-    parseTemplateItems,
-    type QuoteTemplate,
+  applyTemplateToQuote,
+  formatTemplateCurrency,
+  listQuoteTemplates,
+  parseTemplateItems,
+  type QuoteTemplate,
 } from "@/services/quote-templates";
 import {
-    buildQuoteUrl,
-    buildQuoteWhatsAppUrl,
-    createQuote,
-    deleteQuote,
-    listQuoteItems,
-    listQuotes,
-    sendQuote,
-    type Quote,
-    type QuoteItem,
-    type QuoteItemInput,
-    type QuoteStatus,
+  buildQuoteUrl,
+  buildQuoteWhatsAppUrl,
+  createQuote,
+  deleteQuote,
+  listQuoteItems,
+  listQuotes,
+  sendQuote,
+  type Quote,
+  type QuoteItem,
+  type QuoteItemInput,
+  type QuoteStatus,
 } from "@/services/quotes";
 import { Ionicons } from "@expo/vector-icons";
 import type { AxiosInstance } from "axios";
 import * as Clipboard from "expo-clipboard";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Linking,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 /* ── Props ──────────────────────────────────────────────────────── */
@@ -52,6 +52,7 @@ interface QuoteSectionProps {
   serviceOrderId: string;
   tenantId: string;
   userId: string;
+  partnerId?: string | null;
   workflowStepId?: string | null;
   orderTitle?: string | null;
 }
@@ -83,6 +84,7 @@ export function QuoteSection({
   serviceOrderId,
   tenantId,
   userId,
+  partnerId,
   workflowStepId,
   orderTitle,
 }: QuoteSectionProps) {
@@ -239,6 +241,7 @@ export function QuoteSection({
       await createQuote(authApi, {
         tenantId,
         serviceOrderId,
+        partnerId: partnerId ?? undefined,
         workflowStepId: workflowStepId ?? undefined,
         title: formTitle.trim(),
         description: formDescription.trim() || undefined,
@@ -268,6 +271,7 @@ export function QuoteSection({
     authApi,
     tenantId,
     serviceOrderId,
+    partnerId,
     workflowStepId,
     userId,
     formTitle,

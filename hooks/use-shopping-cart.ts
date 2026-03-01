@@ -21,15 +21,15 @@
 
 import { useAuth } from "@/core/auth/AuthContext";
 import {
-    addToCart,
-    clearCart,
-    getCartWithItems,
-    mergeCartOnLogin,
-    refreshCartPrices,
-    removeCartItem,
-    updateCartItemQuantity,
-    type CartItem,
-    type CartWithItems,
+  addToCart,
+  clearCart,
+  getCartWithItems,
+  mergeCartOnLogin,
+  refreshCartPrices,
+  removeCartItem,
+  updateCartItemQuantity,
+  type CartItem,
+  type CartWithItems,
 } from "@/services/shopping-cart";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
@@ -41,19 +41,29 @@ import { Platform } from "react-native";
 const SESSION_STORAGE_KEY = "sos_cart_session_id";
 
 function generateSessionId(): string {
-  // Simple v4 UUID without crypto dependency
-  const hex = "0123456789abcdef";
+  // Use crypto.getRandomValues for cryptographically secure UUIDs
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback: crypto.getRandomValues (available in all modern browsers + React Native)
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
+      "",
+    );
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+  }
+  // Last resort fallback (should never reach here in modern environments)
+  const h = "0123456789abcdef";
   let uuid = "";
   for (let i = 0; i < 36; i++) {
-    if (i === 8 || i === 13 || i === 18 || i === 23) {
-      uuid += "-";
-    } else if (i === 14) {
-      uuid += "4";
-    } else if (i === 19) {
-      uuid += hex[(Math.random() * 4) | 8];
-    } else {
-      uuid += hex[(Math.random() * 16) | 0];
-    }
+    if (i === 8 || i === 13 || i === 18 || i === 23) uuid += "-";
+    else if (i === 14) uuid += "4";
+    else if (i === 19) uuid += h[(Math.random() * 4) | 8];
+    else uuid += h[(Math.random() * 16) | 0];
   }
   return uuid;
 }

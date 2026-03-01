@@ -61,6 +61,9 @@ export interface PurchaseOrder {
   payment_method?: string | null;
   installments?: number | null;
   notes?: string | null;
+  bank_account_id?: string | null;
+  chart_account_id?: string | null;
+  due_date?: string | null;
   config?: Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
@@ -138,6 +141,9 @@ export async function createPurchaseOrder(
     notes?: string;
     paymentMethod?: string;
     installments?: number;
+    bankAccountId?: string;
+    chartAccountId?: string;
+    dueDate?: string;
     userId?: string;
   },
   items: {
@@ -179,6 +185,9 @@ export async function createPurchaseOrder(
       payment_method: data.paymentMethod ?? null,
       installments:
         (data.installments ?? 1) > 1 ? (data.installments ?? 1) : null,
+      bank_account_id: data.bankAccountId ?? null,
+      chart_account_id: data.chartAccountId ?? null,
+      due_date: data.dueDate ?? null,
       created_by: data.userId ?? null,
       notes: data.notes ?? null,
     },
@@ -444,50 +453,99 @@ export async function createAccountsPayableForPO(
   const totalAmount = Number(po.total ?? 0);
   if (totalAmount <= 0) return;
 
-  // Split total evenly across installments, last one gets remainder
+  // Separate freight from merchandise for proper chart-of-accounts allocation
+  const shippingCost = Number(po.shipping_cost ?? 0);
+  const merchandiseAmount = Math.max(0, totalAmount - shippingCost);
+
+  // Split MERCHANDISE evenly across installments, last one gets remainder
   const installmentCount = terms.length;
-  const baseAmount = Math.floor((totalAmount / installmentCount) * 100) / 100;
+  const baseAmount =
+    Math.floor((merchandiseAmount / installmentCount) * 100) / 100;
   const remainder =
-    Math.round((totalAmount - baseAmount * installmentCount) * 100) / 100;
+    Math.round((merchandiseAmount - baseAmount * installmentCount) * 100) / 100;
 
   const today = new Date();
   const invoiceRef = po.invoice_number ? ` NF ${po.invoice_number}` : "";
 
   // Auto-classify chart of accounts for purchases
-  const purchaseChartAccountId = await resolveChartAccountId(
+  // Prefer PO-level chart_account_id if user set one; fall back to auto-resolve
+  const purchaseChartAccountId =
+    po.chart_account_id ||
+    (await resolveChartAccountId(
+      tenantId,
+      KNOWN_ACCOUNT_CODES.CUSTO_MERCADORIA,
+    ));
+
+  // Resolve freight chart account (always automatic — 2.1.05 Frete sobre Compras)
+  const freightChartAccountId = await resolveChartAccountId(
     tenantId,
-    KNOWN_ACCOUNT_CODES.CUSTO_MERCADORIA,
+    KNOWN_ACCOUNT_CODES.FRETE_COMPRAS,
   );
 
-  for (let i = 0; i < installmentCount; i++) {
-    const dueDate = addDays(today, terms[i]);
-    const amount =
-      i === installmentCount - 1 ? baseAmount + remainder : baseAmount;
-    const installmentLabel =
-      installmentCount > 1 ? ` (${i + 1}/${installmentCount})` : "";
+  // --- Merchandise AP entries (with installments) ---
+  if (merchandiseAmount > 0) {
+    for (let i = 0; i < installmentCount; i++) {
+      const dueDate = addDays(today, terms[i]);
+      const amount =
+        i === installmentCount - 1 ? baseAmount + remainder : baseAmount;
+      const installmentLabel =
+        installmentCount > 1 ? ` (${i + 1}/${installmentCount})` : "";
 
+      await createAccountPayable({
+        tenant_id: tenantId,
+        description: `Compra ${supplierName}${invoiceRef}${installmentLabel}`,
+        type: "expense",
+        category: "Compras / Mercadoria",
+        payment_method: po.payment_method ?? undefined,
+        supplier_id: po.supplier_id ?? undefined,
+        purchase_order_id: po.id,
+        supplier_name: supplierName || undefined,
+        amount,
+        amount_paid: 0,
+        status: "pending",
+        currency: "BRL",
+        due_date: dueDate,
+        competence_date:
+          today.toISOString().split("T")[0].substring(0, 8) + "01",
+        recurrence: "none",
+        chart_account_id: purchaseChartAccountId,
+        bank_account_id: po.bank_account_id ?? undefined,
+        notes: JSON.stringify({
+          type: "purchase_order",
+          purchase_order_id: po.id,
+          installment: i + 1,
+          total_installments: installmentCount,
+          payment_terms: paymentTerms || "à vista",
+        }),
+        created_by: userId ?? undefined,
+      });
+    }
+  }
+
+  // --- Freight AP entry (single, separate chart account) ---
+  if (shippingCost > 0) {
+    const freightDueDate = addDays(today, terms[0] ?? 0);
     await createAccountPayable({
       tenant_id: tenantId,
-      description: `Compra ${supplierName}${invoiceRef}${installmentLabel}`,
+      description: `Frete - Compra ${supplierName}${invoiceRef}`,
       type: "expense",
-      category: "Compras / Mercadoria",
+      category: "Frete / Logística",
       payment_method: po.payment_method ?? undefined,
       supplier_id: po.supplier_id ?? undefined,
       purchase_order_id: po.id,
       supplier_name: supplierName || undefined,
-      amount,
+      amount: shippingCost,
       amount_paid: 0,
       status: "pending",
       currency: "BRL",
-      due_date: dueDate,
+      due_date: freightDueDate,
       competence_date: today.toISOString().split("T")[0].substring(0, 8) + "01",
       recurrence: "none",
-      chart_account_id: purchaseChartAccountId,
+      chart_account_id: freightChartAccountId,
+      bank_account_id: po.bank_account_id ?? undefined,
       notes: JSON.stringify({
-        type: "purchase_order",
+        type: "purchase_order_freight",
         purchase_order_id: po.id,
-        installment: i + 1,
-        total_installments: installmentCount,
         payment_terms: paymentTerms || "à vista",
       }),
       created_by: userId ?? undefined,

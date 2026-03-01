@@ -13,29 +13,30 @@ import { filterActive } from "@/core/utils/soft-delete";
 import { usePartnerScope } from "@/hooks/use-partner-scope";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
+import { createBankEntryFromAR } from "@/services/bank-transactions";
 import {
-    CRUD_ENDPOINT,
-    buildSearchParams,
-    normalizeCrudList,
+  CRUD_ENDPOINT,
+  buildSearchParams,
+  normalizeCrudList,
 } from "@/services/crud";
 import { generatePixPayload, generatePixQRCodeBase64 } from "@/services/pix";
 import {
-    generateReceipt,
-    isReceiptAutomationEnabled,
-    logAutomationExecution,
+  generateReceipt,
+  isReceiptAutomationEnabled,
+  logAutomationExecution,
 } from "@/services/receipt-generator";
 import { confirmSeatPayment } from "@/services/saas-billing";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    Pressable,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 type Row = Record<string, unknown>;
@@ -46,9 +47,13 @@ type Row = Record<string, unknown>;
 
 const loadItemsForTenant = async (
   tenantId?: string | null,
+  partnerFilter?: { field: string; value: string }[],
   pagination?: { limit: number; offset: number },
 ): Promise<Row[]> => {
-  const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
+  const filters = [
+    ...(tenantId ? [{ field: "tenant_id", value: tenantId }] : []),
+    ...(partnerFilter ?? []),
+  ];
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "accounts_receivable",
@@ -457,7 +462,7 @@ export default function ContasAReceberScreen() {
   const { user } = useAuth();
   const tenantId = user?.tenant_id;
   const userId = user?.id;
-  const { isPartnerUser, customerIds } = usePartnerScope();
+  const { isPartnerUser, customerIds, partnerFilter } = usePartnerScope();
 
   const [uploadingFile, setUploadingFile] = useState(false);
 
@@ -469,26 +474,16 @@ export default function ContasAReceberScreen() {
 
   const loadItems = useMemo(
     () => async () => {
-      const items = await loadItemsForTenant(tenantId);
-      if (!isPartnerUser || customerIds.length === 0) return items;
-      const allowedSet = new Set(customerIds);
-      return items.filter((item) =>
-        allowedSet.has(String(item.customer_id ?? "")),
-      );
+      return loadItemsForTenant(tenantId, partnerFilter);
     },
-    [tenantId, isPartnerUser, customerIds],
+    [tenantId, partnerFilter],
   );
   const paginatedLoadItems = useMemo(
     () =>
       async ({ limit, offset }: { limit: number; offset: number }) => {
-        const items = await loadItemsForTenant(tenantId, { limit, offset });
-        if (!isPartnerUser || customerIds.length === 0) return items;
-        const allowedSet = new Set(customerIds);
-        return items.filter((item) =>
-          allowedSet.has(String(item.customer_id ?? "")),
-        );
+        return loadItemsForTenant(tenantId, partnerFilter, { limit, offset });
       },
-    [tenantId, isPartnerUser, customerIds],
+    [tenantId, partnerFilter],
   );
 
   const fileToBase64Web = (uri: string): Promise<string> =>
@@ -686,10 +681,31 @@ export default function ContasAReceberScreen() {
     ): Promise<unknown> => {
       const result = await updateItemRaw(payload);
 
-      // If status was set to "paid", trigger receipt auto-generation + SaaS seat unlock
+      // If status was set to "paid", trigger receipt auto-generation + SaaS seat unlock + bank entry
       if (String(payload.status ?? "") === "paid" && tenantId && payload.id) {
         // Fire-and-forget — don't block the update
         (async () => {
+          // ── Auto bank statement entry ──
+          try {
+            const arRes = await api.post(CRUD_ENDPOINT, {
+              action: "list",
+              table: "accounts_receivable",
+              ...buildSearchParams([
+                { field: "id", value: String(payload.id) },
+              ]),
+            });
+            const arEntries = normalizeCrudList<Row>(arRes.data);
+            const arEntry = arEntries[0];
+            if (arEntry?.bank_account_id) {
+              await createBankEntryFromAR(arEntry, userId ?? undefined);
+            }
+          } catch (bankErr) {
+            console.warn(
+              "[ContasAReceber] Bank entry automation error:",
+              bankErr,
+            );
+          }
+
           // SaaS Billing: auto-unlock user seats if this is a seat purchase
           try {
             const seatResult = await confirmSeatPayment(

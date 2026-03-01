@@ -14,12 +14,12 @@
 import { api } from "@/services/api";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 import { useAuth } from "./AuthContext";
 import { isUserAdmin } from "./auth.utils";
@@ -120,19 +120,17 @@ export function PermissionsProvider({
         return;
       }
 
-      // 3+4. Fetch role_permissions and permissions in parallel
-      const [rolePermissionsRes, permissionsRes] = await Promise.all([
-        api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "role_permissions",
-        }),
-        api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "permissions",
-        }),
-      ]);
+      // 3. Fetch role_permissions scoped by role_ids (avoids fetching ALL role_permissions)
+      const rolePermissionsRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "role_permissions",
+        ...buildSearchParams([
+          { field: "role_id", value: roleIds.join(","), operator: "in" },
+        ]),
+      });
 
       const rolePermissionsList = normalizeList(rolePermissionsRes.data);
+      // Client-side safety: re-verify role_id match
       const userRolePermissions = rolePermissionsList.filter((rp: any) =>
         roleIds.includes(String(rp?.role_id ?? rp?.id_role)),
       );
@@ -151,7 +149,17 @@ export function PermissionsProvider({
         return;
       }
 
+      // 4. Fetch permissions scoped by IDs (avoids fetching ALL permissions)
+      const permissionsRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "permissions",
+        ...buildSearchParams([
+          { field: "id", value: permissionIds.join(","), operator: "in" },
+        ]),
+      });
+
       const permissionsList = normalizeList(permissionsRes.data);
+      // Client-side safety: re-verify ID match
       const userPermissionObjects = permissionsList.filter((p: any) =>
         permissionIds.includes(String(p?.id ?? p?.id_permission)),
       );
@@ -202,8 +210,13 @@ export function PermissionsProvider({
     [permissions],
   );
 
-  const isAdmin =
-    permissions.includes(PERMISSIONS.ADMIN_FULL) || isUserAdmin(user);
+  /**
+   * B16 fix: Single source of truth for admin detection.
+   * Admin users are detected in fetchPermissions() (line ~81) which injects
+   * ADMIN_FULL into the permissions array. We derive isAdmin from that single
+   * source — no need for a redundant isUserAdmin() call here.
+   */
+  const isAdmin = permissions.includes(PERMISSIONS.ADMIN_FULL);
 
   const value = useMemo<PermissionsContextType>(
     () => ({

@@ -7,9 +7,9 @@
 
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 
 /* ------------------------------------------------------------------ */
@@ -302,6 +302,16 @@ const DEFAULT_ACCOUNTS: SeedAccount[] = [
     is_leaf: true,
     display_order: 214,
     parentCode: "2.1",
+  },
+  {
+    code: "2.1.05",
+    name: "Frete sobre Compras",
+    type: "cost",
+    level: 3,
+    is_leaf: true,
+    display_order: 215,
+    parentCode: "2.1",
+    description: "Frete pago em compras de mercadorias e insumos",
   },
 
   // ═══════ 3 — DESPESAS ═══════
@@ -735,6 +745,13 @@ export const KNOWN_ACCOUNT_CODES = {
   CUSTO_SERVICO: "2.1.02",
   PAGAMENTO_PARCEIROS: "2.1.03",
   COMISSOES_PAGAS: "2.1.04",
+  FRETE_COMPRAS: "2.1.05",
+
+  // Sales channels (revenue by channel)
+  VENDAS_PDV: "1.4.01",
+  VENDAS_ONLINE: "1.4.02",
+  VENDAS_MARKETPLACE: "1.4.03",
+  FRETE_VENDAS: "1.4.07",
 
   // Expenses (common)
   ALUGUEL: "3.1.01",
@@ -815,4 +832,73 @@ export async function resolveChartAccountIds(
     result.set(code, codeMap?.get(code) ?? null);
   }
   return result;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Default bank account helper                                        */
+/* ------------------------------------------------------------------ */
+
+/** In-memory cache: tenantId → default bank account UUID */
+const _defaultBankCache = new Map<string, string | null>();
+const _defaultBankCacheTs = new Map<string, number>();
+const BANK_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Get the default bank account ID for a tenant.
+ *
+ * Strategy: returns the bank account marked as `is_default = true`.
+ * If none is marked, returns the first active account (oldest by created_at).
+ * Returns `null` if no bank accounts exist (graceful — never blocks operations).
+ */
+export async function getDefaultBankAccountId(
+  tenantId: string,
+): Promise<string | null> {
+  if (!tenantId) return null;
+
+  // Check cache
+  const now = Date.now();
+  const cachedTs = _defaultBankCacheTs.get(tenantId);
+  if (cachedTs && now - cachedTs < BANK_CACHE_TTL_MS) {
+    return _defaultBankCache.get(tenantId) ?? null;
+  }
+
+  try {
+    // Try to find account marked as default first
+    const defaultRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "bank_accounts",
+      ...buildSearchParams(
+        [
+          { field: "tenant_id", value: tenantId },
+          { field: "is_default", value: "true" },
+        ],
+        { sortColumn: "created_at ASC", autoExcludeDeleted: true },
+      ),
+    });
+    const defaultAccounts = normalizeCrudList<{ id: string }>(defaultRes.data);
+    if (defaultAccounts.length > 0) {
+      const id = defaultAccounts[0].id;
+      _defaultBankCache.set(tenantId, id);
+      _defaultBankCacheTs.set(tenantId, now);
+      return id;
+    }
+
+    // Fallback: first active account by creation date
+    const fallbackRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "bank_accounts",
+      ...buildSearchParams([{ field: "tenant_id", value: tenantId }], {
+        sortColumn: "created_at ASC",
+        autoExcludeDeleted: true,
+      }),
+    });
+    const allAccounts = normalizeCrudList<{ id: string }>(fallbackRes.data);
+    const id = allAccounts.length > 0 ? allAccounts[0].id : null;
+    _defaultBankCache.set(tenantId, id);
+    _defaultBankCacheTs.set(tenantId, now);
+    return id;
+  } catch {
+    // Never block financial operations
+    return null;
+  }
 }

@@ -20,17 +20,17 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 /* ------------------------------------------------------------------ */
@@ -106,6 +106,7 @@ export default function DREScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [rows, setRows] = useState<DreRow[]>([]);
   const [summaryRows, setSummaryRows] = useState<DreSummaryRow[]>([]);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -114,6 +115,8 @@ export default function DREScreen() {
     if (!tenantId) return;
     try {
       setError(null);
+      setTruncated(false);
+      let hitLimit = false;
 
       // 1) Get all non-cancelled sales for the year
       const startDate = `${year}-01-01`;
@@ -133,10 +136,15 @@ export default function DREScreen() {
             { field: "created_at", value: startDate, operator: "gte" as const },
             { field: "created_at", value: endDate, operator: "lt" as const },
           ],
-          { sortColumn: "created_at ASC", limit: 5000 },
+          {
+            sortColumn: "created_at ASC",
+            limit: 5000,
+            autoExcludeDeleted: true,
+          },
         ),
       });
       const sales = normalizeCrudList<Record<string, unknown>>(salesRes.data);
+      if (sales.length >= 5000) hitLimit = true;
 
       if (sales.length === 0) {
         setRows([]);
@@ -157,10 +165,11 @@ export default function DREScreen() {
               operator: "in" as const,
             },
           ],
-          { limit: 10000 },
+          { limit: 10000, autoExcludeDeleted: true },
         ),
       });
       const items = normalizeCrudList<Record<string, unknown>>(itemsRes.data);
+      if (items.length >= 10000) hitLimit = true;
 
       // 3) Build a sale lookup (id → sale)
       const saleMap = new Map(sales.map((s) => [String(s.id), s]));
@@ -227,14 +236,18 @@ export default function DREScreen() {
               { field: "due_date", value: startDate, operator: "gte" as const },
               { field: "due_date", value: endDate, operator: "lt" as const },
             ],
-            { sortColumn: "due_date ASC", limit: 5000 },
+            {
+              sortColumn: "due_date ASC",
+              limit: 5000,
+              autoExcludeDeleted: true,
+            },
           ),
         });
         const apEntries = normalizeCrudList<Record<string, unknown>>(
           apRes.data,
         );
+        if (apEntries.length >= 5000) hitLimit = true;
         for (const ap of apEntries) {
-          if (ap.deleted_at) continue;
           const dt = String(ap.competence_date ?? ap.due_date ?? "");
           const period = dt.slice(0, 7) || `${year}-01`;
           const amt = Number(ap.amount ?? 0);
@@ -323,6 +336,7 @@ export default function DREScreen() {
       }
       newSummary.sort((a, b) => b.period.localeCompare(a.period));
       setSummaryRows(newSummary);
+      setTruncated(hitLimit);
     } catch {
       setError("Erro ao carregar DRE");
     }
@@ -446,6 +460,26 @@ export default function DREScreen() {
           >
             <ThemedText style={{ color: "#ef4444", textAlign: "center" }}>
               {error}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {truncated ? (
+          <View
+            style={{
+              padding: 12,
+              backgroundColor: "#f59e0b22",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: "#f59e0b44",
+              marginBottom: 16,
+            }}
+          >
+            <ThemedText
+              style={{ color: "#f59e0b", fontSize: 13, textAlign: "center" }}
+            >
+              ⚠️ Volume de dados excede o limite de carregamento. Os valores
+              exibidos podem estar incompletos.
             </ThemedText>
           </View>
         ) : null}

@@ -43,6 +43,7 @@ export type QuoteStatus =
 export interface Quote {
   id: string;
   tenant_id: string;
+  partner_id?: string | null;
   service_order_id: string;
   workflow_step_id?: string | null;
   template_id?: string | null;
@@ -108,8 +109,21 @@ export interface PublicQuoteData {
 /*  Internal helpers                                                   */
 /* ------------------------------------------------------------------ */
 
-/** Generate a URL-safe token (32 hex chars) */
+/** Generate a URL-safe token using crypto-secure randomness (32 hex chars) */
 export function generateQuoteToken(): string {
+  // Use crypto.getRandomValues when available (web + modern RN)
+  if (
+    typeof globalThis !== "undefined" &&
+    globalThis.crypto &&
+    typeof globalThis.crypto.getRandomValues === "function"
+  ) {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+  // Fallback for environments without crypto API
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   let token = "";
   for (let i = 0; i < 32; i++) {
@@ -166,6 +180,7 @@ export async function createQuote(
     serviceOrderId: string;
     workflowStepId?: string;
     templateId?: string;
+    partnerId?: string;
     title: string;
     description?: string;
     items: QuoteItemInput[];
@@ -193,6 +208,7 @@ export async function createQuote(
     payload: {
       tenant_id: params.tenantId,
       service_order_id: params.serviceOrderId,
+      partner_id: params.partnerId || null,
       workflow_step_id: params.workflowStepId || null,
       template_id: params.templateId || null,
       token,
@@ -417,16 +433,20 @@ export async function validateQuoteToken(
 
     const quote = quotes[0];
 
-    // Get tenant name
+    // Get tenant name — only fetch necessary fields to avoid data exposure
     let tenantName = "";
     try {
       const tenantRes = await publicApi.post(CRUD_ENDPOINT, {
         action: "list",
         table: "tenants",
         ...buildSearchParams([{ field: "id", value: quote.tenant_id }]),
+        fields: "id,name,company_name",
       });
-      const tenants = normalizeCrudList<{ name: string }>(tenantRes.data);
-      tenantName = tenants[0]?.name ?? "";
+      const tenants = normalizeCrudList<{
+        name: string;
+        company_name?: string;
+      }>(tenantRes.data);
+      tenantName = tenants[0]?.company_name ?? tenants[0]?.name ?? "";
     } catch {
       /* ignore */
     }
@@ -485,16 +505,21 @@ export async function loadPublicQuote(
       (i) => !i.deleted_at,
     );
 
-    // Fetch tenant name
+    // Fetch tenant name — only fetch necessary fields
     let tenantName = "";
     try {
       const tenantRes = await publicApi.post(CRUD_ENDPOINT, {
         action: "list",
         table: "tenants",
         ...buildSearchParams([{ field: "id", value: quote.tenant_id }]),
+        fields: "id,name,company_name",
       });
       tenantName =
-        normalizeCrudList<{ name: string }>(tenantRes.data)[0]?.name ?? "";
+        normalizeCrudList<{ name: string; company_name?: string }>(
+          tenantRes.data,
+        )[0]?.company_name ??
+        normalizeCrudList<{ name: string }>(tenantRes.data)[0]?.name ??
+        "";
     } catch {
       /* ignore */
     }

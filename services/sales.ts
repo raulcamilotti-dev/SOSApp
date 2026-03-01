@@ -15,16 +15,17 @@
 
 import { api } from "./api";
 import {
-    KNOWN_ACCOUNT_CODES,
-    resolveChartAccountId,
+  getDefaultBankAccountId,
+  KNOWN_ACCOUNT_CODES,
+  resolveChartAccountId,
 } from "./chart-of-accounts";
 import { explodeComposition } from "./compositions";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    normalizeCrudOne,
-    type CrudFilter,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  normalizeCrudOne,
+  type CrudFilter,
 } from "./crud";
 import { recordStockMovement } from "./stock";
 
@@ -293,6 +294,7 @@ export async function createSale(
     table: "services",
     ...buildSearchParams([
       { field: "id", value: serviceIds.join(","), operator: "in" },
+      { field: "tenant_id", value: tenantId },
     ]),
   });
   const services = normalizeCrudList<Record<string, unknown>>(svcRes.data);
@@ -553,7 +555,14 @@ export async function createSale(
     });
   }
 
-  // 8. Create invoice
+  // 8. Resolve chart of accounts + default bank account (BEFORE invoice creation)
+  const chartAccountId = await resolveChartAccountId(
+    tenantId,
+    KNOWN_ACCOUNT_CODES.VENDAS_PDV,
+  );
+  const defaultBankAccountId = await getDefaultBankAccountId(tenantId);
+
+  // 9. Create invoice
   const invoiceRes = await api.post(CRUD_ENDPOINT, {
     action: "create",
     table: "invoices",
@@ -570,6 +579,8 @@ export async function createSale(
       issued_at: now,
       due_at: now,
       paid_at: isPaid ? now : null,
+      chart_account_id: chartAccountId,
+      bank_account_id: defaultBankAccountId,
     },
   });
   const invoice = normalizeCrudOne<Record<string, unknown>>(invoiceRes.data);
@@ -598,15 +609,6 @@ export async function createSale(
     payload: { id: sale.id, invoice_id: invoiceId },
   });
 
-  // 9. Auto-classify chart of accounts based on sale item composition
-  const hasProducts = createdItems.some((i) => i.item_kind === "product");
-  const hasServices = createdItems.some((i) => i.item_kind === "service");
-  const revenueCode =
-    hasProducts && !hasServices
-      ? KNOWN_ACCOUNT_CODES.RECEITA_PRODUTOS
-      : KNOWN_ACCOUNT_CODES.RECEITA_SERVICOS; // default to services (or mixed)
-  const chartAccountId = await resolveChartAccountId(tenantId, revenueCode);
-
   // 10. Create accounts_receivable
   const arRes = await api.post(CRUD_ENDPOINT, {
     action: "create",
@@ -628,6 +630,7 @@ export async function createSale(
       recurrence: "none",
       payment_method: paymentMethodStr,
       chart_account_id: chartAccountId,
+      bank_account_id: defaultBankAccountId,
     },
   });
   const ar = normalizeCrudOne<Record<string, unknown>>(arRes.data);
@@ -647,6 +650,7 @@ export async function createSale(
           method: params.paymentMethod,
           status: "confirmed",
           paid_at: now,
+          bank_account_id: defaultBankAccountId,
         },
       });
       const pay = normalizeCrudOne<Record<string, unknown>>(payRes.data);
@@ -665,6 +669,7 @@ export async function createSale(
           method: split.method,
           status: "confirmed",
           paid_at: now,
+          bank_account_id: defaultBankAccountId,
         },
       });
       const pay = normalizeCrudOne<Record<string, unknown>>(payRes.data);
@@ -1069,7 +1074,23 @@ export async function listSales(
 /**
  * Get sale items for a sale.
  */
-export async function getSaleItems(saleId: string): Promise<SaleItem[]> {
+export async function getSaleItems(
+  saleId: string,
+  tenantId?: string,
+): Promise<SaleItem[]> {
+  // sale_items doesn't have tenant_id, but we validate the sale belongs to this tenant
+  if (tenantId) {
+    const saleRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "sales",
+      ...buildSearchParams([
+        { field: "id", value: saleId },
+        { field: "tenant_id", value: tenantId },
+      ]),
+    });
+    const sales = normalizeCrudList<Sale>(saleRes.data);
+    if (sales.length === 0) return [];
+  }
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "sale_items",
@@ -1086,10 +1107,25 @@ export async function getSaleItems(saleId: string): Promise<SaleItem[]> {
 export async function getPendingSeparation(
   tenantId: string,
 ): Promise<SaleItem[]> {
+  // First get sales for this tenant, then get their items
+  // This prevents cross-tenant data leakage in the initial query
+  const salesRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "sales",
+    ...buildSearchParams([
+      { field: "tenant_id", value: tenantId },
+      { field: "status", value: "cancelled", operator: "not_equal" },
+    ]),
+  });
+  const tenantSales = normalizeCrudList<Sale>(salesRes.data);
+  if (tenantSales.length === 0) return [];
+  const saleIds = tenantSales.map((s) => s.id);
+
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "sale_items",
     ...buildSearchParams([
+      { field: "sale_id", value: saleIds.join(","), operator: "in" },
       {
         field: "separation_status",
         value: "pending,in_progress",
@@ -1097,23 +1133,7 @@ export async function getPendingSeparation(
       },
     ]),
   });
-  // Filter by tenant via join with sales
-  const items = normalizeCrudList<SaleItem>(res.data);
-  // Note: api_crud doesn't support JOINs, so we fetch sales to filter
-  if (items.length === 0) return [];
-  const saleIds = [...new Set(items.map((i) => i.sale_id))];
-  const salesRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "sales",
-    ...buildSearchParams([
-      { field: "id", value: saleIds.join(","), operator: "in" },
-      { field: "tenant_id", value: tenantId },
-    ]),
-  });
-  const validSaleIds = new Set(
-    normalizeCrudList<Sale>(salesRes.data).map((s) => s.id),
-  );
-  return items.filter((i) => validSaleIds.has(i.sale_id));
+  return normalizeCrudList<SaleItem>(res.data);
 }
 
 /**
@@ -1122,28 +1142,28 @@ export async function getPendingSeparation(
 export async function getPendingDelivery(
   tenantId: string,
 ): Promise<SaleItem[]> {
-  const res = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "sale_items",
-    ...buildSearchParams([
-      { field: "delivery_status", value: "pending,in_transit", operator: "in" },
-    ]),
-  });
-  const items = normalizeCrudList<SaleItem>(res.data);
-  if (items.length === 0) return [];
-  const saleIds = [...new Set(items.map((i) => i.sale_id))];
+  // First get sales for this tenant, then get their items
   const salesRes = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "sales",
     ...buildSearchParams([
-      { field: "id", value: saleIds.join(","), operator: "in" },
       { field: "tenant_id", value: tenantId },
+      { field: "status", value: "cancelled", operator: "not_equal" },
     ]),
   });
-  const validSaleIds = new Set(
-    normalizeCrudList<Sale>(salesRes.data).map((s) => s.id),
-  );
-  return items.filter((i) => validSaleIds.has(i.sale_id));
+  const tenantSales = normalizeCrudList<Sale>(salesRes.data);
+  if (tenantSales.length === 0) return [];
+  const saleIds = tenantSales.map((s) => s.id);
+
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "sale_items",
+    ...buildSearchParams([
+      { field: "sale_id", value: saleIds.join(","), operator: "in" },
+      { field: "delivery_status", value: "pending,in_transit", operator: "in" },
+    ]),
+  });
+  return normalizeCrudList<SaleItem>(res.data);
 }
 
 /**
@@ -1154,10 +1174,24 @@ export async function getPendingDelivery(
 export async function getPendingScheduling(
   tenantId: string,
 ): Promise<SaleItem[]> {
+  // First get sales for this tenant, then get their items
+  const salesRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "sales",
+    ...buildSearchParams([
+      { field: "tenant_id", value: tenantId },
+      { field: "status", value: "cancelled", operator: "not_equal" },
+    ]),
+  });
+  const tenantSales = normalizeCrudList<Sale>(salesRes.data);
+  if (tenantSales.length === 0) return [];
+  const saleIds = tenantSales.map((s) => s.id);
+
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "sale_items",
     ...buildSearchParams([
+      { field: "sale_id", value: saleIds.join(","), operator: "in" },
       { field: "item_kind", value: "service" },
       {
         field: "fulfillment_status",
@@ -1166,21 +1200,7 @@ export async function getPendingScheduling(
       },
     ]),
   });
-  const items = normalizeCrudList<SaleItem>(res.data).filter(
+  return normalizeCrudList<SaleItem>(res.data).filter(
     (i) => !i.is_composition_parent,
   );
-  if (items.length === 0) return [];
-  const saleIds = [...new Set(items.map((i) => i.sale_id))];
-  const salesRes = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "sales",
-    ...buildSearchParams([
-      { field: "id", value: saleIds.join(","), operator: "in" },
-      { field: "tenant_id", value: tenantId },
-    ]),
-  });
-  const validSaleIds = new Set(
-    normalizeCrudList<Sale>(salesRes.data).map((s) => s.id),
-  );
-  return items.filter((i) => validSaleIds.has(i.sale_id));
 }

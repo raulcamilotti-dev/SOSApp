@@ -2389,6 +2389,7 @@ export default function EtapaPropertiesScreen() {
           serviceOrderId={serviceOrderId}
           tenantId={user.tenant_id}
           userId={user.id}
+          partnerId={(user as any)?.partner_id ?? null}
           workflowStepId={orderInfo.currentStepId}
           orderTitle={orderInfo.orderTitle}
         />

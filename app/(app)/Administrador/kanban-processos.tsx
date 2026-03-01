@@ -8,34 +8,35 @@
 
 import { spacing, typography } from "@/app/theme/styles";
 import {
-    KanbanScreen,
-    type KanbanColumnDef,
-    type KanbanScreenRef,
-    type KanbanTheme,
+  KanbanScreen,
+  type KanbanColumnDef,
+  type KanbanScreenRef,
+  type KanbanTheme,
 } from "@/components/ui/KanbanScreen";
 import { useAuth } from "@/core/auth/AuthContext";
+import { usePartnerScope } from "@/hooks/use-partner-scope";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 /* ─── Types ─── */
@@ -156,6 +157,7 @@ export default function ProcessKanbanScreen({
 }: ProcessKanbanProps = {}) {
   const isAdminScope = scope === "administrative";
   const { user } = useAuth();
+  const { partnerFilter, isPartnerUser } = usePartnerScope();
   const kanbanRef = useRef<KanbanScreenRef>(null);
 
   // ── Theme ──
@@ -243,6 +245,7 @@ export default function ProcessKanbanScreen({
                     },
                   ]
                 : []),
+              ...partnerFilter,
             ],
             { sortColumn: "created_at DESC" },
           ),
@@ -310,7 +313,7 @@ export default function ProcessKanbanScreen({
     } finally {
       setTypesLoading(false);
     }
-  }, [user?.tenant_id, scope]);
+  }, [user?.tenant_id, scope, partnerFilter]);
 
   useEffect(() => {
     loadServiceTypes();
@@ -322,12 +325,16 @@ export default function ProcessKanbanScreen({
 
   const loadColumns = useCallback(async (): Promise<KanbanColumnDef[]> => {
     if (!selectedTypeId) return [];
+    const tenantId = user?.tenant_id ?? null;
+    const tenantFilter = tenantId
+      ? [{ field: "tenant_id", value: tenantId }]
+      : [];
 
     const [templatesRes, stepsRes] = await Promise.all([
       api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "workflow_templates",
-        ...buildSearchParams([], { sortColumn: "created_at" }),
+        ...buildSearchParams(tenantFilter, { sortColumn: "created_at" }),
       }),
       api.post(CRUD_ENDPOINT, {
         action: "list",
@@ -391,28 +398,33 @@ export default function ProcessKanbanScreen({
       order: step.step_order ?? 0,
       description: step.description,
     }));
-  }, [selectedTypeId, serviceTypes, tintColor, scope]);
+  }, [selectedTypeId, serviceTypes, tintColor, scope, user?.tenant_id]);
 
   const loadItems = useCallback(async (): Promise<ServiceOrderItem[]> => {
     if (!selectedTypeId) return [];
     const tenantId = user?.tenant_id ?? null;
+    const tenantFilter = tenantId
+      ? [{ field: "tenant_id", value: tenantId }]
+      : [];
 
     const [ordersRes, tasksRes, customersRes, ctxRes, propsRes] =
       await Promise.all([
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "service_orders",
-          ...buildSearchParams([], { sortColumn: "created_at" }),
+          ...buildSearchParams([...tenantFilter, ...partnerFilter], {
+            sortColumn: "created_at",
+          }),
         }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "tasks",
-          ...buildSearchParams([], { sortColumn: "created_at" }),
+          ...buildSearchParams(tenantFilter, { sortColumn: "created_at" }),
         }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "customers",
-          ...buildSearchParams([], { sortColumn: "name" }),
+          ...buildSearchParams(tenantFilter, { sortColumn: "name" }),
         }),
         api.post(CRUD_ENDPOINT, {
           action: "list",
@@ -421,7 +433,7 @@ export default function ProcessKanbanScreen({
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "properties",
-          ...buildSearchParams([], { sortColumn: "address" }),
+          ...buildSearchParams(tenantFilter, { sortColumn: "address" }),
         }),
       ]);
 
@@ -456,9 +468,7 @@ export default function ProcessKanbanScreen({
     const filteredOrders = allOrders
       .filter((o) => o.process_status === "active")
       .filter((o) => (o as any).service_type_id === selectedTypeId)
-      .filter((o) =>
-        tenantId ? !o.tenant_id || o.tenant_id === tenantId : true,
-      );
+      .filter((o) => (tenantId ? o.tenant_id === tenantId : true));
 
     const allTasks = normalizeCrudList<TaskItem>(tasksRes.data).filter(
       (t) => !t.deleted_at,
@@ -488,7 +498,7 @@ export default function ProcessKanbanScreen({
         property_id: propId ?? null,
       };
     });
-  }, [selectedTypeId, user]);
+  }, [selectedTypeId, user, user?.tenant_id, partnerFilter]);
 
   /* ══════════════════════════════════════════════════════
    * QUICK-ADVANCE + MOVE ITEM
@@ -729,6 +739,9 @@ export default function ProcessKanbanScreen({
         table: "service_orders",
         payload: {
           tenant_id: user?.tenant_id ?? null,
+          partner_id: isPartnerUser
+            ? ((user as any)?.partner_id ?? null)
+            : null,
           customer_id: selectedCustomerId,
           service_type_id: selectedTypeId,
           template_id: firstStep.template_id,

@@ -1,24 +1,29 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { api } from "@/services/api";
-import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import {
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+} from "@/services/crud";
+import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
 
 type Row = Record<string, unknown>;
 
-const loadRows = async (tenantId?: string | null): Promise<Row[]> => {
-  const filters = tenantId
-    ? buildSearchParams([{ field: "tenant_id", value: tenantId }])
-    : {};
+const loadRows = async (
+  tenantId?: string | null,
+  serviceId?: string | null,
+): Promise<Row[]> => {
+  const filters: { field: string; value: string }[] = [];
+  if (tenantId) filters.push({ field: "tenant_id", value: tenantId });
+  if (serviceId) filters.push({ field: "service_id", value: serviceId });
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "service_split_rules",
-    ...filters,
+    ...buildSearchParams(filters, { autoExcludeDeleted: true }),
   });
-  const list = Array.isArray(response.data)
-    ? response.data
-    : (response.data?.data ?? []);
-  return Array.isArray(list) ? (list as Row[]) : [];
+  return normalizeCrudList<Row>(response.data).filter((r) => !r.deleted_at);
 };
 
 const createRow = async (payload: Partial<Row>): Promise<unknown> => {
@@ -44,8 +49,21 @@ const updateRow = async (
 export default function SplitServicosScreen() {
   const { user } = useAuth();
   const tenantId = user?.tenant_id ?? null;
+  const params = useLocalSearchParams<{
+    serviceId?: string;
+    serviceName?: string;
+  }>();
+  const serviceId = Array.isArray(params.serviceId)
+    ? params.serviceId[0]
+    : params.serviceId;
+  const serviceName = Array.isArray(params.serviceName)
+    ? params.serviceName[0]
+    : params.serviceName;
 
-  const loadItems = useMemo(() => () => loadRows(tenantId), [tenantId]);
+  const loadItems = useMemo(
+    () => () => loadRows(tenantId, serviceId),
+    [tenantId, serviceId],
+  );
 
   const fields: CrudFieldConfig<Row>[] = [
     {
@@ -69,7 +87,8 @@ export default function SplitServicosScreen() {
       referenceSearchField: "name",
       referenceIdField: "id",
       required: true,
-      visibleInList: true,
+      visibleInList: !serviceId,
+      visibleInForm: !serviceId,
       section: "Alvo",
     },
     {
@@ -157,14 +176,15 @@ export default function SplitServicosScreen() {
       createRow({
         ...payload,
         tenant_id: tenantId,
+        service_id: serviceId ?? payload.service_id,
         created_by: user?.id ?? null,
       }),
-    [tenantId, user?.id],
+    [tenantId, serviceId, user?.id],
   );
 
   return (
     <CrudScreen<Row>
-      title="Splits por Servico"
+      title={serviceName ? `Splits — ${serviceName}` : "Splits por Servico"}
       subtitle="Configure a divisao de pagamentos entre voce e parceiros. Radul recebe 0,5% fixo de cada transacao."
       fields={fields}
       loadItems={loadItems}

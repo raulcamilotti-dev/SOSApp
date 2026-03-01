@@ -167,6 +167,15 @@ export default function ComprasScreen() {
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string | null>(
     null,
   );
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState("");
+  const [selectedChartAccountId, setSelectedChartAccountId] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [bankAccounts, setBankAccounts] = useState<
+    { id: string; label: string }[]
+  >([]);
+  const [chartAccounts, setChartAccounts] = useState<
+    { id: string; label: string }[]
+  >([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [receiveModalVisible, setReceiveModalVisible] = useState(false);
@@ -227,6 +236,50 @@ export default function ComprasScreen() {
         status: "approved",
       });
       setPurchaseRequests(reqs);
+
+      // Load bank accounts for payment reference
+      try {
+        const bankRes = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "bank_accounts",
+          ...buildSearchParams([{ field: "tenant_id", value: tenantId }], {
+            sortColumn: "account_name ASC",
+            autoExcludeDeleted: true,
+          }),
+        });
+        setBankAccounts(
+          normalizeCrudList<Row>(bankRes.data).map((b) => ({
+            id: String(b.id),
+            label:
+              `${b.account_name ?? ""}${b.bank_name ? ` (${b.bank_name})` : ""}`.trim(),
+          })),
+        );
+      } catch {
+        setBankAccounts([]);
+      }
+
+      // Load chart of accounts (leaf accounts only for selection)
+      try {
+        const chartRes = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "chart_of_accounts",
+          ...buildSearchParams(
+            [
+              { field: "tenant_id", value: tenantId },
+              { field: "is_leaf", value: "true", operator: "equal" },
+            ],
+            { sortColumn: "code ASC", autoExcludeDeleted: true },
+          ),
+        });
+        setChartAccounts(
+          normalizeCrudList<Row>(chartRes.data).map((c) => ({
+            id: String(c.id),
+            label: `${c.code ?? ""} - ${c.name ?? ""}`.trim(),
+          })),
+        );
+      } catch {
+        setChartAccounts([]);
+      }
     } catch {
       /* silent */
     } finally {
@@ -249,6 +302,9 @@ export default function ComprasScreen() {
     setShowProductPicker(false);
     setPaymentMethod("");
     setInstallments("1");
+    setSelectedBankAccountId("");
+    setSelectedChartAccountId("");
+    setDueDate("");
     setCreateModalVisible(true);
     loadReferenceData();
   }, [loadReferenceData]);
@@ -330,6 +386,9 @@ export default function ComprasScreen() {
           notes: poNotes || undefined,
           paymentMethod: paymentMethod || undefined,
           installments: Math.max(1, parseInt(installments) || 1),
+          bankAccountId: selectedBankAccountId || undefined,
+          chartAccountId: selectedChartAccountId || undefined,
+          dueDate: dueDate || undefined,
           userId: user?.id,
         },
         poItems.map((i) => ({
@@ -606,6 +665,38 @@ export default function ComprasScreen() {
       readOnly: true,
       visibleInForm: false,
       visibleInList: true,
+    },
+    {
+      key: "bank_account_id",
+      label: "Conta Corrente",
+      type: "reference",
+      referenceTable: "bank_accounts",
+      referenceLabelField: "account_name",
+      referenceSearchField: "account_name",
+      visibleInForm: false,
+      visibleInList: false,
+    },
+    {
+      key: "chart_account_id",
+      label: "Plano de Contas",
+      type: "reference",
+      referenceTable: "chart_of_accounts",
+      referenceLabelField: "name",
+      referenceSearchField: "name",
+      referenceIdField: "id",
+      placeholder: "Selecione a conta",
+      section: "Classificação Financeira",
+      referenceLabelFormatter: (
+        item: Record<string, unknown>,
+        _defaultLabel: string,
+      ) => {
+        const code = String(item.code ?? "");
+        const name = String(item.name ?? "");
+        return code ? `${code} \u2014 ${name}` : name;
+      },
+      referenceFilter: (item: Record<string, unknown>) => {
+        return item.is_leaf === true || item.is_leaf === "true";
+      },
     },
   ];
 
@@ -1300,6 +1391,191 @@ export default function ComprasScreen() {
               </View>
             </ScrollView>
 
+            {/* CONTA CORRENTE */}
+            <ThemedText
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                marginTop: 12,
+                marginBottom: 8,
+                color: tintColor,
+              }}
+            >
+              Conta Corrente
+            </ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 4 }}
+            >
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => setSelectedBankAccountId("")}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    borderWidth: 1.5,
+                    borderColor: !selectedBankAccountId
+                      ? tintColor
+                      : borderColor,
+                    backgroundColor: !selectedBankAccountId
+                      ? `${tintColor}18`
+                      : "transparent",
+                  }}
+                >
+                  <ThemedText
+                    style={{
+                      fontSize: 13,
+                      fontWeight: !selectedBankAccountId ? "700" : "500",
+                      color: !selectedBankAccountId ? tintColor : textColor,
+                    }}
+                  >
+                    Nenhuma
+                  </ThemedText>
+                </TouchableOpacity>
+                {bankAccounts.map((ba) => {
+                  const selected = selectedBankAccountId === ba.id;
+                  return (
+                    <TouchableOpacity
+                      key={ba.id}
+                      onPress={() =>
+                        setSelectedBankAccountId(selected ? "" : ba.id)
+                      }
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 999,
+                        borderWidth: 1.5,
+                        borderColor: selected ? tintColor : borderColor,
+                        backgroundColor: selected
+                          ? `${tintColor}18`
+                          : "transparent",
+                      }}
+                    >
+                      <ThemedText
+                        style={{
+                          fontSize: 13,
+                          fontWeight: selected ? "700" : "500",
+                          color: selected ? tintColor : textColor,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {ba.label}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            {/* PLANO DE CONTAS */}
+            <ThemedText
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                marginTop: 12,
+                marginBottom: 8,
+                color: tintColor,
+              }}
+            >
+              Plano de Contas
+            </ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginBottom: 4 }}
+            >
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => setSelectedChartAccountId("")}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    borderWidth: 1.5,
+                    borderColor: !selectedChartAccountId
+                      ? tintColor
+                      : borderColor,
+                    backgroundColor: !selectedChartAccountId
+                      ? `${tintColor}18`
+                      : "transparent",
+                  }}
+                >
+                  <ThemedText
+                    style={{
+                      fontSize: 13,
+                      fontWeight: !selectedChartAccountId ? "700" : "500",
+                      color: !selectedChartAccountId ? tintColor : textColor,
+                    }}
+                  >
+                    Automático
+                  </ThemedText>
+                </TouchableOpacity>
+                {chartAccounts.map((ca) => {
+                  const selected = selectedChartAccountId === ca.id;
+                  return (
+                    <TouchableOpacity
+                      key={ca.id}
+                      onPress={() =>
+                        setSelectedChartAccountId(selected ? "" : ca.id)
+                      }
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 999,
+                        borderWidth: 1.5,
+                        borderColor: selected ? tintColor : borderColor,
+                        backgroundColor: selected
+                          ? `${tintColor}18`
+                          : "transparent",
+                      }}
+                    >
+                      <ThemedText
+                        style={{
+                          fontSize: 13,
+                          fontWeight: selected ? "700" : "500",
+                          color: selected ? tintColor : textColor,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {ca.label}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            {/* VENCIMENTO */}
+            <ThemedText
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                marginTop: 12,
+                marginBottom: 8,
+                color: tintColor,
+              }}
+            >
+              Vencimento
+            </ThemedText>
+            <TextInput
+              value={dueDate}
+              onChangeText={setDueDate}
+              placeholder="dd/mm/aaaa (opcional)"
+              placeholderTextColor={mutedColor}
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 10,
+                padding: 10,
+                fontSize: 14,
+                color: textColor,
+                backgroundColor: inputBg,
+                marginBottom: 12,
+              }}
+            />
+
             {/* EXTRAS */}
             <ThemedText
               style={{
@@ -1936,6 +2212,21 @@ export default function ComprasScreen() {
         }}
         getDetails={(item) => {
           const status = String(item.status ?? "draft");
+          const bankLabel =
+            bankAccounts.find((b) => b.id === item.bank_account_id)?.label ??
+            "-";
+          const chartLabel =
+            chartAccounts.find((c) => c.id === item.chart_account_id)?.label ??
+            "Automático";
+          const dueDateRaw = item.due_date ? String(item.due_date) : "";
+          const dueDateFmt = dueDateRaw
+            ? new Date(dueDateRaw).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                timeZone: "America/Sao_Paulo",
+              })
+            : "-";
           return [
             { label: "Fornecedor", value: String(item.supplier_name ?? "-") },
             { label: "NF", value: String(item.invoice_number ?? "-") },
@@ -1950,6 +2241,9 @@ export default function ComprasScreen() {
                 String(item.payment_method || "-"),
             },
             { label: "Total", value: fmt(item.total) },
+            { label: "Conta Corrente", value: bankLabel },
+            { label: "Plano de Contas", value: chartLabel },
+            { label: "Vencimento", value: dueDateFmt },
           ];
         }}
         renderItemActions={(item) => {

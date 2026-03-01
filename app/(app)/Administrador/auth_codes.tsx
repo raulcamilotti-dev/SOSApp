@@ -1,16 +1,19 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
+import { PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
-import { CRUD_ENDPOINT } from "@/services/crud";
 
 type Row = Record<string, unknown>;
 
-const listRows = async (): Promise<Row[]> => {
+const listRows = async (userId?: string): Promise<Row[]> => {
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "auth_codes",
+    ...(userId ? buildSearchParams([{ field: "user_id", value: userId }]) : {}),
   });
   const data = response.data;
   const list = Array.isArray(data) ? data : (data?.data ?? []);
@@ -64,11 +67,7 @@ export default function AuthCodesScreen() {
 
   const loadFilteredRows = useMemo(() => {
     return async (): Promise<Row[]> => {
-      const rows = await listRows();
-      return rows.filter((item) => {
-        if (userId && String(item.user_id ?? "") !== userId) return false;
-        return true;
-      });
+      return listRows(userId);
     };
   }, [userId]);
 
@@ -135,24 +134,26 @@ export default function AuthCodesScreen() {
   ];
 
   return (
-    <CrudScreen<Row>
-      title="Auth Codes"
-      subtitle="Gestao de auth codes"
-      searchPlaceholder="Buscar por código, canal ou destino"
-      searchFields={["code", "channel", "destination", "user_id"]}
-      fields={fields}
-      loadItems={loadFilteredRows}
-      createItem={createWithContext}
-      updateItem={updateWithContext}
-      deleteItem={deleteRow}
-      getDetails={(item) => [
-        { label: "Usuário", value: String(item.user_id ?? "-") },
-        { label: "Código", value: String(item.code ?? "-") },
-        { label: "Canal", value: String(item.channel ?? "-") },
-        { label: "Destino", value: String(item.destination ?? "-") },
-      ]}
-      getId={(item) => String(item.id ?? "")}
-      getTitle={(item) => String(item.code ?? "Auth Code")}
-    />
+    <ProtectedRoute requiredPermission={PERMISSIONS.ADMIN_FULL}>
+      <CrudScreen<Row>
+        title="Auth Codes"
+        subtitle="Gestao de auth codes"
+        searchPlaceholder="Buscar por código, canal ou destino"
+        searchFields={["code", "channel", "destination", "user_id"]}
+        fields={fields}
+        loadItems={loadFilteredRows}
+        createItem={createWithContext}
+        updateItem={updateWithContext}
+        deleteItem={deleteRow}
+        getDetails={(item) => [
+          { label: "Usuário", value: String(item.user_id ?? "-") },
+          { label: "Código", value: String(item.code ?? "-") },
+          { label: "Canal", value: String(item.channel ?? "-") },
+          { label: "Destino", value: String(item.destination ?? "-") },
+        ]}
+        getId={(item) => String(item.id ?? "")}
+        getTitle={(item) => String(item.code ?? "Auth Code")}
+      />
+    </ProtectedRoute>
   );
 }

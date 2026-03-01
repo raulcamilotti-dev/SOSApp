@@ -109,7 +109,26 @@ export async function createNotification(
   return normalizeCrudOne<Notification>(response.data);
 }
 
-export async function markAsRead(id: string): Promise<Notification> {
+export async function markAsRead(
+  id: string,
+  userId?: string,
+): Promise<Notification> {
+  // B5 fix: Verify ownership before updating — fetch the notification first
+  if (userId) {
+    const checkRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "notifications",
+      ...buildSearchParams([
+        { field: "id", value: id },
+        { field: "user_id", value: userId },
+      ]),
+    });
+    const match = normalizeCrudList<Notification>(checkRes.data);
+    if (match.length === 0) {
+      throw new Error("Notificação não encontrada ou sem permissão");
+    }
+  }
+
   const response = await api.post(CRUD_ENDPOINT, {
     action: "update",
     table: "notifications",
@@ -154,7 +173,26 @@ export async function markAllAsRead(userId: string): Promise<void> {
   }
 }
 
-export async function deleteNotification(id: string): Promise<void> {
+export async function deleteNotification(
+  id: string,
+  userId?: string,
+): Promise<void> {
+  // B5 fix: Verify ownership before deleting
+  if (userId) {
+    const checkRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "notifications",
+      ...buildSearchParams([
+        { field: "id", value: id },
+        { field: "user_id", value: userId },
+      ]),
+    });
+    const match = normalizeCrudList<Notification>(checkRes.data);
+    if (match.length === 0) {
+      throw new Error("Notificação não encontrada ou sem permissão");
+    }
+  }
+
   await api.post(CRUD_ENDPOINT, {
     action: "delete",
     table: "notifications",

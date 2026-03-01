@@ -1,9 +1,14 @@
 import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { CRUD_ENDPOINT, normalizeCrudList } from "@/services/crud";
+import {
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+} from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo } from "react";
 import { TouchableOpacity } from "react-native";
@@ -12,11 +17,12 @@ type Row = Record<string, unknown>;
 
 const TABLE = "bank_accounts";
 
-const listRows = async (): Promise<Row[]> => {
+const listRowsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
+  const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: TABLE,
-    sort_column: "account_name ASC",
+    ...buildSearchParams(filters, { sortColumn: "account_name ASC" }),
   });
   return filterActive(normalizeCrudList<Row>(res.data));
 };
@@ -214,14 +220,16 @@ export default function ContasBancariasScreen() {
     ? params.bankId[0]
     : params.bankId;
   const tintColor = useThemeColor({}, "tint");
+  const { user } = useAuth();
+  const tenantId = user?.tenant_id;
 
   const loadFiltered = useMemo(() => {
     return async (): Promise<Row[]> => {
-      const rows = await listRows();
+      const rows = await listRowsForTenant(tenantId);
       if (!bankId) return rows;
       return rows.filter((item) => String(item.bank_id ?? "") === bankId);
     };
-  }, [bankId]);
+  }, [bankId, tenantId]);
 
   const createWithBank = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {

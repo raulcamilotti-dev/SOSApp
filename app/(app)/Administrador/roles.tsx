@@ -8,7 +8,7 @@ import { assignDefaultPermissionsToRole } from "@/core/auth/permissions.sync";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { CRUD_ENDPOINT } from "@/services/crud";
+import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import { DEFAULT_ROLE_NAMES } from "@/services/onboarding";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
@@ -24,10 +24,16 @@ const normalizeList = (data: unknown): Row[] => {
   return Array.isArray(list) ? (list as Row[]) : [];
 };
 
-const listRows = async (): Promise<Row[]> => {
+const listRows = async (tenantId?: string): Promise<Row[]> => {
   const [rolesResponse, rolePermissionsResponse, permissionsResponse] =
     await Promise.all([
-      api.post(CRUD_ENDPOINT, { action: "list", table: "roles" }),
+      api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "roles",
+        ...(tenantId
+          ? buildSearchParams([{ field: "tenant_id", value: tenantId }])
+          : {}),
+      }),
       api.post(CRUD_ENDPOINT, { action: "list", table: "role_permissions" }),
       api.post(CRUD_ENDPOINT, { action: "list", table: "permissions" }),
     ]);
@@ -156,7 +162,7 @@ export default function RolesScreen() {
 
   const loadFilteredRows = useMemo(() => {
     return async (): Promise<Row[]> => {
-      const rows = await listRows();
+      const rows = await listRows(tenantIdParam);
       // Populate cache for delete guard
       roleNameCache.clear();
       for (const r of rows) {

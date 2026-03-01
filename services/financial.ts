@@ -10,13 +10,13 @@
 
 import { api } from "./api";
 import {
-    aggregateCrud,
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    normalizeCrudOne,
-    type CrudFilter,
-    type CrudListOptions,
+  aggregateCrud,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  normalizeCrudOne,
+  type CrudFilter,
+  type CrudListOptions,
 } from "./crud";
 import { asaasPixOut } from "./partner";
 
@@ -658,16 +658,41 @@ export async function payAccountPayableViaAsaas(params: {
     external_reference: payable.id,
   });
 
-  await updateAccountPayable({
-    id: payable.id,
-    status: "paid",
-    amount_paid: amountToPay,
-    paid_at: new Date().toISOString(),
-    payment_method: "pix",
-    notes: payable.notes
-      ? `${payable.notes}\nASAAS transfer: ${transfer.transferId}`
-      : `ASAAS transfer: ${transfer.transferId}`,
-  });
+  // CRITICAL: PIX transfer was sent successfully. If the DB update below fails,
+  // the money is gone but the AP entry still shows "pending", which could trigger
+  // a duplicate payment attempt. We MUST flag the entry to prevent this.
+  try {
+    await updateAccountPayable({
+      id: payable.id,
+      status: "paid",
+      amount_paid: amountToPay,
+      paid_at: new Date().toISOString(),
+      payment_method: "pix",
+      notes: payable.notes
+        ? `${payable.notes}\nASAAS transfer: ${transfer.transferId}`
+        : `ASAAS transfer: ${transfer.transferId}`,
+    });
+  } catch (dbError) {
+    // PIX was sent but DB update failed — flag entry to prevent duplicate payment
+    console.error(
+      `[financial] CRITICAL: PIX transfer ${transfer.transferId} succeeded for AP ${payable.id} ` +
+        `(R$ ${amountToPay}) but DB update FAILED. Manual intervention required.`,
+      dbError,
+    );
+    // Attempt to at least save the transfer reference so it's not lost
+    try {
+      await updateAccountPayable({
+        id: payable.id,
+        notes: `${payable.notes ?? ""}\n⚠️ PIX ENVIADO MAS ATUALIZAÇÃO FALHOU - Transfer: ${transfer.transferId} - Valor: R$ ${amountToPay}`,
+      });
+    } catch {
+      // Complete failure — log is the only record
+    }
+    throw new Error(
+      `PIX enviado com sucesso (ID: ${transfer.transferId}), mas falha ao atualizar registro. ` +
+        `NÃO tente pagar novamente. Atualize manualmente o status para "pago".`,
+    );
+  }
 
   return { transferId: transfer.transferId, status: transfer.status };
 }

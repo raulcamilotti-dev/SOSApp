@@ -9,28 +9,30 @@
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
+import { usePartnerScope } from "@/hooks/use-partner-scope";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
+import { createBankEntryFromAP } from "@/services/bank-transactions";
 import {
-    CRUD_ENDPOINT,
-    buildSearchParams,
-    normalizeCrudList,
+  CRUD_ENDPOINT,
+  buildSearchParams,
+  normalizeCrudList,
 } from "@/services/crud";
 import { generatePixPayload, generatePixQRCodeBase64 } from "@/services/pix";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 const log = __DEV__ ? console.log : () => {};
@@ -521,15 +523,25 @@ const fields: CrudFieldConfig<Row>[] = [
 export default function ContasAPagarScreen() {
   const { user } = useAuth();
   const tenantId = user?.tenant_id;
+  const { partnerId, isPartnerUser } = usePartnerScope();
+
+  const filterByPartner = useCallback(
+    (items: Row[]) => {
+      if (!isPartnerUser || !partnerId) return items;
+      return items.filter((item) => item.partner_id === partnerId);
+    },
+    [isPartnerUser, partnerId],
+  );
+
   const loadItems = useMemo(
-    () => () => loadItemsForTenant(tenantId),
-    [tenantId],
+    () => async () => filterByPartner(await loadItemsForTenant(tenantId)),
+    [tenantId, filterByPartner],
   );
   const paginatedLoadItems = useMemo(
     () =>
-      ({ limit, offset }: { limit: number; offset: number }) =>
-        loadItemsForTenant(tenantId, { limit, offset }),
-    [tenantId],
+      async ({ limit, offset }: { limit: number; offset: number }) =>
+        filterByPartner(await loadItemsForTenant(tenantId, { limit, offset })),
+    [tenantId, filterByPartner],
   );
 
   const createItemBound = useMemo(
@@ -561,7 +573,7 @@ export default function ContasAPagarScreen() {
   const cardBg = useThemeColor({}, "card");
   const tintColor = useThemeColor({}, "tint");
 
-  // Registra como pago manualmente (sem Asaas)
+  // Registra como pago manualmente (sem Asaas) + cria lançamento no extrato
   const handlePaymentManual = useCallback(async () => {
     if (!selectedPaymentItem) return;
 
@@ -572,6 +584,21 @@ export default function ContasAPagarScreen() {
         amount_paid: selectedPaymentItem.amount,
         status: "paid",
       });
+
+      // Auto bank entry (fire-and-forget)
+      (async () => {
+        try {
+          const apEntry = {
+            ...selectedPaymentItem,
+            amount_paid: selectedPaymentItem.amount,
+            status: "paid",
+            tenant_id: tenantId,
+          };
+          await createBankEntryFromAP(apEntry as any, user?.id ?? undefined);
+        } catch (e) {
+          if (__DEV__) console.warn("[AP] Bank entry failed (manual):", e);
+        }
+      })();
 
       Alert.alert(
         "✅ Registrado",
@@ -588,7 +615,7 @@ export default function ContasAPagarScreen() {
     } finally {
       setPaymentProcessing(false);
     }
-  }, [selectedPaymentItem, loadItems]);
+  }, [selectedPaymentItem, loadItems, tenantId, user?.id]);
 
   // Gera QR Code PIX local (sem Asaas, sem saldo) — operador escaneia com app do banco
   const handleGeneratePixQrLocal = useCallback(async () => {
@@ -687,6 +714,21 @@ export default function ContasAPagarScreen() {
         };
         await updateItem(updatePayload as any);
 
+        // Auto bank entry (fire-and-forget)
+        (async () => {
+          try {
+            const apEntry = {
+              ...selectedPaymentItem,
+              amount_paid: Number(selectedPaymentItem.amount ?? 0),
+              status: "paid",
+              tenant_id: tenantId,
+            };
+            await createBankEntryFromAP(apEntry as any, user?.id ?? undefined);
+          } catch (e) {
+            if (__DEV__) console.warn("[AP] Bank entry failed (Asaas PIX):", e);
+          }
+        })();
+
         Alert.alert(
           "✅ PIX Enviado",
           `Transferência PIX realizada com sucesso!\n\nID: ${transferId}\nStatus: ${status}\nValor: R$ ${Number(selectedPaymentItem.amount ?? 0).toFixed(2)}`,
@@ -722,7 +764,7 @@ export default function ContasAPagarScreen() {
     } finally {
       setPaymentProcessing(false);
     }
-  }, [selectedPaymentItem, loadItems]);
+  }, [selectedPaymentItem, loadItems, tenantId, user?.id]);
 
   const renderItemActions = useCallback(
     (item: Row) => {
@@ -1293,7 +1335,7 @@ export default function ContasAPagarScreen() {
                     </Text>
                   </Pressable>
 
-                  {/* Mark as paid after scanning */}
+                  {/* Mark as paid after scanning + bank entry */}
                   <Pressable
                     onPress={async () => {
                       try {
@@ -1307,6 +1349,30 @@ export default function ContasAPagarScreen() {
                             `${String(selectedPaymentItem?.notes ?? "")} | PIX pago via QR Code`.trim(),
                           updated_at: new Date().toISOString(),
                         } as any);
+
+                        // Auto bank entry (fire-and-forget)
+                        if (selectedPaymentItem) {
+                          (async () => {
+                            try {
+                              const apEntry = {
+                                ...selectedPaymentItem,
+                                amount_paid: Number(
+                                  selectedPaymentItem.amount ?? 0,
+                                ),
+                                status: "paid",
+                                tenant_id: tenantId,
+                              };
+                              await createBankEntryFromAP(
+                                apEntry as any,
+                                user?.id ?? undefined,
+                              );
+                            } catch (e) {
+                              if (__DEV__)
+                                console.warn("[AP] Bank entry failed (QR):", e);
+                            }
+                          })();
+                        }
+
                         Alert.alert(
                           "✅ Confirmado",
                           "Pagamento marcado como realizado!",
