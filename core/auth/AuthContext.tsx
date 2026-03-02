@@ -135,7 +135,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const applyTenantToUser = useCallback(
-    async (baseUser: User, tenantId: string, roleName?: string) => {
+    async (
+      baseUser: User,
+      tenantId: string,
+      roleName?: string,
+      partnerId?: string,
+    ) => {
       // Platform admins always get superadmin role regardless of per-tenant
       // user_tenants configuration. Uses stable check (email/flag, not tenant_id)
       // since tenant_id is about to change.
@@ -147,6 +152,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ...baseUser,
         tenant_id: tenantId,
         ...(effectiveRole ? { role: effectiveRole } : {}),
+        ...(partnerId !== undefined ? { partner_id: partnerId } : {}),
       } as User;
       setUser(nextUser);
       await saveUser(nextUser);
@@ -252,6 +258,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 const roleName =
                   String(role?.name ?? role?.role_name ?? "").trim() ||
                   undefined;
+                const partnerId =
+                  String(row?.partner_id ?? "").trim() || undefined;
                 return [
                   id,
                   {
@@ -266,6 +274,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     slug: String(tenant?.slug ?? "").trim() || undefined,
                     role_id: roleId,
                     role_name: roleName,
+                    partner_id: partnerId,
                   } satisfies TenantOption,
                 ] as const;
               })
@@ -323,14 +332,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const effectiveRole = isPlatformAdmin
             ? "superadmin"
             : currentOption?.role_name;
+          const partnerId = currentOption?.partner_id;
 
           const needsRoleUpdate =
             effectiveRole && effectiveRole !== baseUser.role;
+          const needsPartnerUpdate =
+            partnerId !== undefined && partnerId !== baseUser.partner_id;
 
-          if (needsRoleUpdate) {
+          if (needsRoleUpdate || needsPartnerUpdate) {
             const userWithRole = {
               ...baseUser,
-              role: effectiveRole,
+              ...(effectiveRole ? { role: effectiveRole } : {}),
+              ...(partnerId !== undefined ? { partner_id: partnerId } : {}),
             } as User;
             setUser(userWithRole);
             await saveUser(userWithRole);
@@ -354,6 +367,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             baseUser,
             storedTenantId,
             storedOption?.role_name,
+            storedOption?.partner_id,
           );
           return { options: mergedOptions, userWithTenant };
         }
@@ -367,6 +381,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           baseUser,
           autoSelectedOption.id,
           autoSelectedOption.role_name,
+          autoSelectedOption.partner_id,
         );
         return { options: mergedOptions, userWithTenant };
       } catch (err) {
@@ -480,6 +495,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         currentUser,
         normalizedTenantId,
         tenantOption?.role_name,
+        tenantOption?.partner_id,
       );
     },
     [applyTenantToUser, availableTenants, user],

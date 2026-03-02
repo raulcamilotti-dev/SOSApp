@@ -254,7 +254,7 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   pdv: MODULE_KEYS.PDV,
   pre_venda: MODULE_KEYS.PDV,
   vendas: MODULE_KEYS.PDV,
-  minhas_vendas: MODULE_KEYS.PDV,
+  // minhas_vendas: MODULE_KEYS.PDV, // DEPRECATED: Agora é um filtro em Administrador/Vendas
   regras_desconto: MODULE_KEYS.PDV,
   composicoes: MODULE_KEYS.PDV,
   separacao: MODULE_KEYS.PDV,
@@ -282,7 +282,7 @@ export const SERVICE_ROUTE_MODULE_MAP: Record<string, ModuleKey> = {
   "/Servicos/MeusTrabalhos": MODULE_KEYS.PARTNERS,
   "/Servicos/ParceiroCanal": MODULE_KEYS.PARTNERS,
   "/Servicos/PDV": MODULE_KEYS.PDV,
-  "/Servicos/MinhasVendas": MODULE_KEYS.PDV,
+  // "/Servicos/MinhasVendas": MODULE_KEYS.PDV, // DEPRECATED: Agora é um filtro em Administrador/Vendas
   "/Servicos/PreVenda": MODULE_KEYS.PDV,
 };
 

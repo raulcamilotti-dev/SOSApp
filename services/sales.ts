@@ -259,6 +259,47 @@ async function getMaxDiscount(
   };
 }
 
+async function resolveWorkflowForServiceType(
+  serviceTypeId?: string,
+): Promise<{ templateId?: string; currentStepId?: string }> {
+  if (!serviceTypeId) return {};
+
+  try {
+    const stRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "service_types",
+      ...buildSearchParams([{ field: "id", value: serviceTypeId }], {
+        limit: 1,
+      }),
+    });
+    const serviceTypes = normalizeCrudList<{
+      default_template_id?: string | null;
+      deleted_at?: string | null;
+    }>(stRes.data).filter((row) => !row.deleted_at);
+
+    const templateId = serviceTypes[0]?.default_template_id ?? undefined;
+    if (!templateId) return {};
+
+    const stepsRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "workflow_steps",
+      ...buildSearchParams([{ field: "template_id", value: templateId }], {
+        sortColumn: "step_order ASC",
+      }),
+    });
+    const steps = normalizeCrudList<{ id: string; deleted_at?: string | null }>(
+      stepsRes.data,
+    ).filter((row) => !row.deleted_at);
+
+    return {
+      templateId,
+      currentStepId: steps[0]?.id,
+    };
+  } catch {
+    return {};
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Create Sale                                                        */
 /* ------------------------------------------------------------------ */
@@ -283,6 +324,11 @@ export async function createSale(
 ): Promise<CreateSaleResult> {
   const { tenantId, partnerId, soldByUserId, notes } = params;
   const now = new Date().toISOString();
+  const immediatePaymentMethods = new Set([
+    "cash",
+    "credit_card",
+    "debit_card",
+  ]);
 
   // 1. Resolve customer
   const customerId = await resolveCustomer(tenantId, params.customer);
@@ -303,6 +349,7 @@ export async function createSale(
   // 3. Build final item list (exploding compositions)
   interface FinalItem {
     serviceId: string;
+    serviceTypeId?: string;
     quantity: number;
     unitPrice: number;
     costPrice: number;
@@ -338,6 +385,9 @@ export async function createSale(
       const parentIdx = finalItems.length;
       finalItems.push({
         serviceId: input.serviceId,
+        serviceTypeId: svc.service_type_id
+          ? String(svc.service_type_id)
+          : undefined,
         quantity: input.quantity,
         unitPrice,
         costPrice: 0,
@@ -361,6 +411,7 @@ export async function createSale(
       for (const child of exploded) {
         finalItems.push({
           serviceId: child.serviceId,
+          serviceTypeId: (child as any)?.serviceTypeId,
           quantity: child.quantity,
           unitPrice: child.sellPrice,
           costPrice: child.costPrice,
@@ -380,6 +431,9 @@ export async function createSale(
     } else {
       finalItems.push({
         serviceId: input.serviceId,
+        serviceTypeId: svc.service_type_id
+          ? String(svc.service_type_id)
+          : undefined,
         quantity: input.quantity,
         unitPrice,
         costPrice,
@@ -427,8 +481,10 @@ export async function createSale(
   // 5. Create sale
   const isPaid =
     typeof params.paymentMethod === "string"
-      ? params.paymentMethod !== "a_prazo"
-      : true;
+      ? immediatePaymentMethods.has(params.paymentMethod)
+      : params.paymentMethod.every((split) =>
+          immediatePaymentMethods.has(split.method),
+        );
   const paymentMethodStr =
     typeof params.paymentMethod === "string" ? params.paymentMethod : "mixed";
 
@@ -445,7 +501,7 @@ export async function createSale(
       discount_percent: discountPercent,
       tax_amount: 0,
       total,
-      status: "completed",
+      status: isPaid ? "completed" : "open",
       payment_method: paymentMethodStr,
       paid_at: isPaid ? now : null,
       has_pending_services: false,
@@ -497,6 +553,41 @@ export async function createSale(
     const parentSaleItemId =
       fi.parentIndex != null ? parentIdMap.get(fi.parentIndex) : null;
 
+    let linkedServiceOrderId: string | null = null;
+    if (
+      !fi.isCompositionParent &&
+      fi.itemKind === "service" &&
+      fi.serviceTypeId
+    ) {
+      try {
+        const workflow = await resolveWorkflowForServiceType(fi.serviceTypeId);
+        const so = await createServiceOrder({
+          tenant_id: tenantId,
+          partner_id: partnerId ?? null,
+          customer_id: customerId,
+          service_type_id: fi.serviceTypeId,
+          service_id: fi.serviceId,
+          template_id: workflow.templateId,
+          current_step_id: workflow.currentStepId,
+          process_status: "active",
+          title: `Venda #${sale.id.slice(0, 8)} — ${fi.name}`,
+          description: `Ordem criada automaticamente pela venda ${sale.id}`,
+          started_at: now,
+          created_by: soldByUserId,
+        });
+        linkedServiceOrderId = String(so.id);
+        createdServiceOrderIds.push(linkedServiceOrderId);
+
+        await createServiceOrderContext({
+          service_order_id: linkedServiceOrderId,
+          entity_type: "sale",
+          entity_id: sale.id,
+        });
+      } catch {
+        linkedServiceOrderId = null;
+      }
+    }
+
     const itemRes = await api.post(CRUD_ENDPOINT, {
       action: "create",
       table: "sale_items",
@@ -513,6 +604,7 @@ export async function createSale(
         subtotal: itemSubtotal,
         commission_percent: fi.commissionPercent,
         commission_amount: commissionAmount,
+        service_order_id: linkedServiceOrderId,
         separation_status: separationStatus,
         delivery_status: deliveryStatus,
         fulfillment_status: fulfillmentStatus,
@@ -523,6 +615,18 @@ export async function createSale(
     });
     const saleItem = normalizeCrudOne<SaleItem>(itemRes.data);
     createdItems.push(saleItem);
+
+    if (linkedServiceOrderId) {
+      try {
+        await createServiceOrderContext({
+          service_order_id: linkedServiceOrderId,
+          entity_type: "sale_item",
+          entity_id: saleItem.id,
+        });
+      } catch {
+        // best-effort context link
+      }
+    }
 
     if (fi.isCompositionParent) {
       parentIdMap.set(i, saleItem.id);
@@ -561,6 +665,36 @@ export async function createSale(
     KNOWN_ACCOUNT_CODES.VENDAS_PDV,
   );
   const defaultBankAccountId = await getDefaultBankAccountId(tenantId);
+  let invoicePixKey: string | null = null;
+  let invoicePixKeyType: string | null = null;
+
+  if (defaultBankAccountId) {
+    try {
+      const bankRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "bank_accounts",
+        ...buildSearchParams([
+          { field: "id", value: defaultBankAccountId },
+          { field: "tenant_id", value: tenantId },
+        ]),
+      });
+      const account = normalizeCrudList<{
+        pix_key?: string | null;
+        pix_key_type?: string | null;
+        deleted_at?: string | null;
+      }>(bankRes.data).find((row) => !row.deleted_at);
+
+      invoicePixKey = account?.pix_key ? String(account.pix_key) : null;
+      invoicePixKeyType = account?.pix_key_type
+        ? String(account.pix_key_type)
+        : null;
+    } catch {
+      invoicePixKey = null;
+      invoicePixKeyType = null;
+    }
+  }
+
+  const createdServiceOrderIds: string[] = [];
 
   // 9. Create invoice
   const invoiceRes = await api.post(CRUD_ENDPOINT, {
@@ -579,6 +713,9 @@ export async function createSale(
       issued_at: now,
       due_at: now,
       paid_at: isPaid ? now : null,
+      service_order_id: createdServiceOrderIds[0] ?? null,
+      pix_key: invoicePixKey,
+      pix_key_type: invoicePixKeyType,
       chart_account_id: chartAccountId,
       bank_account_id: defaultBankAccountId,
     },
@@ -639,26 +776,26 @@ export async function createSale(
   // 10. Create payment(s)
   const paymentIds: string[] = [];
   if (typeof params.paymentMethod === "string") {
-    if (params.paymentMethod !== "a_prazo") {
-      const payRes = await api.post(CRUD_ENDPOINT, {
-        action: "create",
-        table: "payments",
-        payload: {
-          tenant_id: tenantId,
-          invoice_id: invoiceId,
-          amount: total,
-          method: params.paymentMethod,
-          status: "confirmed",
-          paid_at: now,
-          bank_account_id: defaultBankAccountId,
-        },
-      });
-      const pay = normalizeCrudOne<Record<string, unknown>>(payRes.data);
-      paymentIds.push(String(pay.id));
-    }
+    const isImmediateMethod = immediatePaymentMethods.has(params.paymentMethod);
+    const payRes = await api.post(CRUD_ENDPOINT, {
+      action: "create",
+      table: "payments",
+      payload: {
+        tenant_id: tenantId,
+        invoice_id: invoiceId,
+        amount: total,
+        method: params.paymentMethod,
+        status: isImmediateMethod ? "confirmed" : "pending",
+        paid_at: isImmediateMethod ? now : null,
+        bank_account_id: defaultBankAccountId,
+      },
+    });
+    const pay = normalizeCrudOne<Record<string, unknown>>(payRes.data);
+    paymentIds.push(String(pay.id));
   } else {
     // Split payments
     for (const split of params.paymentMethod) {
+      const isImmediateMethod = immediatePaymentMethods.has(split.method);
       const payRes = await api.post(CRUD_ENDPOINT, {
         action: "create",
         table: "payments",
@@ -667,8 +804,8 @@ export async function createSale(
           invoice_id: invoiceId,
           amount: split.amount,
           method: split.method,
-          status: "confirmed",
-          paid_at: now,
+          status: isImmediateMethod ? "confirmed" : "pending",
+          paid_at: isImmediateMethod ? now : null,
           bank_account_id: defaultBankAccountId,
         },
       });
@@ -889,6 +1026,95 @@ export async function updateSaleFulfillment(saleId: string): Promise<void> {
       has_pending_products: hasPendingProducts,
     },
   });
+}
+
+/**
+ * Confirm PIX payment for a sale.
+ * Updates payment status, sale status, and invoice status.
+ */
+export async function confirmSalePayment(
+  saleId: string,
+  userId: string,
+  notes?: string,
+): Promise<void> {
+  // Get sale
+  const saleRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "sales",
+    ...buildSearchParams([{ field: "id", value: saleId }]),
+  });
+  const sale = normalizeCrudList<Sale>(saleRes.data)[0];
+  if (!sale) throw new Error("Venda não encontrada");
+
+  const now = new Date().toISOString();
+
+  // Update payments: pending → confirmed
+  const paymentsRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "payments",
+    ...buildSearchParams([
+      { field: "invoice_id", value: sale.invoice_id ?? "" },
+    ]),
+  });
+  const payments = normalizeCrudList<Record<string, unknown>>(paymentsRes.data);
+  for (const payment of payments) {
+    if (payment.status === "pending") {
+      await api.post(CRUD_ENDPOINT, {
+        action: "update",
+        table: "payments",
+        payload: {
+          id: payment.id,
+          status: "confirmed",
+          paid_at: now,
+          confirmed_by: userId,
+          notes: notes ?? "Pagamento PIX confirmado manualmente",
+        },
+      });
+    }
+  }
+
+  // Update sale
+  await api.post(CRUD_ENDPOINT, {
+    action: "update",
+    table: "sales",
+    payload: {
+      id: saleId,
+      status: "completed",
+      paid_at: now,
+    },
+  });
+
+  // Update invoice
+  if (sale.invoice_id) {
+    await api.post(CRUD_ENDPOINT, {
+      action: "update",
+      table: "invoices",
+      payload: {
+        id: sale.invoice_id,
+        status: "paid",
+        paid_at: now,
+      },
+    });
+
+    // Update accounts_receivable
+    const arRes = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "accounts_receivable",
+      ...buildSearchParams([{ field: "invoice_id", value: sale.invoice_id }]),
+    });
+    const ar = normalizeCrudList<Record<string, unknown>>(arRes.data)[0];
+    if (ar) {
+      await api.post(CRUD_ENDPOINT, {
+        action: "update",
+        table: "accounts_receivable",
+        payload: {
+          id: ar.id,
+          status: "paid",
+          paid_at: now,
+        },
+      });
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */

@@ -27,11 +27,17 @@ const listRowsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
   return filterActive(normalizeCrudList<Row>(res.data));
 };
 
-const createRow = async (payload: Partial<Row>): Promise<unknown> => {
+const createRow = async (
+  payload: Partial<Row>,
+  tenantId?: string | null,
+): Promise<unknown> => {
   const res = await api.post(CRUD_ENDPOINT, {
     action: "create",
     table: TABLE,
-    payload,
+    payload: {
+      ...payload,
+      tenant_id: payload.tenant_id ?? tenantId ?? null,
+    },
   });
   return res.data;
 };
@@ -111,6 +117,11 @@ export default function BancosScreen() {
     [tenantId],
   );
 
+  const createItem = useMemo(
+    () => (payload: Partial<Row>) => createRow(payload, tenantId),
+    [tenantId],
+  );
+
   return (
     <CrudScreen<Row>
       title="Bancos"
@@ -119,7 +130,7 @@ export default function BancosScreen() {
       searchFields={["name", "bank_code"]}
       fields={fields}
       loadItems={loadItems}
-      createItem={createRow}
+      createItem={createItem}
       updateItem={updateRow}
       deleteItem={deleteRow}
       getId={(item) => String(item.id ?? "")}

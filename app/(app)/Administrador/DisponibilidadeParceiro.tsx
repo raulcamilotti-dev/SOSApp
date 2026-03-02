@@ -13,29 +13,29 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import {
-    createElement,
-    useCallback,
-    useEffect,
-    useMemo,
-    useState,
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 /* ═══════════════════════════════════════════════════════
@@ -347,49 +347,27 @@ export default function DisponibilidadeParceiroAdminScreen() {
           <Text style={{ fontSize: 12, color: mutedColor, fontWeight: "600" }}>
             {label}
           </Text>
-          <View style={{ position: "relative" }}>
-            <View
-              style={{
-                borderWidth: 1,
-                borderColor,
-                borderRadius: 10,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                backgroundColor: inputBg,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-              pointerEvents="none"
-            >
-              <Text
-                style={{ fontSize: 16, fontWeight: "600", color: textColor }}
-              >
-                {value || "—"}
-              </Text>
-              <Ionicons name="time-outline" size={18} color={mutedColor} />
-            </View>
-            {createElement("input", {
-              type: "time",
-              value,
-              onChange: (e: any) => onChange(e.target?.value ?? ""),
-              style: {
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                width: "100%",
-                height: "100%",
-                opacity: 0.01,
-                cursor: "pointer",
-                border: "none",
-                background: "transparent",
-                fontSize: 16,
-                zIndex: 10,
-              },
-            })}
-          </View>
+          {createElement("input", {
+            type: "time",
+            value,
+            onChange: (e: any) => onChange(e.target?.value ?? ""),
+            style: {
+              width: "100%",
+              height: 46,
+              borderWidth: 1,
+              borderStyle: "solid",
+              borderColor,
+              borderRadius: 10,
+              paddingLeft: 14,
+              paddingRight: 14,
+              backgroundColor: inputBg,
+              color: textColor,
+              fontSize: 16,
+              fontWeight: 600,
+              outline: "none",
+              boxSizing: "border-box",
+            },
+          })}
         </View>
       );
     }

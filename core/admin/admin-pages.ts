@@ -257,16 +257,17 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/Vendas",
     requiredAnyPermissions: [PERMISSIONS.SALE_READ],
   },
-  {
-    id: "minhas_vendas",
-    group: "Vendas & PDV",
-    module: "operacao",
-    title: "Minhas Vendas",
-    description: "Histórico das suas vendas realizadas",
-    icon: "receipt-outline",
-    route: "/Servicos/MinhasVendas",
-    requiredAnyPermissions: [PERMISSIONS.SALE_READ],
-  },
+  // DEPRECATED: MinhasVendas agora é um filtro em Administrador/Vendas
+  // {
+  //   id: "minhas_vendas",
+  //   group: "Vendas & PDV",
+  //   module: "operacao",
+  //   title: "Minhas Vendas",
+  //   description: "Histórico das suas vendas realizadas",
+  //   icon: "receipt-outline",
+  //   route: "/Servicos/MinhasVendas",
+  //   requiredAnyPermissions: [PERMISSIONS.SALE_READ],
+  // },
   {
     id: "estoque",
     group: "Estoque & Compras",

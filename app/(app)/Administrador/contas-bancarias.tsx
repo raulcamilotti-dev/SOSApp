@@ -27,11 +27,17 @@ const listRowsForTenant = async (tenantId?: string | null): Promise<Row[]> => {
   return filterActive(normalizeCrudList<Row>(res.data));
 };
 
-const createRow = async (payload: Partial<Row>): Promise<unknown> => {
+const createRow = async (
+  payload: Partial<Row>,
+  tenantId?: string | null,
+): Promise<unknown> => {
   const res = await api.post(CRUD_ENDPOINT, {
     action: "create",
     table: TABLE,
-    payload,
+    payload: {
+      ...payload,
+      tenant_id: payload.tenant_id ?? tenantId ?? null,
+    },
   });
   return res.data;
 };
@@ -76,7 +82,8 @@ const PIX_KEY_TYPE_OPTIONS = [
   { label: "Chave Aleatória", value: "random" },
 ];
 
-const fields: CrudFieldConfig<Row>[] = [
+/** Build fields array with tenant-aware bank reference filter */
+const buildFields = (tenantId?: string | null): CrudFieldConfig<Row>[] => [
   {
     key: "bank_id",
     label: "Banco",
@@ -86,6 +93,11 @@ const fields: CrudFieldConfig<Row>[] = [
     referenceLabelField: "name",
     referenceSearchField: "name",
     section: "Conta",
+    // Filter banks by current tenant (fixes superadmin seeing all tenants' banks)
+    referenceFilter: (item) => {
+      if (!tenantId) return true;
+      return String(item.tenant_id ?? "") === tenantId;
+    },
   },
   {
     key: "account_name",
@@ -125,8 +137,8 @@ const fields: CrudFieldConfig<Row>[] = [
     key: "pix_key",
     label: "Chave PIX",
     type: "text",
-    placeholder: "Ex: email@empresa.com.br",
-    section: "PIX",
+    placeholder: "Ex: email@empresa.com.br ou CPF/CNPJ",
+    section: "PIX (Recebimento)",
     visibleInList: false,
   },
   {
@@ -134,6 +146,22 @@ const fields: CrudFieldConfig<Row>[] = [
     label: "Tipo da Chave PIX",
     type: "select",
     options: PIX_KEY_TYPE_OPTIONS,
+    showWhen: (state) => Boolean(state.pix_key?.trim()),
+    visibleInList: false,
+  },
+  {
+    key: "pix_merchant_name",
+    label: "Nome do Recebedor (PIX)",
+    type: "text",
+    placeholder: "Ex: Empresa LTDA (máx 25 caracteres)",
+    showWhen: (state) => Boolean(state.pix_key?.trim()),
+    visibleInList: false,
+  },
+  {
+    key: "pix_merchant_city",
+    label: "Cidade do Recebedor (PIX)",
+    type: "text",
+    placeholder: "Ex: Curitiba (máx 15 caracteres)",
     showWhen: (state) => Boolean(state.pix_key?.trim()),
     visibleInList: false,
   },
@@ -223,6 +251,9 @@ export default function ContasBancariasScreen() {
   const { user } = useAuth();
   const tenantId = user?.tenant_id;
 
+  // Build fields with tenant-aware bank reference filter
+  const fields = useMemo(() => buildFields(tenantId), [tenantId]);
+
   const loadFiltered = useMemo(() => {
     return async (): Promise<Row[]> => {
       const rows = await listRowsForTenant(tenantId);
@@ -233,12 +264,15 @@ export default function ContasBancariasScreen() {
 
   const createWithBank = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {
-      return createRow({
-        ...payload,
-        bank_id: bankId ?? payload.bank_id,
-      });
+      return createRow(
+        {
+          ...payload,
+          bank_id: bankId ?? payload.bank_id,
+        },
+        tenantId,
+      );
     };
-  }, [bankId]);
+  }, [bankId, tenantId]);
 
   return (
     <CrudScreen<Row>

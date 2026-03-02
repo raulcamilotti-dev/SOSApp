@@ -1,3 +1,5 @@
+import { useAuth } from "@/core/auth/AuthContext";
+import { isRadulUser } from "@/core/auth/auth.utils";
 import { ADMIN_PANEL_PERMISSIONS } from "@/core/auth/permissions";
 import { usePermissions } from "@/core/auth/usePermissions";
 import { useThemeColor } from "@/hooks/use-theme-color";
@@ -29,6 +31,7 @@ const ATENDIMENTO_ITEM: NavItem = {
 };
 
 export function AppFooter() {
+  const { user } = useAuth();
   const { hasAnyPermission } = usePermissions();
   const bgColor = useThemeColor({}, "card");
   const borderColor = useThemeColor({}, "border");
@@ -38,7 +41,8 @@ export function AppFooter() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const canAccessAdmin = hasAnyPermission(ADMIN_PANEL_PERMISSIONS);
+  const canAccessAdmin =
+    isRadulUser(user) || hasAnyPermission(ADMIN_PANEL_PERMISSIONS);
 
   const navItems: NavItem[] = useMemo(
     () => [

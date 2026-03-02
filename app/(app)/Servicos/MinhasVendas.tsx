@@ -1,6 +1,12 @@
 /**
  * Minhas Vendas — Partner-facing sales list
  *
+ * DEPRECATED: Esta tela foi integrada como um filtro "Minhas Vendas" em Administrador/Vendas.
+ * Use o toggle no cabeçalho da tela Vendas para filtrar suas próprias vendas.
+ *
+ * Esta tela permanece aqui temporariamente para compatibilidade com bookmarks/URLs antigas,
+ * mas poderá ser removida em versões futuras.
+ *
  * CrudScreen showing sales made by the current user/partner.
  * Read-only for partners (no create/delete from here — sales are created via PDV).
  */
@@ -12,9 +18,9 @@ import { usePartnerScope } from "@/hooks/use-partner-scope";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { useRouter } from "expo-router";
 import { useMemo } from "react";

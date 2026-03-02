@@ -114,8 +114,8 @@ export function isRadulUser(user?: User | null): boolean {
   if (!user) return false;
   // Prefer server-set flag when available
   if ((user as any).is_platform_admin === true) return true;
-  if ((user as any).is_platform_admin === false) return false;
-  // Fallback: check env-configured IDs (UI-only, not a security boundary)
+  // Always fall through to email/tenant check — never short-circuit on false
+  // because the DB value may be stale or incorrectly set.
   const tenantId = (user as any).tenant_id ?? (user as any).tenantId ?? "";
   const email = ((user as any).email ?? "").toLowerCase().trim();
   return RADUL_TENANT_IDS.has(String(tenantId)) || RADUL_EMAILS.has(email);
@@ -129,7 +129,7 @@ export function isRadulUser(user?: User | null): boolean {
 export function isPlatformAdminStable(user?: User | null): boolean {
   if (!user) return false;
   if ((user as any).is_platform_admin === true) return true;
-  if ((user as any).is_platform_admin === false) return false;
+  // Always fall through to email check — never short-circuit on false
   const email = ((user as any).email ?? "").toLowerCase().trim();
   return RADUL_EMAILS.has(email);
 }

@@ -3,9 +3,9 @@ import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
 import { PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { api } from "@/services/api";
+import { CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
-import { CRUD_ENDPOINT } from "@/services/crud";
 
 type Row = Record<string, unknown>;
 
@@ -63,6 +63,7 @@ export default function UserTenantsScreen() {
     userId?: string;
     tenantId?: string;
     roleId?: string;
+    partnerId?: string;
   }>();
   const userId = Array.isArray(params.userId)
     ? params.userId[0]
@@ -73,6 +74,9 @@ export default function UserTenantsScreen() {
   const roleId = Array.isArray(params.roleId)
     ? params.roleId[0]
     : params.roleId;
+  const partnerId = Array.isArray(params.partnerId)
+    ? params.partnerId[0]
+    : params.partnerId;
 
   const loadFilteredRows = useMemo(() => {
     return async (): Promise<Row[]> => {
@@ -81,10 +85,12 @@ export default function UserTenantsScreen() {
         if (userId && String(item.user_id ?? "") !== userId) return false;
         if (tenantId && String(item.tenant_id ?? "") !== tenantId) return false;
         if (roleId && String(item.role_id ?? "") !== roleId) return false;
+        if (partnerId && String(item.partner_id ?? "") !== partnerId)
+          return false;
         return true;
       });
     };
-  }, [roleId, tenantId, userId]);
+  }, [roleId, tenantId, userId, partnerId]);
 
   const createWithContext = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {
@@ -93,9 +99,10 @@ export default function UserTenantsScreen() {
         user_id: userId ?? payload.user_id,
         tenant_id: tenantId ?? payload.tenant_id,
         role_id: roleId ?? payload.role_id,
+        partner_id: partnerId ?? payload.partner_id,
       });
     };
-  }, [roleId, tenantId, userId]);
+  }, [roleId, tenantId, userId, partnerId]);
 
   const updateWithContext = useMemo(() => {
     return async (
@@ -106,9 +113,10 @@ export default function UserTenantsScreen() {
         user_id: userId ?? payload.user_id,
         tenant_id: tenantId ?? payload.tenant_id,
         role_id: roleId ?? payload.role_id,
+        partner_id: partnerId ?? payload.partner_id,
       });
     };
-  }, [roleId, tenantId, userId]);
+  }, [roleId, tenantId, userId, partnerId]);
 
   const fields: CrudFieldConfig<Row>[] = [
     { key: "id", label: "Id", placeholder: "Id", visibleInForm: false },
@@ -176,6 +184,27 @@ export default function UserTenantsScreen() {
       visibleInForm: !roleId,
     },
     {
+      key: "partner_id",
+      label: "Parceiro",
+      placeholder: "Selecione um parceiro (opcional)",
+      type: "reference",
+      referenceTable: "partners",
+      referenceLabelField: "display_name",
+      referenceSearchField: "display_name",
+      referenceIdField: "id",
+      referenceFilter: (item, state) => {
+        const selectedTenantId = String(
+          tenantId ?? state.tenant_id ?? "",
+        ).trim();
+        if (!selectedTenantId) return true;
+        return String(item.tenant_id ?? "").trim() === selectedTenantId;
+      },
+      resolveReferenceLabelInList: true,
+      required: false,
+      visibleInList: true,
+      visibleInForm: !partnerId,
+    },
+    {
       key: "is_active",
       label: "Is Active",
       placeholder: "Is Active",
@@ -203,14 +232,13 @@ export default function UserTenantsScreen() {
         createItem={createWithContext}
         updateItem={updateWithContext}
         deleteItem={deleteRow}
-        getDetails={(item) => [
-          { label: "Usuário", value: String(item.user_id ?? "-") },
-          { label: "Tenant", value: String(item.tenant_id ?? "-") },
-          { label: "Role", value: String(item.role_id ?? "-") },
-          { label: "Ativo", value: String(item.is_active ?? "-") },
-        ]}
         getId={(item) => String(item.id ?? "")}
-        getTitle={(item) => String(item.user_id ?? "User Tenants")}
+        getTitle={(item) => {
+          // Retorna um identificador composto para não depender de resolução assíncrona
+          const userId = String(item.user_id ?? "").slice(0, 8);
+          const tenantId = String(item.tenant_id ?? "").slice(0, 8);
+          return `${userId}... · ${tenantId}...`;
+        }}
       />
     </ProtectedRoute>
   );

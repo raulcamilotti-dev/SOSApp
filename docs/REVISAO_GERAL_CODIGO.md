@@ -837,7 +837,8 @@ npm install jose
 npx wrangler secret put JWT_SECRET
 # Gerar um secret forte com: openssl rand -base64 48
 ```
-
+kQ9wJr3m0aB8Y2tX1s6LZp4uD7HcN5VfGvR2eUoWjCqTnSxM9yK8A1bP6dFh3LQe
+06235517
 Também adicionar ao `wrangler.toml` na interface `Env`:
 
 ```toml

@@ -50,8 +50,9 @@ export function usePartnerScope(): PartnerScope {
   const [isInternalPartner, setIsInternalPartner] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const userPartnerId_dep = (user as any)?.partner_id as string | undefined;
-  const canViewAllPartners_dep = (user as any)?.can_view_all_partners === true;
+  // Extract partner_id from user object (loaded from user_tenants.partner_id via AuthContext)
+  const userPartnerId = user?.partner_id;
+  const canViewAllPartners = user?.can_view_all_partners === true;
 
   const resolve = useCallback(async () => {
     if (!user?.id) {
@@ -64,9 +65,7 @@ export function usePartnerScope(): PartnerScope {
 
     try {
       // 1. Check if user has a partner_id
-      const userPartnerId = userPartnerId_dep;
-
-      if (!userPartnerId || canViewAllPartners_dep) {
+      if (!userPartnerId || canViewAllPartners) {
         // Not a partner user, OR has permission to view all partners — full access
         setPartnerId(null);
         setCustomerIds([]);
@@ -117,7 +116,7 @@ export function usePartnerScope(): PartnerScope {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, userPartnerId_dep, canViewAllPartners_dep]);
+  }, [user?.id, userPartnerId, canViewAllPartners]);
 
   useEffect(() => {
     setLoading(true);
