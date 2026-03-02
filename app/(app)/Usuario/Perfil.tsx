@@ -3,11 +3,11 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-    Alert,
-    Platform,
-    ScrollView,
-    TouchableOpacity,
-    View,
+  Alert,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
@@ -78,7 +78,7 @@ export default function Profile() {
         style: "destructive",
         onPress: () => {
           logout();
-          router.replace("/(app)");
+          router.replace("/(auth)/login");
         },
       },
     ]);
