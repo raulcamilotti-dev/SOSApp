@@ -188,6 +188,8 @@ export default function PDVScreen() {
   const [pixBrCode, setPixBrCode] = useState<string | null>(null);
   const [pixQrImage, setPixQrImage] = useState<string | null>(null);
   const [pixCopied, setPixCopied] = useState(false);
+  const [pixConfigured, setPixConfigured] = useState<boolean | null>(null); // null = loading
+  const [showPixWarning, setShowPixWarning] = useState(false);
 
   // Pre-sale import
   const [showPreSaleSearch, setShowPreSaleSearch] = useState(false);
@@ -328,6 +330,44 @@ export default function PDVScreen() {
       }
     })();
   }, [tenantId, currentRoleId]);
+
+  /* ---------------------------------------------------------------- */
+  /*  Check PIX configuration on mount (reads from bank_accounts)      */
+  /* ---------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!tenantId) return;
+    (async () => {
+      try {
+        // Look for any active bank account with a PIX key for this tenant
+        const acctRes = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "bank_accounts",
+          ...buildSearchParams(
+            [
+              { field: "tenant_id", value: tenantId },
+              { field: "is_active", value: "true" },
+            ],
+            { sortColumn: "is_default DESC, created_at ASC" },
+          ),
+        });
+        const accounts = normalizeCrudList<Record<string, unknown>>(
+          acctRes.data,
+        ).filter((a) => !a.deleted_at);
+        const withPix = accounts.find(
+          (a) => String(a.pix_key ?? "").trim() !== "",
+        );
+        setPixConfigured(!!withPix);
+
+        // If PIX is not configured and payment is set to pix, switch to cash
+        if (!withPix) {
+          setPaymentMethod((prev) => (prev === "pix" ? "cash" : prev));
+        }
+      } catch {
+        setPixConfigured(false);
+      }
+    })();
+  }, [tenantId]);
 
   /* ---------------------------------------------------------------- */
   /*  Discount validation                                              */
@@ -585,38 +625,45 @@ export default function PDVScreen() {
   const generatePix = useCallback(
     async (amount: number, saleId: string) => {
       try {
-        const tenantRes = await api.post(CRUD_ENDPOINT, {
+        // Fetch the default (or first active) bank account with a PIX key
+        const acctRes = await api.post(CRUD_ENDPOINT, {
           action: "list",
-          table: "tenants",
-          ...buildSearchParams([{ field: "id", value: tenantId }]),
+          table: "bank_accounts",
+          ...buildSearchParams(
+            [
+              { field: "tenant_id", value: tenantId },
+              { field: "is_active", value: "true" },
+            ],
+            { sortColumn: "is_default DESC, created_at ASC" },
+          ),
         });
-        const tenants = normalizeCrudList<Record<string, unknown>>(
-          tenantRes.data,
+        const accounts = normalizeCrudList<Record<string, unknown>>(
+          acctRes.data,
+        ).filter((a) => !a.deleted_at);
+        const pixAccount = accounts.find(
+          (a) => String(a.pix_key ?? "").trim() !== "",
         );
-        const tenant = tenants[0];
-        if (!tenant) {
+
+        if (!pixAccount) {
           Alert.alert(
-            "PIX indisponível",
-            "Não foi possível carregar as configurações do tenant. Verifique sua conexão.",
+            "PIX não configurado",
+            "Nenhuma conta bancária com chave PIX encontrada. Configure em Administrador → Contas Bancárias.",
           );
           return;
         }
 
-        const config =
-          typeof tenant.config === "string"
-            ? JSON.parse(tenant.config)
-            : ((tenant.config as Record<string, unknown>) ?? {});
-        const billing = (config.billing ?? {}) as Record<string, unknown>;
-        const pixKey = String(billing.pix_key ?? "");
+        const pixKey = String(pixAccount.pix_key ?? "");
         const merchantName = String(
-          billing.pix_merchant_name ?? tenant.company_name ?? "Loja",
-        );
-        const merchantCity = String(billing.pix_merchant_city ?? "Brasil");
+          pixAccount.pix_merchant_name ?? pixAccount.account_name ?? "Loja",
+        ).slice(0, 25);
+        const merchantCity = String(
+          pixAccount.pix_merchant_city ?? "Brasil",
+        ).slice(0, 15);
 
         if (!pixKey) {
           Alert.alert(
             "PIX não configurado",
-            "Chave PIX não encontrada. Configure em Administrador → Tenants → Config → billing → pix_key.",
+            "Chave PIX não encontrada na conta bancária. Configure em Administrador → Contas Bancárias → seção PIX.",
           );
           return;
         }
@@ -664,6 +711,13 @@ export default function PDVScreen() {
   const handleSubmit = useCallback(async () => {
     if (cart.length === 0) {
       Alert.alert("Carrinho vazio", "Adicione itens ao carrinho.");
+      return;
+    }
+    if (paymentMethod === "pix" && pixConfigured === false) {
+      Alert.alert(
+        "PIX não configurado",
+        "Nenhuma conta bancária com chave PIX encontrada. Configure em Administrador → Contas Bancárias → seção PIX (Recebimento).",
+      );
       return;
     }
     const pctInput = parseFloat(discountPercent) || 0;
@@ -772,6 +826,7 @@ export default function PDVScreen() {
     effectiveDiscount,
     maxDiscount,
     paymentMethod,
+    pixConfigured,
     activePreSale,
     generatePix,
   ]);
@@ -1496,40 +1551,139 @@ export default function PDVScreen() {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
           {PAYMENT_METHODS.map((pm) => {
             const isActive = paymentMethod === pm.key;
+            const isPixUnavailable =
+              pm.key === "pix" && pixConfigured === false;
             return (
               <Pressable
                 key={pm.key}
-                onPress={() => setPaymentMethod(pm.key)}
+                onPress={() => {
+                  if (isPixUnavailable) {
+                    setShowPixWarning(true);
+                    return;
+                  }
+                  setShowPixWarning(false);
+                  setPaymentMethod(pm.key);
+                }}
                 style={{
-                  backgroundColor: isActive ? tintColor : "transparent",
+                  backgroundColor: isActive
+                    ? tintColor
+                    : isPixUnavailable
+                      ? `${errorColor}10`
+                      : "transparent",
                   borderRadius: 16,
                   paddingHorizontal: 12,
                   paddingVertical: 5,
                   borderWidth: 1,
-                  borderColor: isActive ? tintColor : borderColor,
+                  borderColor: isActive
+                    ? tintColor
+                    : isPixUnavailable
+                      ? `${errorColor}40`
+                      : borderColor,
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 4,
+                  opacity: isPixUnavailable ? 0.6 : 1,
                 }}
               >
                 <Ionicons
                   name={pm.icon as any}
                   size={14}
-                  color={isActive ? "#fff" : mutedColor}
+                  color={
+                    isActive
+                      ? "#fff"
+                      : isPixUnavailable
+                        ? errorColor
+                        : mutedColor
+                  }
                 />
                 <Text
                   style={{
-                    color: isActive ? "#fff" : mutedColor,
+                    color: isActive
+                      ? "#fff"
+                      : isPixUnavailable
+                        ? errorColor
+                        : mutedColor,
                     fontSize: 12,
                     fontWeight: "600",
                   }}
                 >
                   {pm.label}
+                  {isPixUnavailable ? " ⚠" : ""}
                 </Text>
               </Pressable>
             );
           })}
         </View>
+        {(showPixWarning ||
+          (paymentMethod === "pix" && pixConfigured === false)) &&
+          pixConfigured === false && (
+            <View
+              style={{
+                backgroundColor: `${warningColor}15`,
+                borderRadius: 8,
+                padding: 12,
+                marginTop: 6,
+                borderWidth: 1,
+                borderColor: `${warningColor}30`,
+              }}
+            >
+              <Text
+                style={{ color: warningColor, fontSize: 12, fontWeight: "700" }}
+              >
+                ⚠️ PIX não disponível
+              </Text>
+              <Text
+                style={{
+                  color: textColor,
+                  fontSize: 12,
+                  marginTop: 4,
+                  lineHeight: 18,
+                }}
+              >
+                Nenhuma conta bancária com chave PIX cadastrada. Para habilitar
+                pagamentos via PIX:
+              </Text>
+              <View
+                style={{
+                  backgroundColor: `${borderColor}30`,
+                  borderRadius: 6,
+                  padding: 8,
+                  marginTop: 6,
+                }}
+              >
+                <Text
+                  style={{
+                    color: textColor,
+                    fontSize: 11,
+                    lineHeight: 18,
+                  }}
+                >
+                  1. Acesse Administrador → Bancos{"\n"}
+                  {"   "}Cadastre o seu banco (ex: Nubank, BB){"\n"}
+                  2. Acesse Administrador → Contas Bancárias{"\n"}
+                  {"   "}Cadastre a conta e preencha a seção{"\n"}
+                  {"   "}"PIX (Recebimento)" com sua chave,{"\n"}
+                  {"   "}nome do estabelecimento e cidade.{"\n"}
+                  3. Marque a conta como "Padrão"
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowPixWarning(false)}
+                style={{
+                  alignSelf: "flex-end",
+                  marginTop: 6,
+                  paddingVertical: 4,
+                  paddingHorizontal: 8,
+                }}
+              >
+                <Text
+                  style={{ color: mutedColor, fontSize: 11, fontWeight: "600" }}
+                >
+                  Fechar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
       </View>
 
       {/* ---- Totals ---- */}
@@ -1786,6 +1940,41 @@ export default function PDVScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
+              </View>
+            )}
+
+            {/* ---- PIX not available message ---- */}
+            {paymentMethod === "pix" && !pixQrImage && !pixBrCode && (
+              <View
+                style={{
+                  borderTopWidth: 1,
+                  borderTopColor: borderColor,
+                  paddingTop: 16,
+                  marginBottom: 16,
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: warningColor,
+                    fontWeight: "600",
+                    fontSize: 14,
+                    textAlign: "center",
+                  }}
+                >
+                  ⚠️ PIX não disponível
+                </Text>
+                <Text
+                  style={{
+                    color: mutedColor,
+                    fontSize: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  A chave PIX não está configurada. Configure em Administrador →
+                  Tenants → Config → billing → pix_key
+                </Text>
               </View>
             )}
 

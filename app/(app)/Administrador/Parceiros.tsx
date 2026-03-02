@@ -4,9 +4,14 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+
+import {
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+} from "@/services/crud";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { TouchableOpacity, View } from "react-native";
 
 type Row = Record<string, unknown>;
@@ -198,6 +203,31 @@ export default function ParceirosAdminScreen() {
   const tintColor = useThemeColor({}, "tint");
   const borderColor = useThemeColor({}, "border");
 
+  // Pre-load user IDs that belong to this tenant (users table has no tenant_id column,
+  // so we resolve membership via the user_tenants junction table)
+  const [tenantUserIds, setTenantUserIds] = useState<Set<string>>(new Set());
+
+  const loadTenantUserIds = useCallback(async () => {
+    if (!tenantId) return;
+    try {
+      const res = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "user_tenants",
+        ...buildSearchParams([{ field: "tenant_id", value: tenantId }]),
+      });
+      const links = normalizeCrudList<{ user_id?: string }>(res.data);
+      setTenantUserIds(
+        new Set(links.map((l) => String(l.user_id ?? "")).filter(Boolean)),
+      );
+    } catch {
+      setTenantUserIds(new Set());
+    }
+  }, [tenantId]);
+
+  useEffect(() => {
+    loadTenantUserIds();
+  }, [loadTenantUserIds]);
+
   const loadFilteredRows = useMemo(() => () => listRows(tenantId), [tenantId]);
 
   const createRowBound = useMemo(
@@ -228,6 +258,11 @@ export default function ParceirosAdminScreen() {
       referenceIdField: "id",
       required: true,
       visibleInList: true,
+      referenceFilter: (item: Record<string, unknown>) => {
+        // Users table has no tenant_id — filter by pre-loaded user_tenants membership
+        if (!tenantId || tenantUserIds.size === 0) return true;
+        return tenantUserIds.has(String(item.id ?? ""));
+      },
     },
     {
       key: "display_name",

@@ -95,7 +95,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "pdv",
       "pre_venda",
       "vendas",
-      "minhas_vendas",
+      // "minhas_vendas", // DEPRECATED: Agora é um filtro em Administrador/Vendas
       "regras_desconto",
       "composicoes",
       "separacao",

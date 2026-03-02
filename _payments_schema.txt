@@ -1,0 +1,185 @@
+﻿{
+    "value":  [
+                  {
+                      "column_name":  "id",
+                      "data_type":  "uuid",
+                      "udt_name":  "uuid",
+                      "is_nullable":  "NO",
+                      "column_default":  "gen_random_uuid()",
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "tenant_id",
+                      "data_type":  "uuid",
+                      "udt_name":  "uuid",
+                      "is_nullable":  "NO",
+                      "column_default":  null,
+                      "referenced_table_name":  "tenants",
+                      "referenced_column_name":  "id"
+                  },
+                  {
+                      "column_name":  "invoice_id",
+                      "data_type":  "uuid",
+                      "udt_name":  "uuid",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  "invoices",
+                      "referenced_column_name":  "id"
+                  },
+                  {
+                      "column_name":  "partner_earning_id",
+                      "data_type":  "uuid",
+                      "udt_name":  "uuid",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  "partner_earnings",
+                      "referenced_column_name":  "id"
+                  },
+                  {
+                      "column_name":  "amount",
+                      "data_type":  "numeric",
+                      "udt_name":  "numeric",
+                      "is_nullable":  "NO",
+                      "column_default":  "0",
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "method",
+                      "data_type":  "text",
+                      "udt_name":  "text",
+                      "is_nullable":  "NO",
+                      "column_default":  "\u0027pix\u0027::text",
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "status",
+                      "data_type":  "text",
+                      "udt_name":  "text",
+                      "is_nullable":  "NO",
+                      "column_default":  "\u0027pending\u0027::text",
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "gateway_reference",
+                      "data_type":  "text",
+                      "udt_name":  "text",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "gateway_payload",
+                      "data_type":  "jsonb",
+                      "udt_name":  "jsonb",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "pix_key",
+                      "data_type":  "text",
+                      "udt_name":  "text",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "pix_transaction_id",
+                      "data_type":  "text",
+                      "udt_name":  "text",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "attachment_url",
+                      "data_type":  "text",
+                      "udt_name":  "text",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "attachment_name",
+                      "data_type":  "text",
+                      "udt_name":  "text",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "paid_at",
+                      "data_type":  "timestamp with time zone",
+                      "udt_name":  "timestamptz",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "confirmed_by",
+                      "data_type":  "uuid",
+                      "udt_name":  "uuid",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  "users",
+                      "referenced_column_name":  "id"
+                  },
+                  {
+                      "column_name":  "notes",
+                      "data_type":  "text",
+                      "udt_name":  "text",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "created_at",
+                      "data_type":  "timestamp with time zone",
+                      "udt_name":  "timestamptz",
+                      "is_nullable":  "NO",
+                      "column_default":  "now()",
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "updated_at",
+                      "data_type":  "timestamp with time zone",
+                      "udt_name":  "timestamptz",
+                      "is_nullable":  "NO",
+                      "column_default":  "now()",
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "deleted_at",
+                      "data_type":  "timestamp with time zone",
+                      "udt_name":  "timestamptz",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  null,
+                      "referenced_column_name":  null
+                  },
+                  {
+                      "column_name":  "bank_account_id",
+                      "data_type":  "uuid",
+                      "udt_name":  "uuid",
+                      "is_nullable":  "YES",
+                      "column_default":  null,
+                      "referenced_table_name":  "bank_accounts",
+                      "referenced_column_name":  "id"
+                  }
+              ],
+    "Count":  20
+}

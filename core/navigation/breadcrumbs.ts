@@ -138,7 +138,7 @@ export const breadcrumbMap: Record<string, string> = {
   MinhaAgenda: "Minha Agenda",
   MinhasAssinaturas: "Minhas Assinaturas",
   MinhasEmpresas: "Minhas Empresas",
-  MinhasVendas: "Minhas Vendas",
+  // MinhasVendas: "Minhas Vendas", // DEPRECATED: Agora é um filtro em Administrador/Vendas
   ParceiroCanal: "Parceiro de Canal",
   PDV: "Ponto de Venda",
   PreVenda: "Pré-Venda",

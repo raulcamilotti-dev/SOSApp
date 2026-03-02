@@ -18,28 +18,29 @@
 import bcrypt from "bcryptjs";
 import { executeQuery } from "./db";
 import {
-    handleDelinquencySummary,
-    handleDelinquentCustomers,
-    handleMarkOverdue,
-    handleMonthlyRevenue,
-    handleOverdueEntries,
+  handleDelinquencySummary,
+  handleDelinquentCustomers,
+  handleMarkOverdue,
+  handleMonthlyRevenue,
+  handleOverdueEntries,
 } from "./financial";
+import { signToken, verifyToken, type JwtPayload } from "./jwt";
 import {
-    handleCancelOrder,
-    handleConfirmPayment,
-    handleCreateOrderRecords,
-    handleOrderSummary,
-    handleResolveCustomer,
+  handleCancelOrder,
+  handleConfirmPayment,
+  handleCreateOrderRecords,
+  handleOrderSummary,
+  handleResolveCustomer,
 } from "./marketplace";
 import { handleClearCart, handleRemoveCartItem } from "./shopping-cart";
 import {
-    buildAggregate,
-    buildBatchCreate,
-    buildCount,
-    buildCreate,
-    buildDelete,
-    buildList,
-    buildUpdate,
+  buildAggregate,
+  buildBatchCreate,
+  buildCount,
+  buildCreate,
+  buildDelete,
+  buildList,
+  buildUpdate,
 } from "./sql-builder";
 import { handleClearPackData } from "./template-packs";
 import type { CrudRequestBody, Env } from "./types";
@@ -203,17 +204,48 @@ function getClientIp(request: Request): string {
 const AUTH_RATE_LIMITS = {
   "/auth/verify-password": { maxRequests: 10, windowMs: 60_000 }, // 10/min
   "/auth/set-password": { maxRequests: 5, windowMs: 60_000 }, // 5/min
+  "/auth/request-password-reset": { maxRequests: 3, windowMs: 60_000 }, // 3/min
+  "/auth/confirm-password-reset": { maxRequests: 5, windowMs: 60_000 }, // 5/min
 } as const;
 
 /* ------------------------------------------------------------------ */
 /*  Auth middleware                                                     */
 /* ------------------------------------------------------------------ */
 
-function authenticate(request: Request, env: Env): boolean {
-  // API key from header (same pattern as N8N Header Auth)
+async function authenticate(
+  request: Request,
+  env: Env,
+): Promise<JwtPayload | null> {
+  // Priority 1: Check JWT token in Authorization header (Bearer <token>)
+  const authHeader = request.headers.get("Authorization") ?? "";
+  if (authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      try {
+        const payload = await verifyToken(token, env.JWT_SECRET);
+        if (payload) {
+          return payload; // Valid JWT, return user context
+        }
+      } catch {
+        // JWT verification failed, fall through to API key check
+      }
+    }
+  }
+
+  // Priority 2: Fall back to API key check (X-Api-Key header) for backward compatibility
   const apiKey = request.headers.get("X-Api-Key");
-  if (!apiKey) return false;
-  return apiKey === env.API_KEY;
+  if (apiKey && apiKey === env.API_KEY) {
+    // Legacy API key authentication — return a synthetic payload
+    // This allows the rest of the code to treat API-key auth like JWT auth
+    return {
+      sub: "system",
+      tenant_id: "*", // API key has access to all tenants (legacy behavior)
+      role: "admin",
+    };
+  }
+
+  // No valid authentication found
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -686,6 +718,7 @@ async function handleSetPassword(
 /*  Route: POST /auth/verify-password                                  */
 /*  Verifies password against stored hash (bcrypt or plaintext)        */
 /*  Also upgrades plaintext hashes to bcrypt on successful verify      */
+/*  On success: returns JWT token for bearer authentication (B1)       */
 /* ------------------------------------------------------------------ */
 
 async function handleVerifyPassword(
@@ -711,7 +744,10 @@ async function handleVerifyPassword(
       return corsResponse(200, { verified: false });
     }
 
-    const user = users[0] as { id: string; password_hash: string | null };
+    const user = users[0] as {
+      id: string;
+      password_hash: string | null;
+    };
     const stored = user.password_hash;
 
     if (!stored) {
@@ -745,11 +781,255 @@ async function handleVerifyPassword(
       }
     }
 
-    return corsResponse(200, { verified, user_id: verified ? user.id : null });
+    // If password verified, generate JWT token (B1 — JWT implementation)
+    let response: any = { verified, user_id: verified ? user.id : null };
+
+    if (verified) {
+      try {
+        const authContext = await resolveUserAuthContext(env, user.id);
+        const token = await signToken(
+          {
+            sub: user.id,
+            tenant_id: authContext.tenant_id,
+            role: authContext.role,
+          },
+          env.JWT_SECRET,
+        );
+        response.token = token;
+      } catch (err) {
+        // Non-critical: token generation failed
+        // User can still authenticate, but won't get JWT
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn("[auth/verify-password] JWT generation failed:", message);
+      }
+    }
+
+    return corsResponse(200, response);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[auth/verify-password]", message);
     return errorResponse(500, "Password verification failed");
+  }
+}
+
+async function resolveUserAuthContext(
+  env: Env,
+  userId: string,
+): Promise<{ tenant_id: string; role: string }> {
+  const fallback = { tenant_id: "", role: "user" };
+
+  // 1) Prefer direct fields on users (legacy/convenience schema)
+  try {
+    const users = await executeQuery(
+      env,
+      'SELECT "tenant_id", "role" FROM "users" WHERE "id" = $1 AND "deleted_at" IS NULL LIMIT 1',
+      [userId],
+    );
+
+    if (Array.isArray(users) && users.length > 0) {
+      const row = users[0] as {
+        tenant_id?: string | null;
+        role?: string | null;
+      };
+      return {
+        tenant_id: String(row.tenant_id ?? ""),
+        role: String(row.role ?? "user"),
+      };
+    }
+  } catch {
+    // schema may not include users.tenant_id/users.role
+  }
+
+  // 2) Fallback to user_tenants + roles (tenant-scoped RBAC schema)
+  try {
+    const rows = await executeQuery(
+      env,
+      'SELECT ut."tenant_id", COALESCE(r."key", r."name", $2) AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."deleted_at" IS NULL ORDER BY ut."created_at" ASC LIMIT 1',
+      [userId, fallback.role],
+    );
+
+    if (Array.isArray(rows) && rows.length > 0) {
+      const row = rows[0] as {
+        tenant_id?: string | null;
+        role?: string | null;
+      };
+      return {
+        tenant_id: String(row.tenant_id ?? ""),
+        role: String(row.role ?? fallback.role),
+      };
+    }
+  } catch {
+    // ignore and fallback below
+  }
+
+  return fallback;
+}
+/* ------------------------------------------------------------------ */
+/*  Route: POST /auth/request-password-reset                           */
+/*  Generates a reset token valid for 24 hours                         */
+/*  Token can be redeemed via POST /auth/confirm-password-reset        */
+/* ------------------------------------------------------------------ */
+
+async function handleRequestPasswordReset(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const identifier = String(body.identifier ?? "").trim(); // CPF or email
+
+  if (!identifier) {
+    return errorResponse(400, "identifier (CPF or email) is required");
+  }
+
+  try {
+    // 1. Look up user
+    const users = await executeQuery(
+      env,
+      'SELECT "id", "email" FROM "users" WHERE ("cpf" = $1 OR "email" = $1) AND "deleted_at" IS NULL LIMIT 1',
+      [identifier],
+    );
+
+    if (!Array.isArray(users) || users.length === 0) {
+      // Always return success to prevent user enumeration
+      return corsResponse(200, {
+        success: true,
+        message:
+          "If the account exists, a reset link will be sent to your email",
+      });
+    }
+
+    const user = users[0] as { id: string; email: string };
+
+    // 2. Generate a cryptographically secure random token (32 bytes = 64 hex chars)
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+    const token = Array.from(randomBytes)
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+
+    // 3. Calculate expiration (24 hours from now)
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    // 4. Insert token into password_reset_tokens table
+    // First, delete any existing unused tokens for this user
+    await executeQuery(
+      env,
+      "UPDATE password_reset_tokens SET deleted_at = NOW() WHERE user_id = $1 AND used_at IS NULL AND deleted_at IS NULL",
+      [user.id],
+    );
+
+    // Now insert the new token
+    await executeQuery(
+      env,
+      "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
+      [user.id, token, expiresAt],
+    );
+
+    // 5. Return token to client
+    // NOTE: In production, the token would be sent via email by N8N webhook.
+    // For now, we return it directly for testing/demo purposes.
+    return corsResponse(200, {
+      success: true,
+      token,
+      message:
+        "Reset token generated. Valid for 24 hours. Send this to the client via email.",
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[auth/request-password-reset]", message);
+    return errorResponse(500, "Failed to generate reset token");
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Route: POST /auth/confirm-password-reset                           */
+/*  Validates reset token and sets new password                        */
+/*  Returns JWT token on success for immediate login                   */
+/* ------------------------------------------------------------------ */
+
+async function handleConfirmPasswordReset(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const token = String(body.token ?? "").trim();
+  const newPassword = String(body.new_password ?? "");
+
+  if (!token) {
+    return errorResponse(400, "token is required");
+  }
+  if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
+    return errorResponse(
+      400,
+      `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    );
+  }
+  if (newPassword.length > MAX_PASSWORD_LENGTH) {
+    return errorResponse(
+      400,
+      `Password must be at most ${MAX_PASSWORD_LENGTH} characters`,
+    );
+  }
+
+  try {
+    // 1. Look up the token (must be valid and not expired/used)
+    const tokens = await executeQuery(
+      env,
+      "SELECT user_id FROM password_reset_tokens WHERE token = $1 AND expires_at > NOW() AND used_at IS NULL AND deleted_at IS NULL LIMIT 1",
+      [token],
+    );
+
+    if (!Array.isArray(tokens) || tokens.length === 0) {
+      return corsResponse(200, {
+        verified: false,
+        message: "Token is invalid or expired",
+      });
+    }
+
+    const tokenRecord = tokens[0] as { user_id: string };
+    const userId = tokenRecord.user_id;
+
+    // 2. Hash the new password
+    const hash = bcrypt.hashSync(newPassword, BCRYPT_COST);
+
+    // 3. Update user password
+    await executeQuery(
+      env,
+      'UPDATE "users" SET "password_hash" = $1, "updated_at" = NOW() WHERE "id" = $2',
+      [hash, userId],
+    );
+
+    // 4. Mark token as used
+    await executeQuery(
+      env,
+      "UPDATE password_reset_tokens SET used_at = NOW() WHERE token = $1",
+      [token],
+    );
+
+    // 5. Generate JWT token for immediate login
+    let response: any = { verified: true };
+
+    try {
+      const authContext = await resolveUserAuthContext(env, userId);
+      const jwtToken = await signToken(
+        {
+          sub: userId,
+          tenant_id: authContext.tenant_id,
+          role: authContext.role,
+        },
+        env.JWT_SECRET,
+      );
+      response.token = jwtToken;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        "[auth/confirm-password-reset] JWT generation failed:",
+        message,
+      );
+    }
+
+    return corsResponse(200, response);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[auth/confirm-password-reset]", message);
+    return errorResponse(500, "Password reset failed");
   }
 }
 
@@ -775,8 +1055,46 @@ export default {
       return handleHealth(env);
     }
 
+    // Auth routes — public endpoints (no auth required)
+    if (request.method === "POST" && path.startsWith("/auth/")) {
+      // B10: Enforce rate limiting on auth endpoints before processing
+      const rateConfig =
+        AUTH_RATE_LIMITS[path as keyof typeof AUTH_RATE_LIMITS];
+      if (rateConfig) {
+        const clientIp = getClientIp(request);
+        const rateLimitKey = `${clientIp}:${path}`;
+        if (
+          !checkRateLimit(
+            rateLimitKey,
+            rateConfig.maxRequests,
+            rateConfig.windowMs,
+          )
+        ) {
+          return errorResponse(
+            429,
+            "Too many requests. Please try again later.",
+          );
+        }
+      }
+
+      const body = (await request.json()) as Record<string, unknown>;
+      switch (path) {
+        case "/auth/set-password":
+          return handleSetPassword(body, env);
+        case "/auth/verify-password":
+          return handleVerifyPassword(body, env);
+        case "/auth/request-password-reset":
+          return handleRequestPasswordReset(body, env);
+        case "/auth/confirm-password-reset":
+          return handleConfirmPasswordReset(body, env);
+        default:
+          return errorResponse(404, "Not found: " + path);
+      }
+    }
+
     // Auth check for all other routes
-    if (!authenticate(request, env)) {
+    const authPayload = await authenticate(request, env);
+    if (!authPayload) {
       return errorResponse(401, "Unauthorized");
     }
 
@@ -885,39 +1203,6 @@ export default {
         switch (path) {
           case "/template-packs/clear":
             return handleClearPackData(body, env);
-          default:
-            return errorResponse(404, "Not found: " + path);
-        }
-      }
-
-      // Route: POST /auth/* — authentication endpoints (B10: rate-limited)
-      if (request.method === "POST" && path.startsWith("/auth/")) {
-        // B10: Enforce rate limiting on auth endpoints before processing
-        const rateConfig =
-          AUTH_RATE_LIMITS[path as keyof typeof AUTH_RATE_LIMITS];
-        if (rateConfig) {
-          const clientIp = getClientIp(request);
-          const rateLimitKey = `${clientIp}:${path}`;
-          if (
-            !checkRateLimit(
-              rateLimitKey,
-              rateConfig.maxRequests,
-              rateConfig.windowMs,
-            )
-          ) {
-            return errorResponse(
-              429,
-              "Too many requests. Please try again later.",
-            );
-          }
-        }
-
-        const body = (await request.json()) as Record<string, unknown>;
-        switch (path) {
-          case "/auth/set-password":
-            return handleSetPassword(body, env);
-          case "/auth/verify-password":
-            return handleVerifyPassword(body, env);
           default:
             return errorResponse(404, "Not found: " + path);
         }

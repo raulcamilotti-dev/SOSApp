@@ -1,0 +1,548 @@
+{
+  "name": "Login e registro",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "register",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c2536ce6-3142-4263-9086-bebddabc6fb8",
+      "name": "Registro",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 300],
+      "webhookId": "registro-webhook"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, tenant_id, role FROM users WHERE cpf = $1 AND deleted_at IS NULL LIMIT 1",
+        "options": {
+          "queryBatching": "independently"
+        },
+        "additionalFields": {
+          "values": {
+            "values": [
+              {
+                "column": "cpf",
+                "value": "={{ $json.body.cpf }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "4f1d8c2a-9e5b-4a3c-b1d7-8e9f0a1b2c3d",
+      "name": "Verifica se já possui cadastro",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [480, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credential-id",
+          "name": "PostgreSQL Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5115bc69-f23b-4393-8877-2a3b4c5d6e7f",
+      "name": "Se NÃO existe",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "users",
+          "mode": "list",
+          "cachedResultName": "users"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fullname": "={{ $('Registro').first().json.body.name }}",
+            "cpf": "={{ $('Registro').first().json.body.cpf }}",
+            "email": "={{ $('Registro').first().json.body.email }}",
+            "phone": "={{ $('Registro').first().json.body.phone }}",
+            "role": "client",
+            "is_active": true,
+            "created_at": "={{ $now }}",
+            "updated_at": "={{ $now }}"
+          }
+        },
+        "options": {
+          "queryBatching": "independently"
+        }
+      },
+      "id": "db4546f8-fa0b-4b3c-8d1e-2f3g4h5i6j7k",
+      "name": "Cria usuário SEM senha",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [920, 200],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credential-id",
+          "name": "PostgreSQL Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "65db4d54-a552-4ef1-9884-3b4c5d6e7f8g",
+      "name": "Se criou com sucesso",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1140, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api-crud.sosescritura.com.br/auth/set-password",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $('Cria usuário SEM senha').first().json.id }}"
+            },
+            {
+              "name": "password",
+              "value": "={{ $('Registro').first().json.body.password }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3fadede0-1c9e-4a2b-932f-4c5d6e7f8g9h",
+      "name": "Define senha com bcrypt (Worker)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "api-key-credential-id",
+          "name": "API Key Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "auth_tokens",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $('Cria usuário SEM senha').first().json.id }}",
+            "token": "={{ $randomString(32) }}",
+            "expires_at": "={{ $now.plus(30, 'days') }}",
+            "created_at": "={{ $now }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "36c34c19-751a-4b2c-8e1f-5d6e7f8g9h0i",
+      "name": "Cria token temporário",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1580, 100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credential-id",
+          "name": "PostgreSQL Database"
+        }
+      },
+      "notes": "⚠️ DEPRECATED: Usar JWT do Worker no futuro"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT u.id, u.fullname, u.cpf, u.email, u.phone, u.role, u.tenant_id, t.token FROM users u LEFT JOIN auth_tokens t ON u.id = t.user_id WHERE u.id = $1 ORDER BY t.created_at DESC LIMIT 1",
+        "options": {},
+        "additionalFields": {
+          "values": {
+            "values": [
+              {
+                "column": "user_id",
+                "value": "={{ $('Define senha com bcrypt (Worker)').first().json.user_id }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "7e8f9g0h-1i2j-3k4l-5m6n-7o8p9q0r1s2t",
+      "name": "Busca usuário completo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1800, 100],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-credential-id",
+          "name": "PostgreSQL Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  statusCode: 200,\n  message: 'Cadastro realizado com sucesso',\n  user: {\n    id: $json.id,\n    nome: $json.fullname,\n    cpf: $json.cpf,\n    email: $json.email,\n    phone: $json.phone,\n    role: $json.role,\n    tenant_id: $json.tenant_id\n  },\n  token: $json.token\n}) }}",
+        "options": {}
+      },
+      "id": "8f9g0h1i-2j3k-4l5m-6n7o-8p9q0r1s2t3u",
+      "name": "Retorna sucesso",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2020, 100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 409,
+        "responseBody": "={{ JSON.stringify({\n  statusCode: 409,\n  message: 'CPF já cadastrado',\n  error: 'Conflict'\n}) }}",
+        "options": {}
+      },
+      "id": "9g0h1i2j-3k4l-5m6n-7o8p-9q0r1s2t3u4v",
+      "name": "Retorna CPF duplicado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "login",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "163e6885-bf66-4ae2-8b4d-28acf396f81e",
+      "name": "Login",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 700],
+      "webhookId": "login-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api-crud.sosescritura.com.br/auth/verify-password",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "identifier",
+              "value": "={{ $json.body.cpf }}"
+            },
+            {
+              "name": "password",
+              "value": "={{ $json.body.password }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "2b18a3bc-9c11-4d2e-8f1a-3b4c5d6e7f8g",
+      "name": "Verifica senha no Worker (bcrypt + JWT)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "api-key-credential-id",
+          "name": "API Key Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.verified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0a1b2c3d-4e5f-6g7h-8i9j-0k1l2m3n4o5p",
+      "name": "Se autenticou",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [700, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  statusCode: 200,\n  message: 'Login realizado com sucesso',\n  user: {\n    id: $json.user_id,\n    role: $json.role,\n    tenant_id: $json.tenant_id\n  },\n  token: $json.token\n}) }}",
+        "options": {}
+      },
+      "id": "1b2c3d4e-5f6g-7h8i-9j0k-1l2m3n4o5p6q",
+      "name": "Retorna login sucesso",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [920, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 401,
+        "responseBody": "={{ JSON.stringify({\n  statusCode: 401,\n  message: 'CPF ou senha inválidos',\n  error: 'Unauthorized'\n}) }}",
+        "options": {}
+      },
+      "id": "2c3d4e5f-6g7h-8i9j-0k1l-2m3n4o5p6q7r",
+      "name": "Retorna credenciais inválidas",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [920, 800]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Registro": {
+      "main": [
+        [
+          {
+            "node": "Verifica se já possui cadastro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifica se já possui cadastro": {
+      "main": [
+        [
+          {
+            "node": "Se NÃO existe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Se NÃO existe": {
+      "main": [
+        [
+          {
+            "node": "Cria usuário SEM senha",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retorna CPF duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cria usuário SEM senha": {
+      "main": [
+        [
+          {
+            "node": "Se criou com sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Se criou com sucesso": {
+      "main": [
+        [
+          {
+            "node": "Define senha com bcrypt (Worker)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Define senha com bcrypt (Worker)": {
+      "main": [
+        [
+          {
+            "node": "Cria token temporário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cria token temporário": {
+      "main": [
+        [
+          {
+            "node": "Busca usuário completo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Busca usuário completo": {
+      "main": [
+        [
+          {
+            "node": "Retorna sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Login": {
+      "main": [
+        [
+          {
+            "node": "Verifica senha no Worker (bcrypt + JWT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifica senha no Worker (bcrypt + JWT)": {
+      "main": [
+        [
+          {
+            "node": "Se autenticou",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Se autenticou": {
+      "main": [
+        [
+          {
+            "node": "Retorna login sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retorna credenciais inválidas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b8c9d0e1-f2a3-4b5c-6d7e-8f9g0h1i2j3k",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "your-n8n-instance-id"
+  },
+  "id": "v2ypjj3bdtZ9RcFF",
+  "tags": []
+}

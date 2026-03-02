@@ -617,9 +617,23 @@ const formatItemSummary = (item: Record<string, unknown>) => {
   if (!item) return "";
   const keys = Object.keys(item)
     .filter((key) =>
-      ["name", "title", "description", "fullname", "company_name"].includes(
-        key,
-      ),
+      [
+        "name",
+        "title",
+        "description",
+        "fullname",
+        "company_name",
+        "display_name",
+        "nome",
+        "user_name",
+        "customer_name",
+        "supplier_name",
+        "partner_name",
+        "product_name",
+        "service_name",
+        "razao_social",
+        "nome_fantasia",
+      ].includes(key),
     )
     .slice(0, 3);
   if (!keys.length) return "";
@@ -967,13 +981,13 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
   const shouldApplyTenantIsolationToReference = useCallback(
     async (table?: string) => {
+      // Always apply tenant isolation when user has a tenant context,
+      // even for superadmin — they should see data scoped to the tenant
+      // they are currently browsing, not data from all tenants.
       if (!user?.tenant_id) return false;
-      if (String(user?.role ?? "").toLowerCase() === "superadmin") {
-        return false;
-      }
       return tableSupportsTenantScope(table);
     },
-    [tableSupportsTenantScope, user?.role, user?.tenant_id],
+    [tableSupportsTenantScope, user?.tenant_id],
   );
 
   // Pagination state (only active when paginatedLoadItems is provided)
@@ -1191,6 +1205,11 @@ export function CrudScreen<T extends Record<string, unknown>>({
           requestPayload.combine_type = "AND";
         }
 
+        // Note: NOT filtering by is_active or deleted_at here because:
+        // 1. Not all tables have these columns (e.g., tenants, roles)
+        // 2. Filtering by non-existent columns causes silent query failures
+        // 3. Active/deleted filtering is already applied at data load time
+
         const response = await api.post(REFERENCE_ENDPOINT, requestPayload);
         const data = response.data;
         const list = Array.isArray(data) ? data : (data?.data ?? []);
@@ -1304,6 +1323,11 @@ export function CrudScreen<T extends Record<string, unknown>>({
                   requestPayload.search_operator2 = "equal";
                   requestPayload.combine_type = "AND";
                 }
+
+                // Note: NOT filtering by is_active or deleted_at here because:
+                // 1. Not all tables have these columns (e.g., tenants, roles)
+                // 2. Filtering by non-existent columns causes silent query failures
+                // 3. Active/deleted filtering is already applied at data load time
 
                 const response = await api.post(
                   REFERENCE_ENDPOINT,
@@ -1579,7 +1603,13 @@ export function CrudScreen<T extends Record<string, unknown>>({
           );
           requestPayload[`search_operator${nextFilterIndex}`] = "equal";
           requestPayload.combine_type = "AND";
+          nextFilterIndex += 1;
         }
+
+        // Note: NOT filtering by is_active or deleted_at here because:
+        // 1. Not all tables have these columns (e.g., tenants, roles)
+        // 2. Filtering by non-existent columns causes silent query failures
+        // 3. Active/deleted filtering is already applied at data load time
 
         const response = await api.post(REFERENCE_ENDPOINT, requestPayload);
         const data = response.data;
@@ -1848,6 +1878,30 @@ export function CrudScreen<T extends Record<string, unknown>>({
         ? String(base?.[quickCreateField.referenceLabelField] ?? "")
         : formatItemSummary(base as Record<string, unknown>);
       const finalLabel = createdLabel || createdId || "(novo)";
+
+      // Auto-create user_tenants link when quick-creating a user record
+      // so the new user appears in tenant-scoped screens (Users management, etc.)
+      // Note: user_tenants table has NO updated_at column — only id, user_id, tenant_id, role_id, is_active, created_at, deleted_at
+      if (
+        quickCreateField.referenceTable === "users" &&
+        createdId &&
+        user?.tenant_id
+      ) {
+        try {
+          await api.post(REFERENCE_ENDPOINT, {
+            action: "create",
+            table: "user_tenants",
+            payload: {
+              user_id: createdId,
+              tenant_id: user.tenant_id,
+              is_active: true,
+              created_at: toIsoNow(),
+            },
+          });
+        } catch {
+          // Best-effort — user was created, link failure is non-fatal
+        }
+      }
 
       if (createdId) {
         const cacheKey = buildCacheKey(
@@ -3388,8 +3442,16 @@ export function CrudScreen<T extends Record<string, unknown>>({
                       if (field.type === "reference") {
                         return (
                           <TouchableOpacity
-                            onPress={() => openReferenceModal(field, "form")}
-                            style={{ ...fieldInputStyle, paddingVertical: 12 }}
+                            onPress={() =>
+                              !field.readOnly &&
+                              openReferenceModal(field, "form")
+                            }
+                            disabled={field.readOnly}
+                            style={{
+                              ...fieldInputStyle,
+                              paddingVertical: 12,
+                              opacity: field.readOnly ? 0.7 : 1,
+                            }}
                           >
                             <ThemedText style={{ color: textColor }}>
                               {referenceLabels[field.key] ||
@@ -4125,9 +4187,15 @@ export function CrudScreen<T extends Record<string, unknown>>({
                       return (
                         <TouchableOpacity
                           onPress={() =>
+                            !resolvedField.readOnly &&
                             openReferenceModal(resolvedField, "quick")
                           }
-                          style={{ ...qcInputStyle, paddingVertical: 12 }}
+                          disabled={resolvedField.readOnly}
+                          style={{
+                            ...qcInputStyle,
+                            paddingVertical: 12,
+                            opacity: resolvedField.readOnly ? 0.7 : 1,
+                          }}
                         >
                           <ThemedText style={{ color: textColor }}>
                             {quickCreateReferenceLabels[field.key] ||

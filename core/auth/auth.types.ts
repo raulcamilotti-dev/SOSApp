@@ -9,6 +9,14 @@ export interface User {
   role?: string;
   fullname?: string;
   tenant_id?: string;
+  customer_id?: string;
+
+  /**
+   * Partner ID for operational relationships (N users : 1 partner within a tenant).
+   * This is separate from role - role controls UI permissions, partner_id controls
+   * data scope and operational relationships. Loaded from user_tenants.partner_id.
+   */
+  partner_id?: string;
 
   /** Server-set flag for Radul platform admins (B13 fix) */
   is_platform_admin?: boolean;
@@ -25,6 +33,8 @@ export type TenantOption = {
   slug?: string;
   role_id?: string;
   role_name?: string;
+  /** Partner ID from user_tenants - links user to partner within this tenant */
+  partner_id?: string;
 };
 
 export type RegisterPayload = {
