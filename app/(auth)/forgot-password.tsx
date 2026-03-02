@@ -10,7 +10,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
 
 type Step = "email" | "success" | "error";
@@ -47,7 +47,7 @@ export default function ForgotPasswordScreen() {
 
     try {
       await api.post("/auth/request-password-reset", {
-        email: email.trim(),
+        identifier: email.trim(),
       });
 
       setStep("success");
