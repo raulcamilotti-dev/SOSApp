@@ -29,8 +29,8 @@ cd C:\Users\raulc\OneDrive\Documentos\GitHub\SOSApp\workers\api-crud
 # 1.2 - Adicionar JWT_SECRET
 npx wrangler secret put JWT_SECRET
 
-# ⚠️ Quando solicitar, cole:
-# X4bl5Ho7HZMAEJJhrdL8EvQx0SeKJwS6wMde6zwkHoaqAKwPdZ1FvXDHEXd8znQT
+# ⚠️ Quando solicitar, cole o valor da variável de ambiente $env:JWT_SECRET
+# NÃO commite secrets no repositório!
 
 # 1.3 - Verificar secret adicionado
 npx wrangler secret list
@@ -356,7 +356,7 @@ Após executar os 3 passos, confirme:
 
 ```powershell
 npx wrangler secret put JWT_SECRET
-# Cole: X4bl5Ho7HZMAEJJhrdL8EvQx0SeKJwS6wMde6zwkHoaqAKwPdZ1FvXDHEXd8znQT
+# Cole o valor da variável de ambiente $env:JWT_SECRET
 ```
 
 ---

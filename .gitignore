@@ -29,6 +29,9 @@ yarn-error.*
 .env*.local
 .env.example
 
+# scripts with secrets
+add-jwt-secret.ps1
+
 
 # typescript
 *.tsbuildinfo
