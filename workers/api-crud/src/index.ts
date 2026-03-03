@@ -57,14 +57,19 @@ const ALLOWED_ORIGINS = new Set([
   "https://radul.com.br",
   "https://www.radul.com.br",
   "https://api-crud.sosescritura.com.br",
+  "https://app.sosescritura.com.br",
+  "https://sosescritura.com.br",
+  "https://www.sosescritura.com.br",
 ]);
 
-/** Check if origin matches allowed patterns (exact, *.radul.com.br, or localhost) */
+/** Check if origin matches allowed patterns (exact, *.radul.com.br, *.sosescritura.com.br, or localhost) */
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.has(origin)) return true;
   // Allow any subdomain of radul.com.br
   if (/^https:\/\/[a-z0-9-]+\.radul\.com\.br$/.test(origin)) return true;
+  // Allow any subdomain of sosescritura.com.br
+  if (/^https:\/\/[a-z0-9-]+\.sosescritura\.com\.br$/.test(origin)) return true;
   // Allow localhost for development (any port)
   if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return true;
   if (/^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) return true;
