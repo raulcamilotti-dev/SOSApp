@@ -214,6 +214,8 @@ const AUTH_RATE_LIMITS = {
   "/auth/set-password": { maxRequests: 5, windowMs: 60_000 }, // 5/min
   "/auth/request-password-reset": { maxRequests: 3, windowMs: 60_000 }, // 3/min
   "/auth/confirm-password-reset": { maxRequests: 5, windowMs: 60_000 }, // 5/min
+  "/auth/login": { maxRequests: 10, windowMs: 60_000 }, // 10/min
+  "/auth/register": { maxRequests: 5, windowMs: 60_000 }, // 5/min
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -589,6 +591,78 @@ async function handleDnsCreateSubdomain(
 /*  B6 fix: Server-side domain resolution instead of full tenant dump  */
 /* ------------------------------------------------------------------ */
 
+/** Internal tenant resolution — reusable by auth endpoints and /resolve-domain */
+interface ResolvedTenant {
+  id: string;
+  company_name: string;
+  slug: string;
+  custom_domains: unknown;
+  default_client_role: string;
+}
+interface TenantResolution {
+  resolved: boolean;
+  tenant: ResolvedTenant | null;
+  method: "slug" | "custom_domain" | "none";
+}
+
+async function resolveTenantInternal(
+  env: Env,
+  slug?: string,
+  hostname?: string,
+): Promise<TenantResolution> {
+  const cleanSlug = (slug ?? "").toLowerCase().trim();
+  const cleanHostname = (hostname ?? "").toLowerCase().trim();
+
+  if (!cleanSlug && !cleanHostname) {
+    return { resolved: false, tenant: null, method: "none" };
+  }
+
+  // 1. Try slug match first (fast — indexed column)
+  if (cleanSlug) {
+    const slugResult = await executeQuery(
+      env,
+      `SELECT id, company_name, slug, custom_domains, default_client_role
+       FROM tenants
+       WHERE slug = $1 AND deleted_at IS NULL
+       LIMIT 1`,
+      [cleanSlug],
+    );
+    if (slugResult.length > 0) {
+      return {
+        resolved: true,
+        tenant: slugResult[0] as ResolvedTenant,
+        method: "slug",
+      };
+    }
+  }
+
+  // 2. Try custom_domains JSONB containment
+  if (cleanHostname) {
+    const domainResult = await executeQuery(
+      env,
+      `SELECT id, company_name, slug, custom_domains, default_client_role
+       FROM tenants
+       WHERE deleted_at IS NULL
+         AND custom_domains IS NOT NULL
+         AND (
+           custom_domains @> $1::jsonb
+           OR custom_domains @> $2::jsonb
+         )
+       LIMIT 1`,
+      [JSON.stringify([cleanHostname]), JSON.stringify(cleanHostname)],
+    );
+    if (domainResult.length > 0) {
+      return {
+        resolved: true,
+        tenant: domainResult[0] as ResolvedTenant,
+        method: "custom_domain",
+      };
+    }
+  }
+
+  return { resolved: false, tenant: null, method: "none" };
+}
+
 async function handleResolveDomain(
   body: Record<string, unknown>,
   env: Env,
@@ -605,55 +679,8 @@ async function handleResolveDomain(
   }
 
   try {
-    // 1. Try slug match first (fast — indexed column)
-    if (slug) {
-      const slugResult = await executeQuery(
-        env,
-        `SELECT id, company_name, slug, custom_domains, default_client_role
-         FROM tenants
-         WHERE slug = $1 AND deleted_at IS NULL
-         LIMIT 1`,
-        [slug],
-      );
-      if (slugResult.length > 0) {
-        return corsResponse(200, {
-          resolved: true,
-          tenant: slugResult[0],
-          method: "slug",
-        });
-      }
-    }
-
-    // 2. Try custom_domains JSONB containment (server-side, no full table dump)
-    if (hostname) {
-      const domainResult = await executeQuery(
-        env,
-        `SELECT id, company_name, slug, custom_domains, default_client_role
-         FROM tenants
-         WHERE deleted_at IS NULL
-           AND custom_domains IS NOT NULL
-           AND (
-             custom_domains @> $1::jsonb
-             OR custom_domains @> $2::jsonb
-           )
-         LIMIT 1`,
-        [JSON.stringify([hostname]), JSON.stringify(hostname)],
-      );
-      if (domainResult.length > 0) {
-        return corsResponse(200, {
-          resolved: true,
-          tenant: domainResult[0],
-          method: "custom_domain",
-        });
-      }
-    }
-
-    // 3. No match
-    return corsResponse(200, {
-      resolved: false,
-      tenant: null,
-      method: "none",
-    });
+    const result = await resolveTenantInternal(env, slug, hostname);
+    return corsResponse(200, result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[resolve-domain]", message);
@@ -714,7 +741,7 @@ async function handleSetPassword(
       [hash, userId],
     );
 
-    return corsResponse(200, { success: true });
+    return corsResponse(200, { success: true, user_id: userId });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[auth/set-password]", message);
@@ -804,6 +831,9 @@ async function handleVerifyPassword(
           env.JWT_SECRET,
         );
         response.token = token;
+        // Expose role and tenant_id at top level for N8N workflow consumption
+        response.role = authContext.role;
+        response.tenant_id = authContext.tenant_id;
       } catch (err) {
         // Non-critical: token generation failed
         // User can still authenticate, but won't get JWT
@@ -826,34 +856,28 @@ async function resolveUserAuthContext(
 ): Promise<{ tenant_id: string; role: string }> {
   const fallback = { tenant_id: "", role: "user" };
 
-  // 1) Prefer direct fields on users (legacy/convenience schema)
+  // 1) Get role from users table (always has role column)
+  let userRole = fallback.role;
   try {
     const users = await executeQuery(
       env,
-      'SELECT "tenant_id", "role" FROM "users" WHERE "id" = $1 AND "deleted_at" IS NULL LIMIT 1',
+      'SELECT "role" FROM "users" WHERE "id" = $1 AND "deleted_at" IS NULL LIMIT 1',
       [userId],
     );
-
     if (Array.isArray(users) && users.length > 0) {
-      const row = users[0] as {
-        tenant_id?: string | null;
-        role?: string | null;
-      };
-      return {
-        tenant_id: String(row.tenant_id ?? ""),
-        role: String(row.role ?? "user"),
-      };
+      const row = users[0] as { role?: string | null };
+      userRole = String(row.role ?? fallback.role);
     }
   } catch {
-    // schema may not include users.tenant_id/users.role
+    // ignore
   }
 
-  // 2) Fallback to user_tenants + roles (tenant-scoped RBAC schema)
+  // 2) Get tenant_id + role from user_tenants + roles (tenant-scoped RBAC)
   try {
     const rows = await executeQuery(
       env,
       'SELECT ut."tenant_id", COALESCE(r."key", r."name", $2) AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."deleted_at" IS NULL ORDER BY ut."created_at" ASC LIMIT 1',
-      [userId, fallback.role],
+      [userId, userRole],
     );
 
     if (Array.isArray(rows) && rows.length > 0) {
@@ -863,14 +887,15 @@ async function resolveUserAuthContext(
       };
       return {
         tenant_id: String(row.tenant_id ?? ""),
-        role: String(row.role ?? fallback.role),
+        role: String(row.role ?? userRole),
       };
     }
   } catch {
     // ignore and fallback below
   }
 
-  return fallback;
+  // 3) No user_tenants record — return role from users table, empty tenant
+  return { tenant_id: "", role: userRole };
 }
 /* ------------------------------------------------------------------ */
 /*  Route: POST /auth/request-password-reset                           */
@@ -1038,6 +1063,355 @@ async function handleConfirmPasswordReset(
     const message = err instanceof Error ? err.message : String(err);
     console.error("[auth/confirm-password-reset]", message);
     return errorResponse(500, "Password reset failed");
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Route: POST /auth/register                                         */
+/*  Creates new user (or recovers existing without password) and       */
+/*  auto-links to tenant resolved from hostname/slug.                  */
+/*  Returns { user, token } for immediate login.                       */
+/* ------------------------------------------------------------------ */
+
+async function handleRegister(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const cpf = String(body.cpf ?? "")
+    .replace(/\D/g, "")
+    .trim();
+  const email = String(body.email ?? "")
+    .trim()
+    .toLowerCase();
+  const name = String(body.name ?? "").trim();
+  const phone = String(body.phone ?? "").trim();
+  const password = String(body.password ?? "");
+  const hostname = String(body.hostname ?? "").trim();
+  const tenantSlug = String(body.tenant_slug ?? "").trim();
+
+  if (!cpf) {
+    return errorResponse(400, "CPF é obrigatório");
+  }
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    return errorResponse(
+      400,
+      `Senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres`,
+    );
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return errorResponse(
+      400,
+      `Senha deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres`,
+    );
+  }
+  if (!name) {
+    return errorResponse(400, "Nome é obrigatório");
+  }
+
+  try {
+    // 1. Check if user already exists by CPF
+    const existing = await executeQuery(
+      env,
+      'SELECT "id", "password_hash", "fullname", "email", "phone", "role" FROM "users" WHERE "cpf" = $1 AND "deleted_at" IS NULL LIMIT 1',
+      [cpf],
+    );
+
+    let userId: string;
+    let userRole: string;
+    let userFullname: string;
+    let userEmail: string;
+    let userPhone: string;
+
+    if (existing.length > 0) {
+      const existingUser = existing[0] as {
+        id: string;
+        password_hash: string | null;
+        fullname: string | null;
+        email: string | null;
+        phone: string | null;
+        role: string | null;
+      };
+
+      if (existingUser.password_hash) {
+        // User already has a password — cannot re-register
+        return errorResponse(
+          409,
+          "CPF já cadastrado. Faça login ou recupere sua senha.",
+        );
+      }
+
+      // User exists but has no password (pre-created) — set password and use existing
+      const hash = bcrypt.hashSync(password, BCRYPT_COST);
+      await executeQuery(
+        env,
+        'UPDATE "users" SET "password_hash" = $1, "fullname" = COALESCE(NULLIF($2, \'\'), "fullname"), "email" = COALESCE(NULLIF($3, \'\'), "email"), "phone" = COALESCE(NULLIF($4, \'\'), "phone"), "updated_at" = NOW() WHERE "id" = $5',
+        [hash, name, email, phone, existingUser.id],
+      );
+
+      userId = existingUser.id;
+      userRole = existingUser.role ?? "user";
+      userFullname = name || existingUser.fullname || "";
+      userEmail = email || existingUser.email || "";
+      userPhone = phone || existingUser.phone || "";
+    } else {
+      // 2. Create new user
+      const hash = bcrypt.hashSync(password, BCRYPT_COST);
+      const newId = crypto.randomUUID();
+      await executeQuery(
+        env,
+        'INSERT INTO "users" ("id", "cpf", "email", "fullname", "phone", "password_hash", "role", "created_at", "updated_at") VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())',
+        [newId, cpf, email || null, name, phone || null, hash, "user"],
+      );
+      userId = newId;
+      userRole = "user";
+      userFullname = name;
+      userEmail = email;
+      userPhone = phone;
+    }
+
+    // 3. Resolve tenant from hostname/slug
+    let tenantId = "";
+    try {
+      const tenantResolution = await resolveTenantInternal(
+        env,
+        tenantSlug,
+        hostname,
+      );
+      if (tenantResolution.resolved && tenantResolution.tenant) {
+        const tenant = tenantResolution.tenant;
+        tenantId = tenant.id;
+
+        // Check if user_tenants link already exists
+        const existingLink = await executeQuery(
+          env,
+          'SELECT "user_id" FROM "user_tenants" WHERE "user_id" = $1 AND "tenant_id" = $2 AND "deleted_at" IS NULL LIMIT 1',
+          [userId, tenantId],
+        );
+
+        if (existingLink.length === 0) {
+          // Find role_id for the tenant's default_client_role
+          const defaultRole = tenant.default_client_role || "client";
+          let roleId: string | null = null;
+          try {
+            const roles = await executeQuery(
+              env,
+              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "deleted_at" IS NULL LIMIT 1',
+              [defaultRole],
+            );
+            if (roles.length > 0) {
+              roleId = (roles[0] as { id: string }).id;
+            }
+          } catch {
+            /* role lookup non-critical */
+          }
+
+          // Create user_tenants link
+          await executeQuery(
+            env,
+            'INSERT INTO "user_tenants" ("id", "user_id", "tenant_id", "role_id", "is_active", "created_at") VALUES ($1, $2, $3, $4, true, NOW())',
+            [crypto.randomUUID(), userId, tenantId, roleId],
+          );
+
+          // Update role from tenant context
+          if (defaultRole) userRole = defaultRole;
+        }
+      }
+    } catch (err) {
+      // Tenant resolution/linking is best-effort — never breaks registration
+      console.warn(
+        "[auth/register] Tenant auto-link failed:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    // 4. Generate JWT
+    const token = await signToken(
+      { sub: userId, tenant_id: tenantId, role: userRole },
+      env.JWT_SECRET,
+    );
+
+    // 5. Return user + token
+    return corsResponse(200, {
+      user: {
+        id: userId,
+        cpf,
+        email: userEmail,
+        fullname: userFullname,
+        phone: userPhone,
+        role: userRole,
+        tenant_id: tenantId || null,
+      },
+      token,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[auth/register]", message);
+    return errorResponse(500, "Falha no registro. Tente novamente.");
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Route: POST /auth/login                                            */
+/*  Verifies credentials and resolves tenant from hostname/slug.       */
+/*  Auto-links user to tenant if not already linked.                   */
+/*  Returns { user, token } with full user data.                       */
+/* ------------------------------------------------------------------ */
+
+async function handleLogin(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const identifier = String(body.cpf ?? body.identifier ?? "").trim();
+  const password = String(body.password ?? "");
+  const hostname = String(body.hostname ?? "").trim();
+  const tenantSlug = String(body.tenant_slug ?? "").trim();
+
+  if (!identifier || !password) {
+    return errorResponse(400, "CPF/email e senha são obrigatórios");
+  }
+
+  try {
+    // 1. Find user by CPF or email
+    const users = await executeQuery(
+      env,
+      'SELECT "id", "cpf", "email", "fullname", "phone", "role", "password_hash" FROM "users" WHERE ("cpf" = $1 OR "email" = $1) AND "deleted_at" IS NULL LIMIT 1',
+      [identifier],
+    );
+
+    if (users.length === 0) {
+      return errorResponse(401, "Credenciais inválidas");
+    }
+
+    const user = users[0] as {
+      id: string;
+      cpf: string | null;
+      email: string | null;
+      fullname: string | null;
+      phone: string | null;
+      role: string | null;
+      password_hash: string | null;
+    };
+
+    if (!user.password_hash) {
+      return errorResponse(401, "Credenciais inválidas");
+    }
+
+    // 2. Verify password
+    const isBcryptHash = /^\$2[aby]\$\d{2}\$/.test(user.password_hash);
+    let verified = false;
+
+    if (isBcryptHash) {
+      verified = bcrypt.compareSync(password, user.password_hash);
+    } else {
+      // Legacy plaintext comparison + progressive upgrade
+      verified = user.password_hash === password;
+      if (verified) {
+        try {
+          const hash = bcrypt.hashSync(password, BCRYPT_COST);
+          await executeQuery(
+            env,
+            'UPDATE "users" SET "password_hash" = $1, "updated_at" = NOW() WHERE "id" = $2',
+            [hash, user.id],
+          );
+        } catch {
+          /* upgrade non-critical */
+        }
+      }
+    }
+
+    if (!verified) {
+      return errorResponse(401, "Credenciais inválidas");
+    }
+
+    // 3. Resolve tenant from hostname/slug and auto-link
+    let userRole = user.role ?? "user";
+    let tenantId = "";
+
+    try {
+      const tenantResolution = await resolveTenantInternal(
+        env,
+        tenantSlug,
+        hostname,
+      );
+      if (tenantResolution.resolved && tenantResolution.tenant) {
+        const tenant = tenantResolution.tenant;
+        tenantId = tenant.id;
+
+        // Check if user_tenants link exists for this tenant
+        const existingLink = await executeQuery(
+          env,
+          'SELECT ut."tenant_id", COALESCE(r."key", r."name", $3) AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."tenant_id" = $2 AND ut."deleted_at" IS NULL LIMIT 1',
+          [user.id, tenantId, userRole],
+        );
+
+        if (existingLink.length > 0) {
+          // User already linked — use the role from that link
+          const link = existingLink[0] as { tenant_id: string; role: string };
+          userRole = link.role;
+        } else {
+          // Auto-link user to tenant (best-effort)
+          const defaultRole = tenant.default_client_role || "client";
+          let roleId: string | null = null;
+          try {
+            const roles = await executeQuery(
+              env,
+              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "deleted_at" IS NULL LIMIT 1',
+              [defaultRole],
+            );
+            if (roles.length > 0) {
+              roleId = (roles[0] as { id: string }).id;
+            }
+          } catch {
+            /* role lookup non-critical */
+          }
+
+          try {
+            await executeQuery(
+              env,
+              'INSERT INTO "user_tenants" ("id", "user_id", "tenant_id", "role_id", "is_active", "created_at") VALUES ($1, $2, $3, $4, true, NOW())',
+              [crypto.randomUUID(), user.id, tenantId, roleId],
+            );
+            userRole = defaultRole;
+          } catch {
+            /* auto-link non-critical */
+          }
+        }
+      } else {
+        // No tenant from hostname — fallback to existing user_tenants (first link)
+        const authContext = await resolveUserAuthContext(env, user.id);
+        tenantId = authContext.tenant_id;
+        userRole = authContext.role;
+      }
+    } catch {
+      // Tenant resolution failed — fallback to existing context
+      const authContext = await resolveUserAuthContext(env, user.id);
+      tenantId = authContext.tenant_id;
+      userRole = authContext.role;
+    }
+
+    // 4. Generate JWT
+    const token = await signToken(
+      { sub: user.id, tenant_id: tenantId, role: userRole },
+      env.JWT_SECRET,
+    );
+
+    // 5. Return user + token
+    return corsResponse(200, {
+      user: {
+        id: user.id,
+        cpf: user.cpf,
+        email: user.email,
+        fullname: user.fullname,
+        phone: user.phone,
+        role: userRole,
+        tenant_id: tenantId || null,
+      },
+      token,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[auth/login]", message);
+    return errorResponse(500, "Falha no login. Tente novamente.");
   }
 }
 
@@ -1222,6 +1596,10 @@ export default {
           return handleRequestPasswordReset(body, env);
         case "/auth/confirm-password-reset":
           return handleConfirmPasswordReset(body, env);
+        case "/auth/register":
+          return handleRegister(body, env);
+        case "/auth/login":
+          return handleLogin(body, env);
         default:
           return errorResponse(404, "Not found: " + path);
       }

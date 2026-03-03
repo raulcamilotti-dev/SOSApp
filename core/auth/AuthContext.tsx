@@ -1,37 +1,37 @@
 import {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 import { api, N8N_API_KEY, setAuthToken } from "@/services/api";
 import { autoLinkUserToCompanies } from "@/services/companies";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import {
-    autoLinkUserToTenant,
-    resolveTenantFromContext,
+  autoLinkUserToTenant,
+  resolveTenantFromContext,
 } from "@/services/tenant-resolver";
 import {
-    getSelectedTenant,
-    getTenantOptions,
-    getToken,
-    getUser,
-    saveSelectedTenant,
-    saveTenantOptions,
-    saveToken,
-    saveUser,
+  getSelectedTenant,
+  getTenantOptions,
+  getToken,
+  getUser,
+  saveSelectedTenant,
+  saveTenantOptions,
+  saveToken,
+  saveUser,
 } from "./auth.storage";
 import {
-    AuthContextData,
-    AuthProviderProps,
-    LoginResponse,
-    RegisterPayload,
-    RegisterResponse,
-    TenantOption,
-    User,
+  AuthContextData,
+  AuthProviderProps,
+  LoginResponse,
+  RegisterPayload,
+  RegisterResponse,
+  TenantOption,
+  User,
 } from "./auth.types";
 import { isPlatformAdminStable } from "./auth.utils";
 import { buildTenantContextPayload } from "./tenant-context";
@@ -564,47 +564,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setTenantLoading(true);
     try {
       const tenantContext = buildTenantContextPayload();
-      const res = await fetch("https://n8n.sosescritura.com.br/webhook/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Api-Key": N8N_API_KEY,
-        },
-        body: JSON.stringify({
-          cpf,
-          password,
-          tenant_slug: tenantContext.tenant_slug,
-          tenant_subdomain: tenantContext.tenant_subdomain,
-          tenant_hint: tenantContext.tenant_hint,
-          app_slug: tenantContext.app_slug,
-          host: tenantContext.host,
-          hostname: tenantContext.hostname,
-          pathname: tenantContext.pathname,
-          partner_id: tenantContext.partner_id,
-          referral_code: tenantContext.referral_code,
-          utm_source: tenantContext.utm_source,
-          utm_campaign: tenantContext.utm_campaign,
-          tenant_context: tenantContext,
-        }),
+
+      // Call Worker directly — no N8N intermediary
+      const res = await api.post("/auth/login", {
+        identifier: cpf,
+        password,
+        hostname: tenantContext.hostname ?? undefined,
+        tenant_slug: tenantContext.tenant_slug ?? undefined,
       });
 
-      if (!res.ok) {
-        let errorMessage = "Erro ao fazer login";
-        try {
-          const errData = await res.json();
-          if (errData?.message) errorMessage = errData.message;
-        } catch {
-          // empty body — use default error
-        }
-        throw new Error(errorMessage);
-      }
-
-      let data: LoginResponse | User[] | any;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error("Resposta inválida do servidor");
-      }
+      const data = res.data;
 
       const { userPayload, tokenPayload } = extractAuthPayload(data);
       const loggedUser: User | undefined = userPayload;
@@ -619,7 +588,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const mergedUser = await checkAndMergeUserData(loggedUser);
 
-      // Auto-resolve tenant from domain context (e.g. cartorio.radul.com.br)
+      // Auto-resolve tenant from domain context (safety net — Worker already auto-links)
       if (!mergedUser.tenant_id && mergedUser.id) {
         const resolvedTenantId = await tryAutoResolveTenant(
           String(mergedUser.id),
@@ -633,6 +602,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return userWithTenant;
     } catch (err) {
       setTenantLoading(false);
+      // Extract error message from axios error response
+      const axiosErr = err as any;
+      const serverMsg =
+        axiosErr?.response?.data?.error ?? axiosErr?.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
       throw err;
     }
   }
@@ -768,70 +744,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true);
     const tenantContext = buildTenantContextPayload();
 
-    let res: Response;
+    let result: any;
     try {
-      res = await fetch("https://n8n.sosescritura.com.br/webhook/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Api-Key": N8N_API_KEY,
-        },
-        body: JSON.stringify({
-          ...payload,
-          tenant_slug: tenantContext.tenant_slug,
-          tenant_subdomain: tenantContext.tenant_subdomain,
-          tenant_hint: tenantContext.tenant_hint,
-          app_slug: tenantContext.app_slug,
-          host: tenantContext.host,
-          hostname: tenantContext.hostname,
-          pathname: tenantContext.pathname,
-          partner_id: tenantContext.partner_id,
-          referral_code: tenantContext.referral_code,
-          utm_source: tenantContext.utm_source,
-          utm_campaign: tenantContext.utm_campaign,
-          tenant_context: tenantContext,
-        }),
+      // Call Worker directly — no N8N intermediary
+      const res = await api.post("/auth/register", {
+        cpf: payload.cpf,
+        email: payload.email,
+        name: payload.name,
+        phone: payload.phone,
+        password: payload.password,
+        hostname: tenantContext.hostname ?? undefined,
+        tenant_slug: tenantContext.tenant_slug ?? undefined,
       });
+      result = res.data;
     } catch (fetchError) {
       setLoading(false);
+      // Extract error message from axios error response
+      const axiosErr = fetchError as any;
+      if (axiosErr?.response?.status === 409) {
+        throw new Error(
+          axiosErr.response.data?.error ||
+            "CPF já cadastrado. Se esta conta é sua, faça login.",
+        );
+      }
+      if (axiosErr?.response?.data?.error) {
+        throw new Error(axiosErr.response.data.error);
+      }
       throw new Error(
         "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.",
       );
-    }
-
-    let result: any;
-    try {
-      const text = await res.text();
-      result = text ? JSON.parse(text) : {};
-    } catch {
-      setLoading(false);
-      throw new Error(
-        `Resposta inesperada do servidor (HTTP ${res.status}). Tente novamente em alguns instantes.`,
-      );
-    }
-
-    if (!res.ok) {
-      setLoading(false);
-      if (res.status === 409) {
-        throw new Error(
-          result.message ||
-            "CPF já cadastrado. Se esta conta é sua, faça login.",
-        );
-      }
-      throw new Error(result.message || "Erro no cadastro");
-    }
-
-    // Defensive: detect error responses that arrive with HTTP 200
-    // (e.g., N8N returning statusCode in body but not as HTTP status)
-    if (result.statusCode && result.statusCode >= 400) {
-      setLoading(false);
-      if (result.statusCode === 409) {
-        throw new Error(
-          result.message ||
-            "CPF já cadastrado. Se esta conta é sua, faça login.",
-        );
-      }
-      throw new Error(result.message || result.error || "Erro no cadastro");
     }
 
     if (result.user && result.token) {
