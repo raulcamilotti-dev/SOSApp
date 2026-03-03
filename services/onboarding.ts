@@ -18,6 +18,11 @@ import {
     normalizeCrudList,
     normalizeCrudOne,
 } from "./crud";
+import {
+    installPack as installMarketplacePack,
+    listMarketplacePacks,
+    type MarketplacePack,
+} from "./marketplace-packs";
 import { applyTemplatePack } from "./template-packs";
 
 /* ================================================================== */
@@ -251,11 +256,57 @@ export function generateSlug(text: string): string {
 /*  Main Functions                                                     */
 /* ================================================================== */
 
+/** UUID v4 pattern to distinguish marketplace pack IDs from built-in keys. */
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
- * Get available template packs for the onboarding UI.
+ * Get available template packs for the onboarding UI (sync — built-in only).
+ * @deprecated Use `getAvailableVerticalsAsync()` to include marketplace packs.
  */
 export function getAvailableVerticals(): PackSummary[] {
   return getAllPackSummaries();
+}
+
+/** Marketplace pack converted to PackSummary for the onboarding UI. */
+function marketplacePackToSummary(mp: MarketplacePack): PackSummary {
+  const pd = mp.pack_data;
+  return {
+    key: mp.id, // Use marketplace UUID as the key
+    name: mp.name,
+    description: mp.description ?? "",
+    version: mp.version,
+    author: "Community",
+    serviceTypeCount: pd?.service_types?.length ?? 0,
+    workflowCount: pd?.workflow_templates?.length ?? 0,
+    modules: pd?.enabled_modules ?? [],
+  };
+}
+
+/**
+ * Get available template packs for the onboarding UI (async).
+ * Merges built-in packs with published marketplace packs.
+ * Built-in packs appear first, marketplace packs after.
+ */
+export async function getAvailableVerticalsAsync(): Promise<PackSummary[]> {
+  const builtIn = getAllPackSummaries();
+  const builtInKeys = new Set(builtIn.map((p) => p.key));
+
+  try {
+    const marketplacePacks = await listMarketplacePacks({
+      sort: "popular",
+    });
+    // Exclude marketplace packs whose slug matches a built-in pack key
+    // (official seeded packs duplicate built-in ones)
+    const extra = marketplacePacks
+      .filter((mp) => !builtInKeys.has(mp.slug))
+      .map(marketplacePackToSummary);
+
+    return [...builtIn, ...extra];
+  } catch {
+    // Fallback to built-in only if marketplace is unavailable
+    return builtIn;
+  }
 }
 
 /**
@@ -383,15 +434,17 @@ export async function runOnboarding(
   // Step 3 — Apply template pack
   let packApplied = false;
   if (packKey) {
-    const pack = getPackByKey(packKey);
-    if (pack) {
+    const isMarketplacePack = UUID_REGEX.test(packKey);
+
+    if (isMarketplacePack) {
+      // Marketplace pack — use installPack() which handles apply + install tracking
       onProgress?.("Aplicando configurações do setor...", 0.3);
       try {
-        const result = await applyTemplatePack(
-          pack,
+        const result = await installMarketplacePack(
           tenantId,
+          packKey,
+          userId,
           (step, progress) => {
-            // Map pack progress (0-1) to our range (0.3 - 0.85)
             const mappedProgress = 0.3 + progress * 0.55;
             onProgress?.(step, mappedProgress);
           },
@@ -402,6 +455,28 @@ export async function runOnboarding(
         }
       } catch (err) {
         errors.push(`Erro ao aplicar template: ${getApiErrorMessage(err)}`);
+      }
+    } else {
+      // Built-in pack — use legacy path
+      const pack = getPackByKey(packKey);
+      if (pack) {
+        onProgress?.("Aplicando configurações do setor...", 0.3);
+        try {
+          const result = await applyTemplatePack(
+            pack,
+            tenantId,
+            (step, progress) => {
+              const mappedProgress = 0.3 + progress * 0.55;
+              onProgress?.(step, mappedProgress);
+            },
+          );
+          packApplied = result.success;
+          if (result.errors.length) {
+            errors.push(...result.errors);
+          }
+        } catch (err) {
+          errors.push(`Erro ao aplicar template: ${getApiErrorMessage(err)}`);
+        }
       }
     }
   }

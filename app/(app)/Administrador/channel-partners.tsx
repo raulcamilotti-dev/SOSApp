@@ -394,6 +394,7 @@ export default function ChannelPartnersScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="channel_partners"
       title="Parceiros de Canal"
       subtitle="Contadores, consultorias, agências e influenciadores que indicam novos tenants"
       searchPlaceholder="Buscar por nome, email ou código..."

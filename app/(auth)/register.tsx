@@ -102,7 +102,11 @@ export default function Register() {
       });
 
       if (!result.user) {
-        router.replace("/(auth)/login");
+        // Registration returned without a user — show error, never redirect silently
+        setError(
+          result.message ||
+            "Não foi possível criar a conta. Verifique seus dados e tente novamente.",
+        );
         return;
       }
 

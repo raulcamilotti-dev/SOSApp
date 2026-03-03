@@ -152,6 +152,7 @@ export default function LogsAgendamentosAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="appointment_logs"
       title="Logs de agendamentos"
       subtitle="Rastreabilidade do agendamento"
       fields={fields}

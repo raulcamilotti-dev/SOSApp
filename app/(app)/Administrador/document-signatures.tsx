@@ -1017,6 +1017,7 @@ export default function DocumentSignaturesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="document_signatures"
       title="Assinaturas Digitais"
       subtitle="Anexe um PDF ao enviar para assinatura via Documenso"
       searchPlaceholder="Buscar por título, signatário..."

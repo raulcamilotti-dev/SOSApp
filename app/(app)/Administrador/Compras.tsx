@@ -2117,6 +2117,7 @@ export default function ComprasScreen() {
   return (
     <>
       <CrudScreen<Row>
+        tableName="purchase_orders"
         title="Compras"
         subtitle="Pedidos de compra com custo medio ponderado"
         searchPlaceholder="Buscar fornecedor ou NF..."

@@ -164,6 +164,7 @@ export default function AgentPlaybookTablesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="agent_playbook_tables"
       title="Tabelas Permitidas do Robô"
       subtitle="Escopo de consulta/configuração por tenant"
       searchPlaceholder="Buscar tabela..."

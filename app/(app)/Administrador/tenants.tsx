@@ -175,6 +175,7 @@ export default function TenantsScreen() {
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.TENANT_MANAGE}>
       <CrudScreen<Tenant>
+        tableName="tenants"
         title="Tenants"
         subtitle="Gestão de tenants para logins administrativos."
         searchPlaceholder="Buscar por empresa, plano ou status"

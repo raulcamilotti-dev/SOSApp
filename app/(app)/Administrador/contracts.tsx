@@ -12,19 +12,19 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import {
-    BILLING_MODELS,
-    CONTRACT_STATUSES,
-    CONTRACT_TYPES,
-    formatContractCurrency,
-    getBillingModelLabel,
-    getContractStatusConfig,
-    getContractTypeLabel,
-    renewContract,
+  BILLING_MODELS,
+  CONTRACT_STATUSES,
+  CONTRACT_TYPES,
+  formatContractCurrency,
+  getBillingModelLabel,
+  getContractStatusConfig,
+  getContractTypeLabel,
+  renewContract,
 } from "@/services/contracts";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -294,6 +294,42 @@ export default function ContractsScreen() {
       return [];
     }
   }, [tenantId]);
+
+  const paginatedLoadItems = useCallback(
+    async ({
+      limit,
+      offset,
+      search,
+    }: {
+      limit: number;
+      offset: number;
+      search?: string;
+    }): Promise<Row[]> => {
+      if (!tenantId) return [];
+      try {
+        const filters = [
+          { field: "tenant_id", value: tenantId },
+          ...(search
+            ? [{ field: "title", value: `%${search}%`, operator: "ilike" }]
+            : []),
+        ];
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "contracts",
+          ...buildSearchParams(filters, {
+            sortColumn: "created_at DESC",
+            limit,
+            offset,
+            autoExcludeDeleted: true,
+          }),
+        });
+        return normalizeCrudList<Row>(res.data);
+      } catch {
+        return [];
+      }
+    },
+    [tenantId],
+  );
 
   const createItem = useCallback(
     async (payload: Row) => {
@@ -580,6 +616,7 @@ export default function ContractsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="contracts"
       key={refreshKey}
       title="Contratos"
       subtitle="Gerencie contratos de serviço, SLA e renovações"
@@ -587,6 +624,8 @@ export default function ContractsScreen() {
       searchFields={["title", "customer_id", "status"]}
       fields={fields}
       loadItems={loadItems}
+      paginatedLoadItems={paginatedLoadItems}
+      pageSize={50}
       createItem={createItem}
       updateItem={updateItem}
       deleteItem={deleteItem}

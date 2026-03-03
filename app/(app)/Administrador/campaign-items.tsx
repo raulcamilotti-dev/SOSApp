@@ -12,48 +12,48 @@
  */
 
 import {
-    CrudScreen,
-    type CrudFieldConfig,
-    type CrudScreenHandle,
+  CrudScreen,
+  type CrudFieldConfig,
+  type CrudScreenHandle,
 } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    CAMPAIGN_ITEM_PLATFORMS,
-    CAMPAIGN_ITEM_STATUSES,
-    CAMPAIGN_ITEM_TYPES,
-    getItemPlatformConfig,
-    getItemStatusConfig,
-    getItemTypeConfig,
+  CAMPAIGN_ITEM_PLATFORMS,
+  CAMPAIGN_ITEM_STATUSES,
+  CAMPAIGN_ITEM_TYPES,
+  getItemPlatformConfig,
+  getItemStatusConfig,
+  getItemTypeConfig,
 } from "@/services/campaigns";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import {
-    generateMarketingContent,
-    GENERATION_MODES,
-    isProfileComplete,
-    loadMarketingProfile,
-    type AiContentSuggestion,
-    type GenerationMode,
-    type MarketingProfile,
+  generateMarketingContent,
+  GENERATION_MODES,
+  isProfileComplete,
+  loadMarketingProfile,
+  type AiContentSuggestion,
+  type GenerationMode,
+  type MarketingProfile,
 } from "@/services/marketing-ai";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Linking,
-    Modal,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type DetailItem = { label: string; value: string };
@@ -405,6 +405,41 @@ export default function CampaignItemsScreen() {
     ) as Row[];
   }, [tenantId, campaignId]);
 
+  const paginatedLoadItems = useCallback(
+    async ({
+      limit,
+      offset,
+      search,
+    }: {
+      limit: number;
+      offset: number;
+      search?: string;
+    }): Promise<Row[]> => {
+      if (!tenantId || !campaignId) return [];
+      const res = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "campaign_items",
+        ...buildSearchParams(
+          [
+            { field: "tenant_id", value: tenantId },
+            { field: "campaign_id", value: campaignId },
+            ...(search
+              ? [{ field: "title", value: `%${search}%`, operator: "ilike" }]
+              : []),
+          ],
+          {
+            sortColumn: "created_at DESC",
+            autoExcludeDeleted: true,
+            limit,
+            offset,
+          },
+        ),
+      });
+      return normalizeCrudList<Row>(res.data);
+    },
+    [tenantId, campaignId],
+  );
+
   const createItem = useCallback(
     async (payload: Row) => {
       return api.post(CRUD_ENDPOINT, {
@@ -605,6 +640,7 @@ export default function CampaignItemsScreen() {
   return (
     <View style={{ flex: 1 }}>
       <CrudScreen<Row>
+        tableName="campaign_items"
         title={
           resolvedName ? `Conteúdos — ${resolvedName}` : "Conteúdos de Campanha"
         }
@@ -613,6 +649,8 @@ export default function CampaignItemsScreen() {
         searchFields={["title", "item_type", "platform", "content"]}
         fields={fields}
         loadItems={loadItems}
+        paginatedLoadItems={paginatedLoadItems}
+        pageSize={50}
         createItem={createItem}
         updateItem={updateItem}
         deleteItem={deleteItem}

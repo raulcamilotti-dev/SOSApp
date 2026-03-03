@@ -276,6 +276,7 @@ export default function ContasBancariasScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="bank_accounts"
       title="Contas Bancárias"
       subtitle={
         bankId

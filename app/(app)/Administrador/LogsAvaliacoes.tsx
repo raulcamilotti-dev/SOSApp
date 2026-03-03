@@ -147,6 +147,7 @@ export default function LogsAvaliacoesAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="review_logs"
       title="Logs de avaliações"
       subtitle="Rastreabilidade de reviews"
       fields={fields}

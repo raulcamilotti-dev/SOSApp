@@ -28,6 +28,7 @@ export const MODULE_KEYS = {
   STOCK: "stock",
   PURCHASES: "purchases",
   DELIVERY: "delivery",
+  MARKETPLACE: "marketplace",
   // Fases futuras:
   // PORTAL: "portal",
 } as const;
@@ -163,6 +164,14 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     isCore: false,
     requires: [MODULE_KEYS.PDV],
   },
+  {
+    key: MODULE_KEYS.MARKETPLACE,
+    label: "Marketplace de Packs",
+    description: "Explore, publique e gerencie template packs da comunidade",
+    icon: "grid-outline",
+    isCore: false,
+    requires: [],
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -203,7 +212,6 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   cartorios: MODULE_KEYS.ONR_CARTORIO,
 
   // AI & Automation module
-  agent_packs: MODULE_KEYS.AI_AUTOMATION,
   agent_dashboard: MODULE_KEYS.AI_AUTOMATION,
   agents: MODULE_KEYS.AI_AUTOMATION,
   agent_playbooks: MODULE_KEYS.AI_AUTOMATION,
@@ -271,6 +279,12 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   solicitacao_compras: MODULE_KEYS.PURCHASES,
   compras: MODULE_KEYS.PURCHASES,
   fornecedores: MODULE_KEYS.PURCHASES,
+
+  // Marketplace module
+  pack_marketplace: MODULE_KEYS.MARKETPLACE,
+  marketplace_publish: MODULE_KEYS.MARKETPLACE,
+  marketplace_review: MODULE_KEYS.MARKETPLACE,
+  builder_dashboard: MODULE_KEYS.MARKETPLACE,
 };
 
 /**

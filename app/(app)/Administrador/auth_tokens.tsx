@@ -124,6 +124,7 @@ export default function AuthTokensScreen() {
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.ADMIN_FULL}>
       <CrudScreen<Row>
+        tableName="auth_tokens"
         title="Auth Tokens"
         subtitle="Gestao de auth tokens"
         searchPlaceholder="Buscar por token ou usuário"

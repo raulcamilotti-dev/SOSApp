@@ -223,6 +223,7 @@ export default function UserTenantsScreen() {
       requiredPermission={[PERMISSIONS.USER_WRITE, PERMISSIONS.TENANT_MANAGE]}
     >
       <CrudScreen<Row>
+        tableName="user_tenants"
         title="User Tenants"
         subtitle="Gestao de vinculos usuario-tenant"
         searchPlaceholder="Buscar por usuario, tenant ou role"

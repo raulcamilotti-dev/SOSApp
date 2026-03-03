@@ -136,6 +136,7 @@ export default function AuthCodesScreen() {
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.ADMIN_FULL}>
       <CrudScreen<Row>
+        tableName="auth_codes"
         title="Auth Codes"
         subtitle="Gestao de auth codes"
         searchPlaceholder="Buscar por código, canal ou destino"

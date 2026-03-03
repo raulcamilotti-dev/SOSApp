@@ -182,6 +182,7 @@ export default function CustomerContractsScreen() {
 
   return (
     <CrudScreen
+      tableName="contracts"
       title={`Contratos de ${customerName}`}
       subtitle={subtitle}
       fields={fields}

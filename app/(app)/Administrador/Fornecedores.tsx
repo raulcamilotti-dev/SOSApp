@@ -226,6 +226,7 @@ export default function FornecedoresScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="suppliers"
       title="Fornecedores"
       subtitle="Cadastro de fornecedores"
       searchPlaceholder="Buscar por nome, CNPJ..."

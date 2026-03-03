@@ -7,7 +7,11 @@ import { filterActive } from "@/core/utils/soft-delete";
 import { useSafeTenantId } from "@/hooks/use-safe-tenant-id";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
-import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import {
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+} from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -211,6 +215,37 @@ export default function UsersManagementScreen() {
     };
   }, [roleIdParam, safeTenantId]);
 
+  // Server-side pagination when browsing ALL users (no tenant/role filter)
+  const shouldPaginateUsers = !safeTenantId && !roleIdParam;
+
+  const paginatedLoadUsers = useMemo(() => {
+    if (!shouldPaginateUsers) return undefined;
+    return async ({
+      limit,
+      offset,
+      search,
+    }: {
+      limit: number;
+      offset: number;
+      search?: string;
+    }): Promise<User[]> => {
+      const searchFilters = search
+        ? [{ field: "fullname", value: `%${search}%`, operator: "ilike" }]
+        : [];
+      const response = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "users",
+        ...buildSearchParams(searchFilters, {
+          sortColumn: "fullname",
+          limit,
+          offset,
+          autoExcludeDeleted: true,
+        }),
+      });
+      return normalizeCrudList<User>(response.data);
+    };
+  }, [shouldPaginateUsers]);
+
   const createWithContext = useMemo(() => {
     return async (payload: Partial<User>): Promise<unknown> => {
       const effectiveTenantId = safeTenantId ?? payload.tenant_id;
@@ -393,12 +428,15 @@ export default function UsersManagementScreen() {
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.USER_MANAGE}>
       <CrudScreen<User>
+        tableName="users"
         title="Usuários"
         subtitle="Gestão de usuários do sistema e vinculação a tenants"
         searchPlaceholder="Buscar por nome, e-mail ou CPF"
         searchFields={["fullname", "email", "cpf"]}
         fields={fields}
         loadItems={loadFilteredUsers}
+        paginatedLoadItems={paginatedLoadUsers}
+        pageSize={50}
         createItem={createWithContext}
         updateItem={updateWithContext}
         deleteItem={deleteUser}

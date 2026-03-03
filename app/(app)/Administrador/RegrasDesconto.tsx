@@ -174,6 +174,7 @@ export default function RegrasDescontoScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="discount_rules"
       title="Regras de Desconto"
       subtitle="Desconto máximo permitido por role"
       searchFields={["role_id"]}

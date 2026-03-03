@@ -470,6 +470,7 @@ export default function ServicesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="services"
       title="Catálogo"
       subtitle="Produtos e Serviços"
       searchPlaceholder="Buscar por nome, SKU ou código..."

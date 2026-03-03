@@ -104,6 +104,48 @@ export default function VendasAdminScreen() {
     user?.id,
   ]);
 
+  const paginatedLoadItems = useMemo(() => {
+    return async ({
+      limit,
+      offset,
+      search,
+    }: {
+      limit: number;
+      offset: number;
+      search?: string;
+    }): Promise<Row[]> => {
+      const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
+
+      if (showOnlyMySales) {
+        if (isPartnerUser && partnerId) {
+          filters.push({ field: "partner_id", value: partnerId });
+        } else if (user?.id) {
+          filters.push({ field: "sold_by_user_id", value: user.id });
+        }
+      }
+
+      const res = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "sales",
+        ...buildSearchParams(filters, {
+          sortColumn: "created_at DESC",
+          autoExcludeDeleted: true,
+          limit,
+          offset,
+        }),
+      });
+      return normalizeCrudList<Row>(res.data);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    tenantId,
+    reloadKey,
+    showOnlyMySales,
+    partnerId,
+    isPartnerUser,
+    user?.id,
+  ]);
+
   const handleCancel = useCallback(
     async (saleId: string) => {
       const executeCancel = async () => {
@@ -361,6 +403,7 @@ export default function VendasAdminScreen() {
   return (
     <>
       <CrudScreen<Row>
+        tableName="sales"
         title="Vendas"
         subtitle={
           showOnlyMySales
@@ -371,6 +414,8 @@ export default function VendasAdminScreen() {
         searchFields={["customer_id", "partner_id", "status", "payment_method"]}
         fields={fields}
         loadItems={loadItems}
+        paginatedLoadItems={paginatedLoadItems}
+        pageSize={50}
         createItem={noop}
         updateItem={updateSale}
         headerActions={

@@ -241,6 +241,7 @@ export default function AgendaAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="service_appointments"
       title="Agenda"
       subtitle="Gestão de agendamentos de serviços"
       fields={fields}

@@ -202,6 +202,7 @@ export default function ComposicoesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="service_compositions"
       title="Composições"
       subtitle={
         parentServiceId

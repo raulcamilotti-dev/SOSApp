@@ -235,6 +235,7 @@ export default function PagamentosScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="payments"
       title="Pagamentos"
       subtitle="Registro de pagamentos recebidos e efetuados"
       searchPlaceholder="Buscar por referência..."

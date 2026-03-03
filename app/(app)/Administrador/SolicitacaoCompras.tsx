@@ -1471,6 +1471,7 @@ export default function SolicitacaoComprasScreen() {
   return (
     <>
       <CrudScreen<Row>
+        tableName="purchase_requests"
         title="Solicitações de Compra"
         subtitle="Requisições internas de compras e materiais"
         searchPlaceholder="Buscar por título ou código..."

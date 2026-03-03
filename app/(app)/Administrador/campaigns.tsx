@@ -327,6 +327,7 @@ export default function CampaignsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="campaigns"
       title="Campanhas"
       subtitle="Gerencie campanhas de marketing e acompanhe ROI"
       searchPlaceholder="Buscar por nome ou canal..."

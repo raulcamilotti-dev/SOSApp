@@ -800,6 +800,7 @@ export default function ContasAReceberScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="accounts_receivable"
       title="Contas a Receber"
       subtitle="Recebíveis de clientes, faturas e serviços"
       searchPlaceholder="Buscar por descrição, categoria..."

@@ -177,6 +177,7 @@ export default function CustomerQuotesScreen() {
 
   return (
     <CrudScreen
+      tableName="quotes"
       title={`Orçamentos de ${customerName}`}
       subtitle={subtitle}
       fields={fields}

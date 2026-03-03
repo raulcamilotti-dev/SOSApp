@@ -255,6 +255,7 @@ export default function RolesScreen() {
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.ROLE_MANAGE}>
       <CrudScreen<Row>
+        tableName="roles"
         title="Roles"
         subtitle="Gestao de roles"
         searchPlaceholder="Buscar por role"

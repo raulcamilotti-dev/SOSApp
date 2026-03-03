@@ -124,6 +124,7 @@ export default function BancosScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="banks"
       title="Bancos"
       subtitle="Cadastro de bancos e instituições financeiras"
       searchPlaceholder="Buscar banco..."

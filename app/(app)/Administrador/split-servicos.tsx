@@ -184,6 +184,7 @@ export default function SplitServicosScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="service_split_rules"
       title={serviceName ? `Splits — ${serviceName}` : "Splits por Servico"}
       subtitle="Configure a divisao de pagamentos entre voce e parceiros. Radul recebe 0,5% fixo de cada transacao."
       fields={fields}

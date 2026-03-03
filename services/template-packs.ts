@@ -22,14 +22,24 @@
 /*   14. ocr_config (FK → steps - optional)                            */
 /*   15. tenant config update                                          */
 /*   16. Link service_types → default_template_id                      */
+/*   17. custom_fields (optional)                                      */
+/*   18. agents (optional AI)                                          */
+/*   19. playbooks (FK → agents)                                       */
+/*   20. playbook_rules (FK → playbooks)                               */
+/*   21. playbook_tables (FK → playbooks)                              */
+/*   22. agent_states (FK → agents)                                    */
+/*   23. agent_state_steps (FK → states, agents)                       */
+/*   24. channel_bindings (FK → agents)                                */
+/*   25. handoff_policies (FK → agents, playbooks)                     */
+/*   26. automations (FK → agents)                                     */
 /* ------------------------------------------------------------------ */
 
 import type {
-    PackWorkflowTemplate,
-    TemplatePack,
+  PackWorkflowTemplate,
+  TemplatePack,
 } from "@/data/template-packs/types";
 import { api } from "./api";
-import { CRUD_ENDPOINT, normalizeCrudList } from "./crud";
+import { buildSearchParams, CRUD_ENDPOINT, normalizeCrudList } from "./crud";
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -146,8 +156,19 @@ export async function applyTemplatePack(
   const stepRefs: RefMap = {};
   const serviceTypeRefs: RefMap = {};
   const roleRefs: RefMap = {};
+  const agentRefs: RefMap = {};
+  const playbookRefs: RefMap = {};
+  const agentStateRefs: RefMap = {};
 
-  const totalSteps = 16;
+  /* Determine if this pack has agent data */
+  const hasAgents = (pack.agents?.length ?? 0) > 0;
+
+  /* Auto-inject ai_automation module when pack has agents */
+  if (hasAgents && !pack.modules.includes("ai_automation")) {
+    pack.modules.push("ai_automation");
+  }
+
+  const totalSteps = 17 + (hasAgents ? 9 : 0);
   let currentStep = 0;
 
   const progress = (label: string) => {
@@ -926,6 +947,383 @@ export async function applyTemplatePack(
       result.errors.push(`tenant_config: ${describeError(err)}`);
     }
 
+    /* -------------------------------------------------------------- */
+    /*  17. Custom Field Definitions (optional)                        */
+    /* -------------------------------------------------------------- */
+    if (pack.custom_fields && pack.custom_fields.length > 0) {
+      progress("Aplicando campos customizados...");
+      for (const cf of pack.custom_fields) {
+        try {
+          await crudCreate("custom_field_definitions", {
+            tenant_id: tenantId,
+            target_table: cf.target_table,
+            field_key: cf.field_key,
+            label: cf.label,
+            placeholder: cf.placeholder ?? null,
+            field_type: cf.field_type,
+            required: cf.required ?? false,
+            visible_in_list: cf.visible_in_list ?? false,
+            visible_in_form: cf.visible_in_form ?? true,
+            read_only: cf.read_only ?? false,
+            section: cf.section ?? null,
+            sort_order: cf.sort_order ?? 0,
+            default_value: cf.default_value ?? null,
+            options: cf.options ? JSON.stringify(cf.options) : null,
+            validation_rules: cf.validation_rules
+              ? JSON.stringify(cf.validation_rules)
+              : null,
+            mask_type: cf.mask_type ?? null,
+            reference_config: cf.reference_config
+              ? JSON.stringify(cf.reference_config)
+              : null,
+            show_when: cf.show_when ? JSON.stringify(cf.show_when) : null,
+            is_system: true,
+            pack_ref_key: cf.ref_key,
+          });
+          result.counts.custom_fields = (result.counts.custom_fields ?? 0) + 1;
+        } catch (err) {
+          result.errors.push(
+            `custom_field[${cf.ref_key}]: ${describeError(err)}`,
+          );
+        }
+      }
+    }
+
+    /* ============================================================== */
+    /*  AI AGENT ENTITIES (Steps 18-26, only if pack has agents)       */
+    /* ============================================================== */
+
+    if (hasAgents && pack.agents) {
+      /* ------------------------------------------------------------ */
+      /*  18. Agents                                                    */
+      /* ------------------------------------------------------------ */
+      progress("Criando agentes IA...");
+      for (const agent of pack.agents) {
+        try {
+          const created = await crudCreate<{ id: string }>("agents", {
+            tenant_id: tenantId,
+            system_prompt: agent.system_prompt,
+            model: agent.model,
+            temperature: String(agent.temperature),
+            max_tokens: String(agent.max_tokens),
+            is_default: agent.is_default,
+            is_active: agent.is_active,
+            version: String(agent.version),
+          });
+          if (created?.id) {
+            agentRefs[agent.ref_key] = created.id;
+            result.counts.agents = (result.counts.agents ?? 0) + 1;
+          }
+        } catch (err) {
+          result.errors.push(`agent[${agent.ref_key}]: ${describeError(err)}`);
+        }
+      }
+
+      /* ------------------------------------------------------------ */
+      /*  19. Playbooks                                                 */
+      /* ------------------------------------------------------------ */
+      if (pack.playbooks?.length) {
+        progress("Criando playbooks...");
+        for (const pb of pack.playbooks) {
+          const agentId = agentRefs[pb.agent_ref];
+          if (!agentId) {
+            result.errors.push(
+              `playbook[${pb.ref_key}]: agent_ref '${pb.agent_ref}' não encontrado`,
+            );
+            continue;
+          }
+          try {
+            const created = await crudCreate<{ id: string }>(
+              "agent_playbooks",
+              {
+                tenant_id: tenantId,
+                agent_id: agentId,
+                channel: pb.channel,
+                name: pb.name,
+                description: pb.description ?? null,
+                behavior_source: pb.behavior_source,
+                inherit_system_prompt: pb.inherit_system_prompt,
+                state_machine_mode: pb.state_machine_mode,
+                webhook_url: pb.webhook_url ?? null,
+                operator_webhook_url: pb.operator_webhook_url ?? null,
+                config_ui: pb.config_ui ? JSON.stringify(pb.config_ui) : null,
+                is_active: pb.is_active,
+              },
+            );
+            if (created?.id) {
+              playbookRefs[pb.ref_key] = created.id;
+              result.counts.playbooks = (result.counts.playbooks ?? 0) + 1;
+            }
+          } catch (err) {
+            result.errors.push(
+              `playbook[${pb.ref_key}]: ${describeError(err)}`,
+            );
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------ */
+      /*  20. Playbook Rules                                            */
+      /* ------------------------------------------------------------ */
+      if (pack.playbook_rules?.length) {
+        progress("Criando regras de playbook...");
+        for (const rule of pack.playbook_rules) {
+          const playbookId = playbookRefs[rule.playbook_ref];
+          if (!playbookId) {
+            result.errors.push(
+              `playbook_rule[${rule.title}]: playbook_ref '${rule.playbook_ref}' não encontrado`,
+            );
+            continue;
+          }
+          try {
+            await crudCreate("agent_playbook_rules", {
+              tenant_id: tenantId,
+              playbook_id: playbookId,
+              rule_order: rule.rule_order,
+              rule_type: rule.rule_type,
+              title: rule.title,
+              instruction: rule.instruction,
+              severity: rule.severity,
+              is_active: rule.is_active,
+              metadata: rule.metadata ? JSON.stringify(rule.metadata) : null,
+            });
+            result.counts.playbook_rules =
+              (result.counts.playbook_rules ?? 0) + 1;
+          } catch (err) {
+            result.errors.push(
+              `playbook_rule[${rule.title}]: ${describeError(err)}`,
+            );
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------ */
+      /*  21. Playbook Tables                                           */
+      /* ------------------------------------------------------------ */
+      if (pack.playbook_tables?.length) {
+        progress("Criando tabelas de playbook...");
+        for (const tbl of pack.playbook_tables) {
+          const playbookId = playbookRefs[tbl.playbook_ref];
+          if (!playbookId) {
+            result.errors.push(
+              `playbook_table[${tbl.table_name}]: playbook_ref '${tbl.playbook_ref}' não encontrado`,
+            );
+            continue;
+          }
+          try {
+            await crudCreate("agent_playbook_tables", {
+              tenant_id: tenantId,
+              playbook_id: playbookId,
+              table_name: tbl.table_name,
+              access_mode: tbl.access_mode,
+              is_required: tbl.is_required,
+              purpose: tbl.purpose ?? null,
+              query_guardrails: tbl.query_guardrails
+                ? JSON.stringify(tbl.query_guardrails)
+                : null,
+              is_active: tbl.is_active,
+            });
+            result.counts.playbook_tables =
+              (result.counts.playbook_tables ?? 0) + 1;
+          } catch (err) {
+            result.errors.push(
+              `playbook_table[${tbl.table_name}]: ${describeError(err)}`,
+            );
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------ */
+      /*  22. Agent States                                              */
+      /* ------------------------------------------------------------ */
+      if (pack.agent_states?.length) {
+        progress("Criando estados do agente...");
+        for (const state of pack.agent_states) {
+          const agentId = agentRefs[state.agent_ref];
+          if (!agentId) {
+            result.errors.push(
+              `agent_state[${state.ref_key}]: agent_ref '${state.agent_ref}' não encontrado`,
+            );
+            continue;
+          }
+          try {
+            const created = await crudCreate<{ id: string }>("agent_states", {
+              tenant_id: tenantId,
+              agent_id: agentId,
+              state_key: state.state_key,
+              state_label: state.state_label,
+              system_prompt: state.system_prompt,
+              rules: state.rules ? JSON.stringify(state.rules) : null,
+              tools: state.tools ? JSON.stringify(state.tools) : null,
+              is_initial: state.is_initial,
+              is_terminal: state.is_terminal,
+            });
+            if (created?.id) {
+              agentStateRefs[state.ref_key] = created.id;
+              result.counts.agent_states =
+                (result.counts.agent_states ?? 0) + 1;
+            }
+          } catch (err) {
+            result.errors.push(
+              `agent_state[${state.ref_key}]: ${describeError(err)}`,
+            );
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------ */
+      /*  23. Agent State Steps                                         */
+      /* ------------------------------------------------------------ */
+      if (pack.agent_state_steps?.length) {
+        progress("Criando passos de estado...");
+        for (const step of pack.agent_state_steps) {
+          const agentId = agentRefs[step.agent_ref];
+          const stateId = agentStateRefs[step.state_ref];
+          if (!agentId || !stateId) {
+            result.errors.push(
+              `agent_state_step[${step.step_key}]: agent_ref ou state_ref não encontrado`,
+            );
+            continue;
+          }
+          try {
+            await crudCreate("agent_state_steps", {
+              tenant_id: tenantId,
+              agent_id: agentId,
+              state_id: stateId,
+              step_key: step.step_key,
+              step_label: step.step_label,
+              step_order: step.step_order,
+              instruction: step.instruction,
+              expected_inputs: step.expected_inputs
+                ? JSON.stringify(step.expected_inputs)
+                : null,
+              expected_outputs: step.expected_outputs
+                ? JSON.stringify(step.expected_outputs)
+                : null,
+              allowed_tables: step.allowed_tables
+                ? JSON.stringify(step.allowed_tables)
+                : null,
+              on_success_action: step.on_success_action ?? null,
+              on_failure_action: step.on_failure_action ?? null,
+              handoff_to_operator: step.handoff_to_operator,
+              return_to_bot_allowed: step.return_to_bot_allowed,
+              is_active: step.is_active,
+            });
+            result.counts.agent_state_steps =
+              (result.counts.agent_state_steps ?? 0) + 1;
+          } catch (err) {
+            result.errors.push(
+              `agent_state_step[${step.step_key}]: ${describeError(err)}`,
+            );
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------ */
+      /*  24. Channel Bindings                                          */
+      /* ------------------------------------------------------------ */
+      if (pack.channel_bindings?.length) {
+        progress("Criando bindings de canal...");
+        for (const cb of pack.channel_bindings) {
+          const agentId = agentRefs[cb.agent_ref];
+          if (!agentId) {
+            result.errors.push(
+              `channel_binding[${cb.channel}]: agent_ref '${cb.agent_ref}' não encontrado`,
+            );
+            continue;
+          }
+          try {
+            await crudCreate("agent_channel_bindings", {
+              tenant_id: tenantId,
+              agent_id: agentId,
+              channel: cb.channel,
+              webhook_url: cb.webhook_url ?? null,
+              is_active: cb.is_active,
+              config: cb.config ? JSON.stringify(cb.config) : null,
+            });
+            result.counts.channel_bindings =
+              (result.counts.channel_bindings ?? 0) + 1;
+          } catch (err) {
+            result.errors.push(
+              `channel_binding[${cb.channel}]: ${describeError(err)}`,
+            );
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------ */
+      /*  25. Handoff Policies                                          */
+      /* ------------------------------------------------------------ */
+      if (pack.handoff_policies?.length) {
+        progress("Criando políticas de handoff...");
+        for (const hp of pack.handoff_policies) {
+          const agentId = agentRefs[hp.agent_ref];
+          if (!agentId) {
+            result.errors.push(
+              `handoff_policy[${hp.from_channel}→${hp.to_channel}]: agent_ref '${hp.agent_ref}' não encontrado`,
+            );
+            continue;
+          }
+          const playbookId = hp.playbook_ref
+            ? (playbookRefs[hp.playbook_ref] ?? null)
+            : null;
+          try {
+            await crudCreate("agent_handoff_policies", {
+              tenant_id: tenantId,
+              agent_id: agentId,
+              playbook_id: playbookId,
+              from_channel: hp.from_channel,
+              to_channel: hp.to_channel,
+              trigger_type: hp.trigger_type,
+              trigger_config: hp.trigger_config
+                ? JSON.stringify(hp.trigger_config)
+                : null,
+              pause_bot_while_operator: hp.pause_bot_while_operator,
+              operator_can_return_to_bot: hp.operator_can_return_to_bot,
+              return_to_state_key: hp.return_to_state_key ?? null,
+              is_active: hp.is_active,
+            });
+            result.counts.handoff_policies =
+              (result.counts.handoff_policies ?? 0) + 1;
+          } catch (err) {
+            result.errors.push(
+              `handoff_policy[${hp.from_channel}→${hp.to_channel}]: ${describeError(err)}`,
+            );
+          }
+        }
+      }
+
+      /* ------------------------------------------------------------ */
+      /*  26. Automations                                               */
+      /* ------------------------------------------------------------ */
+      if (pack.automations?.length) {
+        progress("Criando automações...");
+        for (const auto of pack.automations) {
+          const agentId = agentRefs[auto.agent_ref];
+          if (!agentId) {
+            result.errors.push(
+              `automation[${auto.trigger}]: agent_ref '${auto.agent_ref}' não encontrado`,
+            );
+            continue;
+          }
+          try {
+            await crudCreate("automations", {
+              tenant_id: tenantId,
+              agent_id: agentId,
+              trigger: auto.trigger,
+              action: auto.action,
+              config: auto.config ? JSON.stringify(auto.config) : null,
+            });
+            result.counts.automations = (result.counts.automations ?? 0) + 1;
+          } catch (err) {
+            result.errors.push(
+              `automation[${auto.trigger}]: ${describeError(err)}`,
+            );
+          }
+        }
+      }
+    }
+
     result.success = result.errors.length === 0;
   } catch (err) {
     result.errors.push(`fatal: ${describeError(err)}`);
@@ -943,8 +1341,8 @@ export async function applyTemplatePack(
  * This allows re-applying a pack from scratch.
  *
  * Tables cleared (in reverse dependency order):
- * ocr_config, services, tenant_modules, document_templates,
- * step_forms, step_task_templates, deadline_rules,
+ * custom_field_definitions, ocr_config, services, tenant_modules,
+ * document_templates, step_forms, step_task_templates, deadline_rules,
  * workflow_step_transitions, workflow_steps (via templates),
  * service_types, service_categories, roles + role_permissions,
  * workflow_templates
@@ -956,6 +1354,50 @@ export async function clearPackData(tenantId: string): Promise<{
   deletedCounts: Record<string, number>;
   errors: string[];
 }> {
+  const deletedCounts: Record<string, number> = {};
+  const errors: string[] = [];
+
+  // 1. Clear agent-related tables first (reverse dependency order)
+  const agentTables = [
+    "automations",
+    "agent_handoff_policies",
+    "agent_channel_bindings",
+    "agent_state_steps",
+    "agent_states",
+    "agent_playbook_tables",
+    "agent_playbook_rules",
+    "agent_playbooks",
+    "agents",
+  ];
+
+  for (const table of agentTables) {
+    try {
+      const listRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table,
+        ...buildSearchParams([{ field: "tenant_id", value: tenantId }]),
+      });
+      const rows = normalizeCrudList<{ id: string }>(listRes.data);
+      let count = 0;
+      for (const row of rows) {
+        try {
+          await api.post(CRUD_ENDPOINT, {
+            action: "delete",
+            table,
+            payload: { id: row.id },
+          });
+          count++;
+        } catch {
+          // ignore individual delete failures
+        }
+      }
+      if (count > 0) deletedCounts[table] = count;
+    } catch {
+      // table may not exist — skip silently
+    }
+  }
+
+  // 2. Delegate remaining (non-agent) clearing to server endpoint
   try {
     const res = await api.post("/template-packs/clear", { tenantId });
     const data = res.data as {
@@ -963,15 +1405,21 @@ export async function clearPackData(tenantId: string): Promise<{
       deletedCounts: Record<string, number>;
       errors: string[];
     };
+    // Merge server counts
+    for (const [table, count] of Object.entries(data.deletedCounts ?? {})) {
+      deletedCounts[table] = (deletedCounts[table] ?? 0) + count;
+    }
+    if (data.errors?.length) errors.push(...data.errors);
+
     return {
-      success: data.success ?? false,
-      deletedCounts: data.deletedCounts ?? {},
-      errors: data.errors ?? [],
+      success: (data.success ?? false) && errors.length === 0,
+      deletedCounts,
+      errors,
     };
   } catch (err) {
     return {
       success: false,
-      deletedCounts: {},
+      deletedCounts,
       errors: [`clearPackData: ${describeError(err)}`],
     };
   }
@@ -1092,6 +1540,156 @@ export function validatePack(pack: TemplatePack): {
         errors.push(
           `ocr_config[${ocr.name}].step_ref '${ocr.step_ref}' not found`,
         );
+      }
+    }
+  }
+
+  // Validate custom_fields — unique ref_keys + unique field_key per table
+  if (pack.custom_fields) {
+    const cfSeen = new Set<string>();
+    const fieldKeysByTable = new Map<string, Set<string>>();
+
+    for (const cf of pack.custom_fields) {
+      // ref_key uniqueness (also checked against global seen set)
+      if (seen.has(cf.ref_key)) {
+        errors.push(`Duplicate ref_key: ${cf.ref_key} (custom_field)`);
+      }
+      seen.add(cf.ref_key);
+
+      if (cfSeen.has(cf.ref_key)) {
+        errors.push(`Duplicate custom_field ref_key: ${cf.ref_key}`);
+      }
+      cfSeen.add(cf.ref_key);
+
+      // field_key uniqueness per target_table
+      if (!fieldKeysByTable.has(cf.target_table)) {
+        fieldKeysByTable.set(cf.target_table, new Set());
+      }
+      const tableKeys = fieldKeysByTable.get(cf.target_table)!;
+      if (tableKeys.has(cf.field_key)) {
+        errors.push(
+          `custom_field[${cf.ref_key}]: duplicate field_key '${cf.field_key}' for table '${cf.target_table}'`,
+        );
+      }
+      tableKeys.add(cf.field_key);
+
+      // Validate required fields
+      if (!cf.target_table) {
+        errors.push(`custom_field[${cf.ref_key}]: missing target_table`);
+      }
+      if (!cf.field_key) {
+        errors.push(`custom_field[${cf.ref_key}]: missing field_key`);
+      }
+      if (!cf.field_type) {
+        errors.push(`custom_field[${cf.ref_key}]: missing field_type`);
+      }
+    }
+  }
+
+  // ── Agent entity validation ──
+  const agentRefSet = new Set<string>();
+  const playbookRefSet = new Set<string>();
+  const agentStateRefSet = new Set<string>();
+
+  if (pack.agents) {
+    for (const a of pack.agents) {
+      if (seen.has(a.ref_key))
+        errors.push(`Duplicate ref_key: ${a.ref_key} (agent)`);
+      seen.add(a.ref_key);
+      agentRefSet.add(a.ref_key);
+    }
+  }
+
+  if (pack.playbooks) {
+    for (const p of pack.playbooks) {
+      if (seen.has(p.ref_key))
+        errors.push(`Duplicate ref_key: ${p.ref_key} (playbook)`);
+      seen.add(p.ref_key);
+      playbookRefSet.add(p.ref_key);
+      if (!agentRefSet.has(p.agent_ref)) {
+        errors.push(
+          `playbook[${p.ref_key}].agent_ref '${p.agent_ref}' not found`,
+        );
+      }
+    }
+  }
+
+  if (pack.playbook_rules) {
+    for (const r of pack.playbook_rules) {
+      if (!playbookRefSet.has(r.playbook_ref)) {
+        errors.push(
+          `playbook_rule[${r.rule_type}].playbook_ref '${r.playbook_ref}' not found`,
+        );
+      }
+    }
+  }
+
+  if (pack.playbook_tables) {
+    for (const t of pack.playbook_tables) {
+      if (!playbookRefSet.has(t.playbook_ref)) {
+        errors.push(
+          `playbook_table[${t.table_name}].playbook_ref '${t.playbook_ref}' not found`,
+        );
+      }
+    }
+  }
+
+  if (pack.agent_states) {
+    for (const s of pack.agent_states) {
+      if (seen.has(s.ref_key))
+        errors.push(`Duplicate ref_key: ${s.ref_key} (agent_state)`);
+      seen.add(s.ref_key);
+      agentStateRefSet.add(s.ref_key);
+      if (!agentRefSet.has(s.agent_ref)) {
+        errors.push(
+          `agent_state[${s.ref_key}].agent_ref '${s.agent_ref}' not found`,
+        );
+      }
+    }
+  }
+
+  if (pack.agent_state_steps) {
+    for (const ss of pack.agent_state_steps) {
+      if (!agentStateRefSet.has(ss.state_ref)) {
+        errors.push(`agent_state_step.state_ref '${ss.state_ref}' not found`);
+      }
+      if (!agentRefSet.has(ss.agent_ref)) {
+        errors.push(`agent_state_step.agent_ref '${ss.agent_ref}' not found`);
+      }
+    }
+  }
+
+  if (pack.channel_bindings) {
+    for (const cb of pack.channel_bindings) {
+      if (!agentRefSet.has(cb.agent_ref)) {
+        errors.push(
+          `channel_binding[${cb.channel}].agent_ref '${cb.agent_ref}' not found`,
+        );
+      }
+    }
+  }
+
+  if (pack.handoff_policies) {
+    for (let i = 0; i < pack.handoff_policies.length; i++) {
+      const hp = pack.handoff_policies[i];
+      if (!agentRefSet.has(hp.agent_ref)) {
+        errors.push(
+          `handoff_policy[${i}].agent_ref '${hp.agent_ref}' not found`,
+        );
+      }
+      if (hp.playbook_ref && !playbookRefSet.has(hp.playbook_ref)) {
+        errors.push(
+          `handoff_policy[${i}].playbook_ref '${hp.playbook_ref}' not found`,
+        );
+      }
+    }
+  }
+
+  if (pack.automations) {
+    for (let i = 0; i < pack.automations.length; i++) {
+      const auto = pack.automations[i];
+      if (!agentRefSet.has(auto.agent_ref)) {
+        errors.push(`automation[${i}].agent_ref '${auto.agent_ref}' not found`);
       }
     }
   }

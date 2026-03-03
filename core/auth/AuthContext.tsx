@@ -1,37 +1,37 @@
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
 } from "react";
 
 import { api, N8N_API_KEY, setAuthToken } from "@/services/api";
 import { autoLinkUserToCompanies } from "@/services/companies";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import {
-  autoLinkUserToTenant,
-  resolveTenantFromContext,
+    autoLinkUserToTenant,
+    resolveTenantFromContext,
 } from "@/services/tenant-resolver";
 import {
-  getSelectedTenant,
-  getTenantOptions,
-  getToken,
-  getUser,
-  saveSelectedTenant,
-  saveTenantOptions,
-  saveToken,
-  saveUser,
+    getSelectedTenant,
+    getTenantOptions,
+    getToken,
+    getUser,
+    saveSelectedTenant,
+    saveTenantOptions,
+    saveToken,
+    saveUser,
 } from "./auth.storage";
 import {
-  AuthContextData,
-  AuthProviderProps,
-  LoginResponse,
-  RegisterPayload,
-  RegisterResponse,
-  TenantOption,
-  User,
+    AuthContextData,
+    AuthProviderProps,
+    LoginResponse,
+    RegisterPayload,
+    RegisterResponse,
+    TenantOption,
+    User,
 } from "./auth.types";
 import { isPlatformAdminStable } from "./auth.utils";
 import { buildTenantContextPayload } from "./tenant-context";
@@ -768,9 +768,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true);
     const tenantContext = buildTenantContextPayload();
 
-    const res = await fetch(
-      "https://n8n.sosescritura.com.br/webhook/register",
-      {
+    let res: Response;
+    try {
+      res = await fetch("https://n8n.sosescritura.com.br/webhook/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -791,20 +791,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
           utm_campaign: tenantContext.utm_campaign,
           tenant_context: tenantContext,
         }),
-      },
-    );
+      });
+    } catch (fetchError) {
+      setLoading(false);
+      throw new Error(
+        "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.",
+      );
+    }
 
-    const result = await res.json();
+    let result: any;
+    try {
+      const text = await res.text();
+      result = text ? JSON.parse(text) : {};
+    } catch {
+      setLoading(false);
+      throw new Error(
+        `Resposta inesperada do servidor (HTTP ${res.status}). Tente novamente em alguns instantes.`,
+      );
+    }
 
     if (!res.ok) {
       setLoading(false);
       if (res.status === 409) {
         throw new Error(
           result.message ||
-            "CPF ou telefone já cadastrado. Verifique seus dados.",
+            "CPF já cadastrado. Se esta conta é sua, faça login.",
         );
       }
       throw new Error(result.message || "Erro no cadastro");
+    }
+
+    // Defensive: detect error responses that arrive with HTTP 200
+    // (e.g., N8N returning statusCode in body but not as HTTP status)
+    if (result.statusCode && result.statusCode >= 400) {
+      setLoading(false);
+      if (result.statusCode === 409) {
+        throw new Error(
+          result.message ||
+            "CPF já cadastrado. Se esta conta é sua, faça login.",
+        );
+      }
+      throw new Error(result.message || result.error || "Erro no cadastro");
     }
 
     if (result.user && result.token) {

@@ -9,25 +9,21 @@
 import type { PackSummary, TemplatePack } from "./types";
 import { packToSummary } from "./types";
 
-/* ---- Base Pack (always available) ------------------------------- */
+/* ---- Base Pack (always applied at onboarding) ------------------- */
 import padraoPack from "./padrao";
 
-/* ---- Specialization Packs --------------------------------------- */
-import comercioPack from "./comercio";
-import consultoriaPack from "./consultoria";
-import juridicoPack from "./juridico";
-import revendaPack from "./revenda";
-import saudePack from "./saude";
+/* ---- Marketplace Example Packs (add on top of padrao) ----------- */
+import clinicaPack from "./clinica";
+import imobiliariaPack from "./imobiliaria";
+import petshopPack from "./petshop";
 
 /* ---- All Packs -------------------------------------------------- */
 
 export const PACKS: Record<string, TemplatePack> = {
   padrao: padraoPack,
-  juridico: juridicoPack,
-  comercio: comercioPack,
-  consultoria: consultoriaPack,
-  saude: saudePack,
-  revenda: revendaPack,
+  petshop: petshopPack,
+  clinica: clinicaPack,
+  imobiliaria: imobiliariaPack,
 };
 
 /* ---- Helpers ----------------------------------------------------- */

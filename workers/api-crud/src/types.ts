@@ -10,6 +10,8 @@ export interface Env {
   CLOUDFLARE_DNS_EMAIL: string; // Account email — set via `wrangler secret put CLOUDFLARE_DNS_EMAIL`
   CLOUDFLARE_ZONE_ID: string; // set via `wrangler secret put CLOUDFLARE_ZONE_ID`
   ENVIRONMENT: string;
+  /** Cloudflare KV namespace for public API rate limiting */
+  RATE_LIMIT_KV: KVNamespace;
 }
 
 export interface CrudRequestBody {
@@ -71,4 +73,60 @@ export interface AggregateColumn {
 export interface QueryResult {
   query: string;
   params: unknown[];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Public API v1 — Types                                              */
+/* ------------------------------------------------------------------ */
+
+/** Database row from api_keys table */
+export interface ApiKeyRecord {
+  id: string;
+  tenant_id: string;
+  name: string;
+  key_hash: string;
+  key_prefix: string;
+  environment: "live" | "test";
+  scopes: string[]; // ["read", "write", "delete"]
+  allowed_tables: string[]; // [] = default whitelist
+  rate_limit_per_minute: number;
+  last_used_at: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+/** Authenticated context for public API requests */
+export interface PublicApiContext {
+  /** The api_key record used for authentication */
+  apiKey: ApiKeyRecord;
+  /** Tenant ID from the API key (auto-injected into all queries) */
+  tenantId: string;
+  /** Scopes granted to this key */
+  scopes: string[];
+  /** Tables this key is allowed to access (empty = default whitelist) */
+  allowedTables: string[];
+}
+
+/** Standard response envelope for public API */
+export interface PublicApiResponse<T = unknown> {
+  data: T;
+  meta?: {
+    total?: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  };
+}
+
+/** Standard error envelope for public API */
+export interface PublicApiError {
+  error: {
+    code: string;
+    message: string;
+    retry_after?: number;
+  };
 }

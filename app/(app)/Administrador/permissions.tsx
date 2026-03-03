@@ -167,6 +167,7 @@ export default function PermissionsScreen() {
         </View>
 
         <CrudScreen<Row>
+          tableName="permissions"
           title="Permissões"
           subtitle="Gestão de Permissões do Sistema"
           searchPlaceholder="Buscar por código, nome ou descrição"

@@ -173,6 +173,7 @@ export default function OcrResultsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="ocr_results"
       title="Resultados OCR"
       subtitle="Textos e dados extraídos de documentos via Tesseract"
       searchPlaceholder="Buscar por CPF, CNPJ, texto..."

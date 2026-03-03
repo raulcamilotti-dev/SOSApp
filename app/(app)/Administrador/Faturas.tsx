@@ -350,6 +350,7 @@ export default function FaturasScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="invoices"
       title="Faturas"
       subtitle="Gerencie faturas emitidas para clientes"
       searchPlaceholder="Buscar por título ou número..."

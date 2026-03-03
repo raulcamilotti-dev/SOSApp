@@ -236,6 +236,7 @@ export default function ExtratoBancarioScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="bank_transactions"
       title="Extrato Bancário"
       subtitle={
         accountId

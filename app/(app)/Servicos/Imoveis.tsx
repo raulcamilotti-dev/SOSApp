@@ -468,6 +468,7 @@ export default function ImoveisServicoScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="properties"
       title="Imóveis"
       subtitle="Gestão dos seus imóveis"
       fields={fields}

@@ -159,6 +159,7 @@ export default function CustomerProcessesScreen() {
   return (
     <View style={{ flex: 1 }}>
       <CrudScreen<Row>
+        tableName="service_orders"
         title={`Processos de ${customerName}`}
         subtitle={subtitle}
         searchPlaceholder="Buscar processo..."

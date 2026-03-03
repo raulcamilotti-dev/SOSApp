@@ -187,6 +187,7 @@ export default function ServiceTypesScreen() {
   return (
     <ProtectedRoute requiredPermission={ADMIN_PANEL_PERMISSIONS}>
       <CrudScreen<ServiceType>
+        tableName="service_types"
         title="Tipos de Serviço"
         subtitle="Gestão de tipos de serviços"
         fields={fields}

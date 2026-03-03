@@ -1,10 +1,13 @@
 import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
-import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import {
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+} from "@/services/crud";
 import { getTableInfo, type TableInfoRow } from "@/services/schema";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -43,8 +46,8 @@ const convertPaymentFields = (
             .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
             .join(" "),
           visibleInList: [
-            "customer_id",
-            "payment_method",
+            "invoice_id",
+            "method",
             "amount",
             "paid_at",
             "status",
@@ -55,24 +58,56 @@ const convertPaymentFields = (
     );
 };
 
+/**
+ * Fetch payments for a customer by first resolving their invoices,
+ * then fetching payments linked to those invoices.
+ * Relationship: customer → invoices.customer_id → payments.invoice_id
+ */
 const listPayments = async (
   customerId: string,
   tenantId?: string,
 ): Promise<Row[]> => {
-  const filters = [{ field: "customer_id", value: customerId }];
+  // 1. Get all invoices for this customer
+  const invoiceFilters = [{ field: "customer_id", value: customerId }];
   if (tenantId) {
-    filters.push({ field: "tenant_id", value: tenantId });
+    invoiceFilters.push({ field: "tenant_id", value: tenantId });
+  }
+
+  const invoiceRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "invoices",
+    ...buildSearchParams(invoiceFilters, { autoExcludeDeleted: true }),
+    fields: "id",
+  });
+
+  const invoices = normalizeCrudList<{ id: string }>(invoiceRes.data);
+  if (invoices.length === 0) return [];
+
+  const invoiceIds = invoices.map((inv) => inv.id).filter(Boolean);
+  if (invoiceIds.length === 0) return [];
+
+  // 2. Get payments linked to those invoices
+  const paymentFilters = [
+    {
+      field: "invoice_id",
+      value: invoiceIds.join(","),
+      operator: "in" as const,
+    },
+  ];
+  if (tenantId) {
+    paymentFilters.push({ field: "tenant_id", value: tenantId });
   }
 
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "payments",
-    ...buildSearchParams(filters, { sortColumn: "paid_at DESC" }),
+    ...buildSearchParams(paymentFilters, {
+      sortColumn: "paid_at DESC",
+      autoExcludeDeleted: true,
+    }),
   });
 
-  const data = response.data;
-  const list = Array.isArray(data) ? data : (data?.data ?? []);
-  return filterActive(Array.isArray(list) ? (list as Row[]) : []);
+  return normalizeCrudList<Row>(response.data);
 };
 
 const formatCurrency = (value: unknown): string => {
@@ -126,14 +161,14 @@ export default function CustomerPaymentsScreen() {
       } catch {
         setFields([
           {
-            key: "customer_id",
-            label: "Cliente",
+            key: "invoice_id",
+            label: "Fatura",
             visibleInList: true,
             visibleInForm: false,
             readOnly: true,
           },
           {
-            key: "payment_method",
+            key: "method",
             label: "Método de Pagamento",
             visibleInList: true,
             visibleInForm: false,
@@ -181,6 +216,7 @@ export default function CustomerPaymentsScreen() {
 
   return (
     <CrudScreen
+      tableName="payments"
       title={`Pagamentos de ${customerName}`}
       subtitle={subtitle}
       fields={fields}
@@ -200,16 +236,15 @@ export default function CustomerPaymentsScreen() {
       updateItem={async () => ({})}
       getId={(item) => String(item.id ?? "")}
       getTitle={(item) =>
-        `#${String(item.id ?? "").substring(0, 8)} | R$ ${formatCurrency(item.amount)} | ${item.payment_method ?? "métodos diverso"}`
+        `#${String(item.id ?? "").substring(0, 8)} | R$ ${formatCurrency(item.amount)} | ${item.method ?? "método diverso"}`
       }
       getDetails={(item) => [
         { label: "ID", value: String(item.id ?? "") },
-        { label: "Método", value: String(item.payment_method ?? "-") },
+        { label: "Método", value: String(item.method ?? "-") },
         { label: "Valor", value: formatCurrency(item.amount) },
         { label: "Data", value: formatDate(item.paid_at) },
         { label: "Status", value: String(item.status ?? "-") },
-        { label: "Tenant", value: String(item.tenant_id ?? "-") },
-        { label: "Cliente", value: String(item.customer_id ?? "-") },
+        { label: "Fatura", value: String(item.invoice_id ?? "-") },
       ]}
       renderItemActions={(item) => {
         const status = String(item.status ?? "").toLowerCase();

@@ -9,10 +9,11 @@
 /* ------------------------------------------------------------------ */
 
 import { useAuth } from "@/core/auth/AuthContext";
-import { getAllPackSummaries, type PackSummary } from "@/data/template-packs";
+import type { PackSummary } from "@/data/template-packs";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
     generateSlug,
+    getAvailableVerticalsAsync,
     runOnboarding,
     type OnboardingCompanyData,
 } from "@/services/onboarding";
@@ -21,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Animated,
     Dimensions,
     KeyboardAvoidingView,
@@ -42,6 +44,8 @@ const VERTICAL_ICONS: Record<string, string> = {
   advocacia: "⚖️",
   contabilidade: "📊",
   imobiliaria: "🏠",
+  petshop: "🐾",
+  clinica: "🩺",
 };
 
 const STEP_LABELS = ["Sua Empresa", "Sua Vertical", "Configurando", "Pronto!"];
@@ -99,7 +103,27 @@ export default function OnboardingScreen() {
 
   // Step 2: Vertical
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
-  const packs = useMemo(() => getAllPackSummaries(), []);
+  const [packs, setPacks] = useState<PackSummary[]>([]);
+  const [packsLoading, setPacksLoading] = useState(true);
+
+  // Load packs from marketplace + built-in (async)
+  useEffect(() => {
+    let cancelled = false;
+    setPacksLoading(true);
+    getAvailableVerticalsAsync()
+      .then((list) => {
+        if (!cancelled) setPacks(list);
+      })
+      .catch(() => {
+        // Fallback already handled inside getAvailableVerticalsAsync
+      })
+      .finally(() => {
+        if (!cancelled) setPacksLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Step 3: Progress
   const [progressLabel, setProgressLabel] = useState("");
@@ -710,75 +734,84 @@ export default function OnboardingScreen() {
       </View>
 
       {/* Pack cards */}
-      <View style={{ gap: 12 }}>
-        {packs.map((pack: PackSummary) => {
-          const isSelected = selectedPack === pack.key;
-          const icon = VERTICAL_ICONS[pack.key] ?? "📋";
+      {packsLoading ? (
+        <View style={{ alignItems: "center", paddingVertical: 32 }}>
+          <ActivityIndicator size="large" color={primaryColor} />
+          <Text style={{ fontSize: 14, color: mutedColor, marginTop: 12 }}>
+            Carregando opções...
+          </Text>
+        </View>
+      ) : (
+        <View style={{ gap: 12 }}>
+          {packs.map((pack: PackSummary) => {
+            const isSelected = selectedPack === pack.key;
+            const icon = pack.icon || VERTICAL_ICONS[pack.key] || "📋";
 
-          return (
-            <Pressable
-              key={pack.key}
-              onPress={() => setSelectedPack(pack.key)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 14,
-                padding: 16,
-                borderRadius: 12,
-                borderWidth: 2,
-                borderColor: isSelected ? primaryColor : borderColor,
-                backgroundColor: isSelected ? `${primaryColor}08` : cardBg,
-              }}
-            >
-              <Text style={{ fontSize: 32 }}>{icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "700",
-                    color: textColor,
-                  }}
-                >
-                  {pack.name}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: mutedColor,
-                    marginTop: 2,
-                  }}
-                >
-                  {pack.description}
-                </Text>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: 12,
-                    marginTop: 6,
-                  }}
-                >
-                  <Text style={{ fontSize: 11, color: mutedColor }}>
-                    {pack.serviceTypeCount} tipos de serviço
+            return (
+              <Pressable
+                key={pack.key}
+                onPress={() => setSelectedPack(pack.key)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: 16,
+                  borderRadius: 12,
+                  borderWidth: 2,
+                  borderColor: isSelected ? primaryColor : borderColor,
+                  backgroundColor: isSelected ? `${primaryColor}08` : cardBg,
+                }}
+              >
+                <Text style={{ fontSize: 32 }}>{icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: textColor,
+                    }}
+                  >
+                    {pack.name}
                   </Text>
-                  <Text style={{ fontSize: 11, color: mutedColor }}>
-                    {pack.workflowCount} workflows
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      color: mutedColor,
+                      marginTop: 2,
+                    }}
+                  >
+                    {pack.description}
                   </Text>
-                  <Text style={{ fontSize: 11, color: mutedColor }}>
-                    {pack.modules.length} módulos
-                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      gap: 12,
+                      marginTop: 6,
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, color: mutedColor }}>
+                      {pack.serviceTypeCount} tipos de serviço
+                    </Text>
+                    <Text style={{ fontSize: 11, color: mutedColor }}>
+                      {pack.workflowCount} workflows
+                    </Text>
+                    <Text style={{ fontSize: 11, color: mutedColor }}>
+                      {pack.modules.length} módulos
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              {isSelected && (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={24}
-                  color={primaryColor}
-                />
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
+                {isSelected && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={primaryColor}
+                  />
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
       {/* Skip option */}
       <Pressable

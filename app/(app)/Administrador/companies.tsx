@@ -544,6 +544,7 @@ export default function CompaniesScreen() {
   return (
     <>
       <CrudScreen<Row>
+        tableName="companies"
         title="Empresas"
         subtitle="Consulte o CNPJ para cadastrar uma empresa"
         fields={fields}

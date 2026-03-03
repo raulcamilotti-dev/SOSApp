@@ -25,6 +25,8 @@ export async function executeQuery(
   const client = new Client({
     connectionString: env.DATABASE_URL,
     ssl: false,
+    connectionTimeoutMillis: 10_000, // 10s — prevents infinite hang if DB is unreachable
+    query_timeout: 30_000, // 30s — prevents individual queries from hanging
   });
 
   try {
@@ -64,6 +66,8 @@ export async function executeTransaction<T>(
   const client = new Client({
     connectionString: env.DATABASE_URL,
     ssl: false,
+    connectionTimeoutMillis: 10_000, // 10s — prevents infinite hang if DB is unreachable
+    query_timeout: 30_000, // 30s — prevents individual queries from hanging
   });
 
   try {

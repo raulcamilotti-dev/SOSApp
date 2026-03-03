@@ -130,6 +130,7 @@ export default function FolgasParceiroAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="partner_time_off"
       title="Folgas do Parceiro"
       subtitle="Gestão de períodos indisponíveis (time off)"
       fields={fields}

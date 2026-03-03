@@ -10,9 +10,9 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { api } from "@/services/api";
 import type { CrudFilter } from "@/services/crud";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
@@ -52,6 +52,47 @@ export default function MovimentacoesEstoqueScreen() {
         ...buildSearchParams(filters, {
           sortColumn: "created_at DESC",
           limit: 100,
+        }),
+      });
+      return normalizeCrudList<Row>(res.data);
+    };
+  }, [tenantId, params.serviceId]);
+
+  const paginatedLoadItems = useMemo(() => {
+    return async ({
+      limit,
+      offset,
+      search,
+    }: {
+      limit: number;
+      offset: number;
+      search?: string;
+    }): Promise<Row[]> => {
+      const filters: CrudFilter[] = [
+        ...(tenantId ? [{ field: "tenant_id", value: tenantId }] : []),
+      ];
+      if (search) {
+        filters.push({
+          field: "reason",
+          value: `%${search}%`,
+          operator: "ilike",
+        });
+      }
+      if (params.serviceId) {
+        filters.push({
+          field: "service_id",
+          value: params.serviceId,
+          operator: "equal" as const,
+        });
+      }
+      const res = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "stock_movements",
+        ...buildSearchParams(filters, {
+          sortColumn: "created_at DESC",
+          autoExcludeDeleted: true,
+          limit,
+          offset,
         }),
       });
       return normalizeCrudList<Row>(res.data);
@@ -150,6 +191,7 @@ export default function MovimentacoesEstoqueScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="stock_movements"
       title="Movimentações de Estoque"
       subtitle={
         params.serviceId ? "Histórico deste produto" : "Todas as movimentações"
@@ -158,6 +200,8 @@ export default function MovimentacoesEstoqueScreen() {
       searchFields={["reason"]}
       fields={fields}
       loadItems={loadItems}
+      paginatedLoadItems={paginatedLoadItems}
+      pageSize={50}
       createItem={noop}
       updateItem={noop}
       getId={(item) => String(item.id ?? "")}

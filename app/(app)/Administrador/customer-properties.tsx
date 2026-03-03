@@ -377,6 +377,7 @@ export default function CustomerPropertiesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="properties"
       title="Imóveis"
       subtitle={subtitle}
       fields={fields}

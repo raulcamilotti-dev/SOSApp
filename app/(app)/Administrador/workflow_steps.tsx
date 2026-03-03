@@ -155,6 +155,7 @@ export default function WorkflowStepsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="workflow_steps"
       title="Workflow Steps"
       subtitle="Gestao de steps do workflow"
       fields={fields}

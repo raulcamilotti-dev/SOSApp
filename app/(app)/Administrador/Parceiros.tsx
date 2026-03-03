@@ -344,6 +344,7 @@ export default function ParceirosAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="partners"
       title="Parceiros"
       subtitle="Gestão de parceiros com disponibilidade, folgas e média de avaliações"
       fields={fields}

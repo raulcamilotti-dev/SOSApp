@@ -165,6 +165,7 @@ export default function AgentsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="agents"
       title="Agents"
       subtitle="Gestão de agents"
       fields={fields}

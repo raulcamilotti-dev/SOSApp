@@ -174,6 +174,7 @@ export default function AutomationsScreen() {
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.ADMIN_FULL}>
       <CrudScreen<Row>
+        tableName="automations"
         title="Automations"
         subtitle="Gestao de automations"
         fields={fields}

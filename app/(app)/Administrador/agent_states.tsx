@@ -174,6 +174,7 @@ export default function AgentStatesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="agent_states"
       title="Agent States"
       subtitle="Gestao de agent states"
       fields={fields}

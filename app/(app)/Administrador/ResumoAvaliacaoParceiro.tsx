@@ -102,6 +102,7 @@ export default function ResumoAvaliacaoParceiroAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="partner_rating_summary"
       title="Média do parceiro"
       subtitle="Resumo calculado automaticamente"
       fields={fields}

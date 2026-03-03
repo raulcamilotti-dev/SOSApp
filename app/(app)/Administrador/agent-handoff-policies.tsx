@@ -203,6 +203,7 @@ export default function AgentHandoffPoliciesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="agent_handoff_policies"
       title="Políticas de Handoff"
       subtitle="Regras de transição bot ↔ operador por tenant"
       searchPlaceholder="Buscar política..."

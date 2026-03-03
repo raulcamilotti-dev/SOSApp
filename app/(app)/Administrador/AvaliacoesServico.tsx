@@ -204,6 +204,7 @@ export default function AvaliacoesServicoAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="service_reviews"
       title="Avaliações"
       subtitle="Gestão de reviews de serviços"
       fields={fields}

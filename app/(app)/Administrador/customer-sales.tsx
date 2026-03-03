@@ -187,6 +187,7 @@ export default function CustomerSalesScreen() {
   return (
     <View style={{ flex: 1 }}>
       <CrudScreen<Row>
+        tableName="invoices"
         title={`Vendas de ${customerName}`}
         subtitle={subtitle}
         searchPlaceholder="Buscar venda..."

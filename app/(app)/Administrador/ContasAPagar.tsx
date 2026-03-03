@@ -979,6 +979,7 @@ export default function ContasAPagarScreen() {
   return (
     <View style={{ flex: 1 }}>
       <CrudScreen<Row>
+        tableName="accounts_payable"
         title="Contas a Pagar"
         subtitle="Despesas, pagamentos a parceiros, impostos e salários"
         searchPlaceholder="Buscar por descrição, fornecedor..."

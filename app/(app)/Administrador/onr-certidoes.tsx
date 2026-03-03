@@ -223,6 +223,7 @@ export default function OnrCertidoesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="onr_certidoes"
       title="Certidões"
       subtitle="Documentos finais emitidos pelo cartório"
       searchPlaceholder="Buscar certidão..."

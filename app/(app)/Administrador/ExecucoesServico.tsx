@@ -285,6 +285,7 @@ export default function ExecucoesServicoAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="service_executions"
       title="Execução"
       subtitle="Gestão de início/fim e status de execução"
       fields={fields}

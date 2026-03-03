@@ -171,6 +171,7 @@ export default function CartoriosScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="cartorios"
       title="Cartórios"
       subtitle="Diretório de cartórios de registro de imóveis"
       searchPlaceholder="Buscar cartório..."

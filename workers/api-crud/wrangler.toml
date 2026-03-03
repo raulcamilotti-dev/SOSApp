@@ -18,6 +18,15 @@ compatibility_flags = ["nodejs_compat"]
 ENVIRONMENT = "production"
 # JWT_SECRET is a secret, not a var — set via: npx wrangler secret put JWT_SECRET
 
+# KV namespace for public API rate limiting (persistent across isolates)
+# Create via: npx wrangler kv namespace create "RATE_LIMIT_KV"
+# Then update the id below with the returned namespace ID.
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "6d08a188276e4627befb2c82b9ccf784"
+# For local dev: npx wrangler kv namespace create "RATE_LIMIT_KV" --preview
+# preview_id = "PLACEHOLDER_PREVIEW_ID"
+
 [observability]
 enabled = false
 head_sampling_rate = 1

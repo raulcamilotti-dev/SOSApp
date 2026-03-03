@@ -340,6 +340,7 @@ export default function QuoteTemplatesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="quote_templates"
       title="Templates de Orçamento"
       subtitle="Modelos reutilizáveis para criar orçamentos rapidamente"
       searchPlaceholder="Buscar por nome..."

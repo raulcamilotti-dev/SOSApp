@@ -223,6 +223,7 @@ export default function OnrProtocolosScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="onr_protocolos"
       title="Protocolos"
       subtitle="Documentação consolidada para envio ao cartório"
       searchPlaceholder="Buscar protocolo..."

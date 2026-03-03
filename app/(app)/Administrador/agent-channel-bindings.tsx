@@ -157,6 +157,7 @@ export default function AgentChannelBindingsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="agent_channel_bindings"
       title="Bindings de Canal"
       subtitle="Vinculação de agent + canal + webhook por tenant"
       searchPlaceholder="Buscar binding..."

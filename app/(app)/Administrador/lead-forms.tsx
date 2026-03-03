@@ -378,6 +378,7 @@ export default function LeadFormsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="lead_forms"
       title="Formulários de Captação"
       subtitle="Crie formulários públicos para captar leads automaticamente"
       searchPlaceholder="Buscar por título ou slug..."

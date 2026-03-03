@@ -228,7 +228,156 @@ export type ModuleKey =
   | "products"
   | "stock"
   | "purchases"
-  | "delivery";
+  | "delivery"
+  | "marketplace";
+
+/* ==================================================================
+   CUSTOM FIELD DEFINITION (from A.1)
+   ================================================================== */
+
+export interface PackCustomFieldDefinition {
+  ref_key: string;
+  target_table: string;
+  field_key: string;
+  label: string;
+  placeholder?: string;
+  field_type: string;
+  required?: boolean;
+  visible_in_list?: boolean;
+  visible_in_form?: boolean;
+  read_only?: boolean;
+  section?: string;
+  sort_order?: number;
+  default_value?: string;
+  options?: Record<string, unknown> | unknown[];
+  validation_rules?: Record<string, unknown>;
+  mask_type?: string;
+  reference_config?: Record<string, unknown>;
+  show_when?: Record<string, unknown>;
+}
+
+/* ==================================================================
+   AI AGENT ENTITIES (unified from agent-packs)
+   ================================================================== */
+
+export interface PackAgent {
+  ref_key: string;
+  /** System prompt — core identity of the agent */
+  system_prompt: string;
+  /** LLM model identifier */
+  model: string;
+  /** Temperature 0-1 */
+  temperature: number;
+  /** Max tokens per response */
+  max_tokens: number;
+  /** Whether this is the default agent for the tenant */
+  is_default: boolean;
+  is_active: boolean;
+  version: number;
+}
+
+export interface PackPlaybook {
+  ref_key: string;
+  /** Points to PackAgent.ref_key */
+  agent_ref: string;
+  channel: "app_atendimento" | "app_operador" | "whatsapp";
+  name: string;
+  description?: string;
+  behavior_source: "agent_system_prompt" | "playbook";
+  inherit_system_prompt: boolean;
+  state_machine_mode: "guided" | "freeform";
+  webhook_url?: string;
+  operator_webhook_url?: string;
+  config_ui?: Record<string, unknown>;
+  is_active: boolean;
+}
+
+export interface PackPlaybookRule {
+  /** Points to PackPlaybook.ref_key */
+  playbook_ref: string;
+  rule_order: number;
+  rule_type: "policy" | "flow" | "safety" | "tooling";
+  title: string;
+  instruction: string;
+  severity: "normal" | "high" | "critical";
+  is_active: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PackPlaybookTable {
+  /** Points to PackPlaybook.ref_key */
+  playbook_ref: string;
+  table_name: string;
+  access_mode: "read" | "read_write" | "write";
+  is_required: boolean;
+  purpose?: string;
+  query_guardrails?: Record<string, unknown>;
+  is_active: boolean;
+}
+
+export interface PackAgentState {
+  ref_key: string;
+  /** Points to PackAgent.ref_key */
+  agent_ref: string;
+  state_key: string;
+  state_label: string;
+  system_prompt: string;
+  rules?: Record<string, unknown>;
+  tools?: Record<string, unknown>;
+  is_initial: boolean;
+  is_terminal: boolean;
+}
+
+export interface PackAgentStateStep {
+  /** Points to PackAgentState.ref_key */
+  state_ref: string;
+  /** Points to PackAgent.ref_key */
+  agent_ref: string;
+  step_key: string;
+  step_label: string;
+  step_order: number;
+  instruction: string;
+  expected_inputs?: Record<string, unknown>;
+  expected_outputs?: Record<string, unknown>;
+  allowed_tables?: Record<string, unknown>;
+  on_success_action?: string;
+  on_failure_action?: string;
+  handoff_to_operator: boolean;
+  return_to_bot_allowed: boolean;
+  is_active: boolean;
+}
+
+export interface PackChannelBinding {
+  /** Points to PackAgent.ref_key */
+  agent_ref: string;
+  channel: "app_atendimento" | "app_operador" | "whatsapp";
+  webhook_url?: string;
+  is_active: boolean;
+  config?: Record<string, unknown>;
+}
+
+export interface PackHandoffPolicy {
+  /** Points to PackAgent.ref_key */
+  agent_ref: string;
+  /** Points to PackPlaybook.ref_key (optional) */
+  playbook_ref?: string;
+  from_channel: string;
+  to_channel: string;
+  trigger_type: "user_request" | "system_rule" | "operator_request";
+  trigger_config?: Record<string, unknown>;
+  pause_bot_while_operator: boolean;
+  operator_can_return_to_bot: boolean;
+  return_to_state_key?: string;
+  is_active: boolean;
+}
+
+export interface PackAutomation {
+  /** Points to PackAgent.ref_key */
+  agent_ref: string;
+  trigger: string;
+  action: string;
+  config?: Record<string, unknown>;
+}
 
 /* ==================================================================
    TEMPLATE PACK — Top-level type
@@ -249,6 +398,18 @@ export interface TemplatePack {
   roles: PackRole[];
   services: PackService[];
   ocr_configs?: PackOcrConfig[];
+  custom_fields?: PackCustomFieldDefinition[];
+
+  /* ── AI Agent entities (optional) ── */
+  agents?: PackAgent[];
+  playbooks?: PackPlaybook[];
+  playbook_rules?: PackPlaybookRule[];
+  playbook_tables?: PackPlaybookTable[];
+  agent_states?: PackAgentState[];
+  agent_state_steps?: PackAgentStateStep[];
+  channel_bindings?: PackChannelBinding[];
+  handoff_policies?: PackHandoffPolicy[];
+  automations?: PackAutomation[];
 }
 
 /* ---- Pack Registry ----------------------------------------------- */
@@ -269,6 +430,10 @@ export interface PackSummary {
   workflowCount: number;
   /** Module keys included */
   modules: ModuleKey[];
+  /** Number of AI agents included */
+  agentCount: number;
+  /** Number of AI automations included */
+  automationCount: number;
 }
 
 /**
@@ -285,5 +450,7 @@ export function packToSummary(pack: TemplatePack): PackSummary {
     serviceTypeCount: pack.service_types.length,
     workflowCount: pack.workflow_templates.length,
     modules: pack.modules,
+    agentCount: pack.agents?.length ?? 0,
+    automationCount: pack.automations?.length ?? 0,
   };
 }

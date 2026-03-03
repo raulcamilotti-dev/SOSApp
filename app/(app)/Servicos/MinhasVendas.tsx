@@ -149,6 +149,7 @@ export default function MinhasVendasScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="sales"
       title="Minhas Vendas"
       subtitle="Vendas realizadas por você"
       searchPlaceholder="Buscar venda..."

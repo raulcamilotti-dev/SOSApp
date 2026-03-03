@@ -543,6 +543,7 @@ export default function ContentPagesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="content_pages"
       title="Conteúdo Público"
       subtitle="Blog posts e landing pages com CTA de captação"
       searchPlaceholder="Buscar por título, categoria..."

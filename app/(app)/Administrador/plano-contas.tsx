@@ -222,6 +222,7 @@ export default function PlanoDeContasScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="chart_of_accounts"
       controlRef={controlRef}
       title="Plano de Contas"
       subtitle="Classificação hierárquica para lançamentos financeiros"

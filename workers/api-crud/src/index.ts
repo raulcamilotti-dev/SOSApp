@@ -8,6 +8,7 @@
 /*    POST /tables_info      — Table schema introspection              */
 /*    GET  /tables           — List all public tables                  */
 /*    GET  /health           — Health check                            */
+/*    GET  /v1/:table        — Public REST API (API key auth)          */
 /*    POST /marketplace/*    — Marketplace checkout endpoints          */
 /*    POST /cart/*           — Shopping cart endpoints                  */
 /*    POST /financial/*      — Financial dashboard endpoints           */
@@ -16,6 +17,7 @@
 /* ================================================================== */
 
 import bcrypt from "bcryptjs";
+import { generateApiKey } from "./api-key-auth";
 import { executeQuery } from "./db";
 import {
   handleDelinquencySummary,
@@ -32,6 +34,7 @@ import {
   handleOrderSummary,
   handleResolveCustomer,
 } from "./marketplace";
+import { handlePublicApiRequest } from "./public-api";
 import { handleClearCart, handleRemoveCartItem } from "./shopping-cart";
 import {
   buildAggregate,
@@ -1034,6 +1037,133 @@ async function handleConfirmPasswordReset(
 }
 
 /* ================================================================== */
+/*  API Key Management (server-side key generation)                    */
+/* ================================================================== */
+
+async function handleApiKeyCreate(
+  request: Request,
+  env: Env,
+  authPayload: JwtPayload,
+): Promise<Response> {
+  try {
+    const body = (await request.json()) as Record<string, unknown>;
+    const action = String(body.action ?? "create").trim();
+
+    if (action !== "create") {
+      return corsResponse(400, {
+        error: "Only 'create' action supported on /api-keys",
+      });
+    }
+
+    const tenantId = String(
+      body.tenant_id ?? authPayload.tenant_id ?? "",
+    ).trim();
+    const userId = String(body.user_id ?? authPayload.sub ?? "").trim();
+
+    if (!tenantId) {
+      return corsResponse(400, { error: "tenant_id is required" });
+    }
+
+    const name = String(body.name ?? "").trim();
+    if (!name) {
+      return corsResponse(400, { error: "name is required" });
+    }
+
+    const environment = String(body.environment ?? "live").trim();
+    if (environment !== "live" && environment !== "test") {
+      return corsResponse(400, {
+        error: "environment must be 'live' or 'test'",
+      });
+    }
+
+    // Parse scopes
+    let scopes = ["read"];
+    if (body.scopes) {
+      const rawScopes = Array.isArray(body.scopes)
+        ? body.scopes
+        : typeof body.scopes === "string"
+          ? JSON.parse(body.scopes)
+          : ["read"];
+      const validScopes = new Set(["read", "write", "delete"]);
+      scopes = rawScopes
+        .map((s: unknown) => String(s).trim().toLowerCase())
+        .filter((s: string) => validScopes.has(s));
+      if (scopes.length === 0) scopes = ["read"];
+    }
+
+    // Parse allowed_tables
+    let allowedTables: string[] = [];
+    if (body.allowed_tables) {
+      const rawTables = Array.isArray(body.allowed_tables)
+        ? body.allowed_tables
+        : typeof body.allowed_tables === "string"
+          ? JSON.parse(body.allowed_tables)
+          : [];
+      allowedTables = rawTables
+        .map((t: unknown) => String(t).trim().toLowerCase())
+        .filter(Boolean);
+    }
+
+    const rateLimitPerMinute = Number(body.rate_limit_per_minute) || 60;
+    const expiresAt = body.expires_at ? String(body.expires_at) : null;
+
+    // Generate key server-side using HMAC-SHA256
+    const hmacSecret = env.JWT_SECRET || env.API_KEY;
+    const generated = await generateApiKey(
+      environment as "live" | "test",
+      hmacSecret,
+    );
+
+    // Insert record into DB
+    const now = new Date().toISOString();
+    const insertQuery = `
+      INSERT INTO api_keys (
+        tenant_id, name, key_hash, key_prefix, environment,
+        scopes, allowed_tables, rate_limit_per_minute,
+        expires_at, is_active, created_by, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, true, $10, $11, $12
+      ) RETURNING *
+    `;
+    const params = [
+      tenantId,
+      name,
+      generated.hash,
+      generated.prefix,
+      environment,
+      JSON.stringify(scopes),
+      JSON.stringify(allowedTables),
+      rateLimitPerMinute,
+      expiresAt,
+      userId || null,
+      now,
+      now,
+    ];
+
+    const result = await executeQuery(env, insertQuery, params);
+    const record =
+      Array.isArray(result) && result.length > 0 ? result[0] : null;
+
+    if (!record) {
+      return corsResponse(500, { error: "Failed to create API key" });
+    }
+
+    // Return plaintext key ONCE + record (without hash for security display)
+    return corsResponse(201, {
+      plaintext_key: generated.plaintext,
+      record: {
+        ...record,
+        key_hash: undefined, // Don't expose the hash to the client
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[api_key_create_error]", message);
+    return corsResponse(500, { error: "Failed to create API key" });
+  }
+}
+
+/* ================================================================== */
 /*  Main fetch handler                                                 */
 /* ================================================================== */
 
@@ -1092,6 +1222,12 @@ export default {
       }
     }
 
+    // Public API v1 — uses its own auth (API keys), not internal auth
+    // Must be BEFORE authenticate() since it handles its own CORS + auth
+    if (path.startsWith("/v1/") || path === "/v1") {
+      return handlePublicApiRequest(request, env);
+    }
+
     // Auth check for all other routes
     const authPayload = await authenticate(request, env);
     if (!authPayload) {
@@ -1099,6 +1235,11 @@ export default {
     }
 
     try {
+      // Route: POST /api-keys — Create API key (server-side generation)
+      if (request.method === "POST" && path === "/api-keys") {
+        return handleApiKeyCreate(request, env, authPayload);
+      }
+
       // Route: POST /api_crud  (or /webhook/api_crud for backward compat)
       if (
         request.method === "POST" &&

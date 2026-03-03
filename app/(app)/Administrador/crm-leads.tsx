@@ -560,6 +560,7 @@ export default function CrmLeadsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="leads"
       title="Leads"
       subtitle="Gestão de oportunidades de negócio"
       searchPlaceholder="Buscar lead por nome, email, telefone..."

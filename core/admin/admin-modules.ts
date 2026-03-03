@@ -50,6 +50,22 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "tables",
       "tenants",
       "saas_dashboard",
+      "custom_fields",
+      "pack_export",
+      "api_keys",
+    ],
+  },
+  {
+    key: "marketplace",
+    label: "Marketplace de Packs",
+    description: "Explore, publique e gerencie template packs",
+    icon: "grid-outline",
+    color: "#8b5cf6",
+    pageIds: [
+      "pack_marketplace",
+      "marketplace_publish",
+      "marketplace_review",
+      "builder_dashboard",
     ],
   },
   {
@@ -197,7 +213,6 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
     icon: "sparkles-outline",
     color: "#a855f7",
     pageIds: [
-      "agent_packs",
       "agents",
       "agent_playbooks",
       "agent_playbook_rules",

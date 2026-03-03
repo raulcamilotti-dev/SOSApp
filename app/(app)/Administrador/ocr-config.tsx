@@ -191,6 +191,7 @@ export default function OcrConfigScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="ocr_config"
       title="Configuração OCR"
       subtitle="Regras de análise automática de documentos via Tesseract"
       searchPlaceholder="Buscar por nome, tipo..."

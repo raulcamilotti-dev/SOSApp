@@ -248,6 +248,7 @@ export default function GanhosParceirosScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="partner_earnings"
       title="Ganhos de Parceiros"
       subtitle="Comissões, taxas e pagamentos dos parceiros"
       searchPlaceholder="Buscar por descrição..."

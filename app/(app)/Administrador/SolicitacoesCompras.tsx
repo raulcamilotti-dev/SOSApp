@@ -385,6 +385,7 @@ export default function SolicitacoesComprasScreen() {
   return (
     <View style={{ flex: 1 }}>
       <CrudScreen<PurchaseRequestRow>
+        tableName="purchase_requests"
         controlRef={requestRef}
         title="Solicitacoes de Compras"
         subtitle="Requisicoes internas com itens e aprovacao"

@@ -162,6 +162,7 @@ export default function ServiceCategoriesScreen() {
   return (
     <ProtectedRoute requiredPermission={ADMIN_PANEL_PERMISSIONS}>
       <CrudScreen<CategoryWithRelations>
+        tableName="service_categories"
         title="Categorias de Serviço"
         subtitle="Gestão de categorias (tipos macro) de serviços"
         searchPlaceholder="Buscar categoria..."

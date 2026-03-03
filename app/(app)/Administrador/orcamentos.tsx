@@ -4,9 +4,9 @@ import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    CRUD_ENDPOINT,
-    buildSearchParams,
-    normalizeCrudList,
+  CRUD_ENDPOINT,
+  buildSearchParams,
+  normalizeCrudList,
 } from "@/services/crud";
 import { buildQuoteUrl } from "@/services/quotes";
 import { Ionicons } from "@expo/vector-icons";
@@ -285,6 +285,42 @@ export default function OrcamentosScreen() {
     [tenantId],
   );
 
+  const paginatedLoadItems = useMemo(
+    () =>
+      async ({
+        limit,
+        offset,
+        search,
+      }: {
+        limit: number;
+        offset: number;
+        search?: string;
+      }): Promise<Row[]> => {
+        const filters = tenantId
+          ? [{ field: "tenant_id", value: tenantId }]
+          : [];
+        if (search) {
+          filters.push({
+            field: "title",
+            value: `%${search}%`,
+            operator: "ilike",
+          });
+        }
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "quotes",
+          ...buildSearchParams(filters, {
+            sortColumn: "created_at DESC",
+            limit,
+            offset,
+            autoExcludeDeleted: true,
+          }),
+        });
+        return normalizeCrudList<Row>(res.data);
+      },
+    [tenantId],
+  );
+
   const createItem = useCallback(
     (payload: Partial<Row>) => createItemBase(payload, tenantId),
     [tenantId],
@@ -319,12 +355,15 @@ export default function OrcamentosScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="quotes"
       title="Orçamentos"
       subtitle="Gerencie orçamentos enviados e acompanhe aprovações"
       searchPlaceholder="Buscar por título, status..."
       searchFields={["title", "description", "status", "option_label"]}
       fields={fields}
       loadItems={loadItems}
+      paginatedLoadItems={paginatedLoadItems}
+      pageSize={50}
       createItem={createItem}
       updateItem={updateItem}
       getId={(item) => String(item.id ?? "")}

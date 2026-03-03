@@ -191,6 +191,7 @@ export default function AgentStateStepsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="agent_state_steps"
       title="Passos por Estado"
       subtitle="Fluxo detalhado do comportamento por state"
       searchPlaceholder="Buscar passo..."

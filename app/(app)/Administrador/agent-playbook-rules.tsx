@@ -179,6 +179,7 @@ export default function AgentPlaybookRulesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="agent_playbook_rules"
       title="Regras do Playbook"
       subtitle="Regras de comportamento do robô por tenant"
       searchPlaceholder="Buscar regra..."

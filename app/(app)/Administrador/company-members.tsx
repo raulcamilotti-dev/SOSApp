@@ -307,6 +307,7 @@ export default function CompanyMembersScreen() {
         </Text>
       </View>
       <CrudScreen<Row>
+        tableName="company_members"
         title={`Membros — ${companyName}`}
         fields={fields}
         loadItems={loadFilteredRows}

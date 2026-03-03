@@ -182,6 +182,7 @@ export default function AgentPlaybooksScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="agent_playbooks"
       title="Playbooks do Agente"
       subtitle="Configuração de comportamento do robô por tenant e canal"
       searchPlaceholder="Buscar playbook..."

@@ -131,6 +131,7 @@ export default function RolePermissionsScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="role_permissions"
       title="Role Permissions"
       subtitle="Gestao de permissoes por role"
       searchPlaceholder="Buscar por role ou permissao"

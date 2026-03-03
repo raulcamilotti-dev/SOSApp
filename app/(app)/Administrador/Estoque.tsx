@@ -207,6 +207,7 @@ export default function EstoqueScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="services"
       title="Estoque"
       subtitle="Posição de estoque — todos os itens rastreados"
       searchPlaceholder="Buscar item..."

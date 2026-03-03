@@ -1,24 +1,19 @@
 import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { CRUD_ENDPOINT, normalizeCrudList } from "@/services/crud";
+import {
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    normalizeCrudList,
+} from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { TouchableOpacity, View } from "react-native";
 
 type Row = Record<string, unknown>;
-
-const listRows = async (): Promise<Row[]> => {
-  const response = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "workflow_templates",
-  });
-  const data = response.data;
-  const list = Array.isArray(data) ? data : (data?.data ?? []);
-  return filterActive(Array.isArray(list) ? (list as Row[]) : []);
-};
 
 const createRow = async (payload: Partial<Row>): Promise<unknown> => {
   const response = await api.post(CRUD_ENDPOINT, {
@@ -61,10 +56,22 @@ const deleteRow = async (
 
 export default function WorkflowTemplatesScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const tenantId = user?.tenant_id;
   const params = useLocalSearchParams<{ serviceId?: string }>();
   const serviceId = Array.isArray(params.serviceId)
     ? params.serviceId[0]
     : params.serviceId;
+
+  const listRows = useCallback(async (): Promise<Row[]> => {
+    const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
+    const response = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "workflow_templates",
+      ...buildSearchParams(filters, { sortColumn: "created_at DESC" }),
+    });
+    return filterActive(normalizeCrudList<Row>(response.data));
+  }, [tenantId]);
 
   const loadFilteredRows = useMemo(() => {
     return async (): Promise<Row[]> => {
@@ -79,16 +86,17 @@ export default function WorkflowTemplatesScreen() {
         return true;
       });
     };
-  }, [serviceId]);
+  }, [serviceId, listRows]);
 
   const createWithContext = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {
       return createRow({
         ...payload,
+        tenant_id: tenantId ?? payload.tenant_id,
         service_type_id: serviceId ?? payload.service_type_id,
       });
     };
-  }, [serviceId]);
+  }, [serviceId, tenantId]);
 
   const updateWithContext = useMemo(() => {
     return async (
@@ -103,11 +111,23 @@ export default function WorkflowTemplatesScreen() {
 
   const loadRowsWithRelations = useMemo(() => {
     return async (): Promise<Row[]> => {
+      const tenantFilter = tenantId
+        ? buildSearchParams([{ field: "tenant_id", value: tenantId }])
+        : {};
+
       const [templateRows, stepsResponse, serviceTypesResponse] =
         await Promise.all([
           loadFilteredRows(),
-          api.post(CRUD_ENDPOINT, { action: "list", table: "workflow_steps" }),
-          api.post(CRUD_ENDPOINT, { action: "list", table: "service_types" }),
+          api.post(CRUD_ENDPOINT, {
+            action: "list",
+            table: "workflow_steps",
+            ...tenantFilter,
+          }),
+          api.post(CRUD_ENDPOINT, {
+            action: "list",
+            table: "service_types",
+            ...tenantFilter,
+          }),
         ]);
 
       const steps = filterActive(
@@ -136,7 +156,7 @@ export default function WorkflowTemplatesScreen() {
         };
       });
     };
-  }, [loadFilteredRows]);
+  }, [loadFilteredRows, tenantId]);
 
   const tintColor = useThemeColor({}, "tint");
   const borderColor = useThemeColor({}, "border");
@@ -187,6 +207,7 @@ export default function WorkflowTemplatesScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="workflow_templates"
       title="Workflow Templates"
       subtitle="Gestao de templates de workflow"
       fields={fields}

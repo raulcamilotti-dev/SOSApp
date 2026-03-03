@@ -4,39 +4,42 @@ import { ThemedView } from "@/components/themed-view";
 import { JsonEditor } from "@/components/ui/JsonEditor";
 import { useAuth } from "@/core/auth/AuthContext";
 import { isUserAdmin } from "@/core/auth/auth.utils";
+import { useCustomFields } from "@/hooks/use-custom-fields";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
-  AI_AGENT_ENDPOINT,
-  buildAiInsightMessage,
-  extractAiInsightText,
-  UNIVERSAL_AI_INSIGHT_PROMPT,
+    AI_AGENT_ENDPOINT,
+    buildAiInsightMessage,
+    extractAiInsightText,
+    UNIVERSAL_AI_INSIGHT_PROMPT,
 } from "@/services/ai-insights";
 import { api, getApiErrorMessage } from "@/services/api";
+import { CRUD_ENDPOINT } from "@/services/crud";
 import { getTableInfo, type TableInfoRow } from "@/services/schema";
 import DateTimePickerMobile from "@react-native-community/datetimepicker";
 import { useIsFocused } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import {
-  createElement,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
+    createElement,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
 } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 
 export type CrudFieldType =
@@ -113,7 +116,8 @@ type QuickCreateSnapshot = {
   returnTarget: QuickCreateReturnTarget;
 };
 
-const REFERENCE_ENDPOINT = "https://n8n.sosescritura.com.br/webhook/api_crud";
+/** @deprecated Use CRUD_ENDPOINT from @/services/crud instead */
+const REFERENCE_ENDPOINT = CRUD_ENDPOINT;
 
 /** Imperative handle for CrudScreen — use via controlRef prop */
 export type CrudScreenHandle = {
@@ -124,6 +128,7 @@ export type CrudScreenHandle = {
 };
 
 type Props<T> = {
+  tableName?: string;
   title: string;
   subtitle?: string;
   searchPlaceholder?: string;
@@ -135,6 +140,7 @@ type Props<T> = {
   paginatedLoadItems?: (params: {
     limit: number;
     offset: number;
+    search?: string;
   }) => Promise<T[]>;
   /** Items per page when using paginatedLoadItems (default: 20) */
   pageSize?: number;
@@ -470,6 +476,26 @@ const getLogicalCrudError = (result: unknown): string | null => {
 
   const message = body?.message || body?.error || body?.detail;
   return message ? String(message) : "Falha na operação";
+};
+
+const extractCrudResultId = (result: unknown): string | null => {
+  const body = (result as any)?.data ?? result;
+  if (!body) return null;
+
+  if (Array.isArray(body) && body[0]?.id) {
+    return String(body[0].id);
+  }
+
+  if (body?.id) {
+    return String(body.id);
+  }
+
+  const nestedArray = body?.data;
+  if (Array.isArray(nestedArray) && nestedArray[0]?.id) {
+    return String(nestedArray[0].id);
+  }
+
+  return null;
 };
 
 const isTruthyString = (value: string) => {
@@ -837,6 +863,7 @@ const buildCacheKey = (table: string | undefined, id: string) =>
   table ? `${table}:${id}` : id;
 
 export function CrudScreen<T extends Record<string, unknown>>({
+  tableName,
   title,
   subtitle,
   searchPlaceholder,
@@ -860,6 +887,29 @@ export function CrudScreen<T extends Record<string, unknown>>({
   controlRef,
 }: Props<T>) {
   const { user } = useAuth();
+  const {
+    enabled: customFieldsEnabled,
+    customFields,
+    loadValues: loadCustomFieldValues,
+    loadValuesForRecord,
+    saveValues: saveCustomFieldValues,
+    mergeIntoItem,
+    mergeIntoFormState,
+  } = useCustomFields(tableName);
+
+  // ── Stable refs for callback props to prevent infinite re-render loops ──
+  // When parent components pass inline arrow functions (e.g., getId={(item) => item.id}),
+  // the function reference changes on every parent render. If these were direct
+  // dependencies of `load`, any parent state change (even unrelated) would trigger
+  // a new load → which calls loadItems → which may set parent state → infinite loop.
+  // Using refs breaks this cycle while always using the latest callback.
+  const getIdRef = useRef(getId);
+  const getTitleRef = useRef(getTitle);
+  useLayoutEffect(() => {
+    getIdRef.current = getId;
+    getTitleRef.current = getTitle;
+  });
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -922,6 +972,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
     string | null
   >(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const hasLoadedRef = useRef(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [activeFilterKey, setActiveFilterKey] = useState<string>("__all");
   const [formErrorDiagnostic, setFormErrorDiagnostic] = useState<string | null>(
     null,
@@ -1002,19 +1055,29 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const isFocused = useIsFocused();
   const isAdminUser = useMemo(() => isUserAdmin(user), [user]);
 
+  const allFields = useMemo(
+    () => [...fields, ...(customFields as CrudFieldConfig<T>[])],
+    [customFields, fields],
+  );
+
+  const customFieldKeys = useMemo(
+    () => new Set(customFields.map((field) => field.key)),
+    [customFields],
+  );
+
   const formFields = useMemo(
     () =>
-      fields.filter(
+      allFields.filter(
         (field) =>
           field.visibleInForm !== false &&
           field.key !== "id" &&
           !AUDIT_COLUMNS.has(String(field.key)),
       ),
-    [fields],
+    [allFields],
   );
   const normalizedFields = useMemo(
-    () => fields.map((field) => normalizeCrudField(field)),
-    [fields],
+    () => allFields.map((field) => normalizeCrudField(field)),
+    [allFields],
   );
   const normalizedFormFields = useMemo(
     () => formFields.map((field) => normalizeCrudField(field)),
@@ -1365,22 +1428,54 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
   const load = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only show full-screen loader on initial load, not on search re-queries
+      if (!hasLoadedRef.current) {
+        setLoading(true);
+      } else {
+        setIsSearching(true);
+      }
       setError(null);
 
       if (isPaginated && paginatedLoadItems) {
-        // Paginated mode: load first page
+        // Paginated mode: load first page (with optional server-side search)
         setPaginationOffset(0);
         setHasMore(true);
-        const list = await paginatedLoadItems({ limit: pageSize, offset: 0 });
+        const list = await paginatedLoadItems({
+          limit: pageSize,
+          offset: 0,
+          search: debouncedSearch || undefined,
+        });
         const normalized = Array.isArray(list) ? list : [];
-        setItems(normalized);
+        if (customFieldsEnabled && normalized.length) {
+          const ids = normalized
+            .map((item) => getIdRef.current(item))
+            .filter((id) => Boolean(id));
+          const valuesMap = await loadCustomFieldValues(ids);
+          const merged = normalized.map((item) =>
+            mergeIntoItem(item, valuesMap[getIdRef.current(item)] ?? {}),
+          );
+          setItems(merged);
+        } else {
+          setItems(normalized);
+        }
         setHasMore(normalized.length >= pageSize);
         setPaginationOffset(normalized.length);
       } else {
         // Legacy mode: load everything at once
         const list = await loadItems();
-        setItems(Array.isArray(list) ? list : []);
+        const normalized = Array.isArray(list) ? list : [];
+        if (customFieldsEnabled && normalized.length) {
+          const ids = normalized
+            .map((item) => getIdRef.current(item))
+            .filter((id) => Boolean(id));
+          const valuesMap = await loadCustomFieldValues(ids);
+          const merged = normalized.map((item) =>
+            mergeIntoItem(item, valuesMap[getIdRef.current(item)] ?? {}),
+          );
+          setItems(merged);
+        } else {
+          setItems(normalized);
+        }
       }
     } catch (error) {
       setError(getApiErrorMessage(error, "Falha ao carregar dados"));
@@ -1388,8 +1483,19 @@ export function CrudScreen<T extends Record<string, unknown>>({
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setIsSearching(false);
+      hasLoadedRef.current = true;
     }
-  }, [isPaginated, loadItems, paginatedLoadItems, pageSize]);
+  }, [
+    customFieldsEnabled,
+    isPaginated,
+    loadCustomFieldValues,
+    loadItems,
+    mergeIntoItem,
+    paginatedLoadItems,
+    pageSize,
+    debouncedSearch,
+  ]);
 
   const loadMore = useCallback(async () => {
     if (!isPaginated || !paginatedLoadItems || !hasMore || loadingMore) return;
@@ -1398,10 +1504,22 @@ export function CrudScreen<T extends Record<string, unknown>>({
       const list = await paginatedLoadItems({
         limit: pageSize,
         offset: paginationOffset,
+        search: debouncedSearch || undefined,
       });
       const normalized = Array.isArray(list) ? list : [];
       if (normalized.length > 0) {
-        setItems((prev) => [...prev, ...normalized]);
+        if (customFieldsEnabled) {
+          const ids = normalized
+            .map((item) => getIdRef.current(item))
+            .filter((id) => Boolean(id));
+          const valuesMap = await loadCustomFieldValues(ids);
+          const merged = normalized.map((item) =>
+            mergeIntoItem(item, valuesMap[getIdRef.current(item)] ?? {}),
+          );
+          setItems((prev) => [...prev, ...merged]);
+        } else {
+          setItems((prev) => [...prev, ...normalized]);
+        }
         setPaginationOffset((prev) => prev + normalized.length);
       }
       setHasMore(normalized.length >= pageSize);
@@ -1417,7 +1535,20 @@ export function CrudScreen<T extends Record<string, unknown>>({
     loadingMore,
     pageSize,
     paginationOffset,
+    customFieldsEnabled,
+    loadCustomFieldValues,
+    mergeIntoItem,
+    debouncedSearch,
   ]);
+
+  // Debounce searchQuery for server-side search (only when paginated)
+  useEffect(() => {
+    if (!isPaginated) return;
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, isPaginated]);
 
   useEffect(() => {
     if (isFocused) {
@@ -1428,8 +1559,8 @@ export function CrudScreen<T extends Record<string, unknown>>({
   // Batch resolve all reference labels for the list (1 request per reference table instead of N×M)
   useEffect(() => {
     if (!items.length) return;
-    batchResolveReferences(fields, items);
-  }, [items, fields, batchResolveReferences]);
+    batchResolveReferences(allFields, items);
+  }, [items, allFields, batchResolveReferences]);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -1559,10 +1690,27 @@ export function CrudScreen<T extends Record<string, unknown>>({
       setFormErrorDiagnostic(null);
       setDiagnosticCopyStatus(null);
       setModalMode("edit");
-      setEditingId(getId(item));
+      const itemId = getIdRef.current(item);
+      setEditingId(itemId);
       setModalOpen(true);
+
+      if (customFieldsEnabled && itemId) {
+        loadValuesForRecord(itemId)
+          .then((customValues) => {
+            setFormState((prev) => mergeIntoFormState(prev, customValues));
+          })
+          .catch(() => {
+            // best effort
+          });
+      }
     },
-    [normalizedFormFields, getCachedReferenceLabel, getId],
+    [
+      customFieldsEnabled,
+      getCachedReferenceLabel,
+      loadValuesForRecord,
+      mergeIntoFormState,
+      normalizedFormFields,
+    ],
   );
   const loadReferenceOptions = useCallback(
     async (
@@ -1584,6 +1732,8 @@ export function CrudScreen<T extends Record<string, unknown>>({
         const requestPayload: Record<string, unknown> = {
           action: "list",
           table: field.referenceTable,
+          // Auto-exclude soft-deleted records from reference pickers
+          auto_exclude_deleted: true,
         };
 
         let nextFilterIndex = 1;
@@ -1606,10 +1756,42 @@ export function CrudScreen<T extends Record<string, unknown>>({
           nextFilterIndex += 1;
         }
 
-        // Note: NOT filtering by is_active or deleted_at here because:
-        // 1. Not all tables have these columns (e.g., tenants, roles)
-        // 2. Filtering by non-existent columns causes silent query failures
-        // 3. Active/deleted filtering is already applied at data load time
+        // Special case: "users" table uses user_tenants junction for tenant scoping
+        // (users table has no tenant_id column — scoping is via user_tenants.tenant_id)
+        if (
+          field.referenceTable === "users" &&
+          !applyTenantIsolation &&
+          user?.tenant_id
+        ) {
+          try {
+            const utRes = await api.post(REFERENCE_ENDPOINT, {
+              action: "list",
+              table: "user_tenants",
+              search_field1: "tenant_id",
+              search_value1: user.tenant_id,
+              search_operator1: "equal",
+              auto_exclude_deleted: true,
+              fields: "user_id",
+            });
+            const utData = utRes.data;
+            const utList = Array.isArray(utData)
+              ? utData
+              : (utData?.data ?? []);
+            const tenantUserIds = utList
+              .map((ut: any) => String(ut?.user_id ?? ""))
+              .filter(Boolean);
+            if (tenantUserIds.length > 0) {
+              requestPayload[`search_field${nextFilterIndex}`] = "id";
+              requestPayload[`search_value${nextFilterIndex}`] =
+                tenantUserIds.join(",");
+              requestPayload[`search_operator${nextFilterIndex}`] = "in";
+              requestPayload.combine_type = "AND";
+              nextFilterIndex += 1;
+            }
+          } catch {
+            // Best-effort — if user_tenants lookup fails, show all users
+          }
+        }
 
         const response = await api.post(REFERENCE_ENDPOINT, requestPayload);
         const data = response.data;
@@ -1965,6 +2147,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
       modalMode === "create" ? normalizedFields : normalizedFormFields;
     const payload: Record<string, unknown> = {};
     for (const field of payloadFields) {
+      if (customFieldKeys.has(field.key)) {
+        continue;
+      }
       if (field.readOnly) {
         continue;
       }
@@ -2064,6 +2249,8 @@ export function CrudScreen<T extends Record<string, unknown>>({
       const tableFieldKeys = new Set(
         normalizedFields.map((field) => field.key),
       );
+      let targetIdForCustomValues: string | null =
+        modalMode === "edit" ? editingId : null;
 
       if (modalMode === "create") {
         const createPayload = { ...payload } as Record<string, unknown>;
@@ -2080,6 +2267,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
         const result = await createItem(createPayload as Partial<T>);
         const logicalError = getLogicalCrudError(result);
         if (logicalError) throw new Error(logicalError);
+        targetIdForCustomValues = extractCrudResultId(result);
       } else {
         const updatePayload = {
           ...payload,
@@ -2095,6 +2283,20 @@ export function CrudScreen<T extends Record<string, unknown>>({
         const logicalError = getLogicalCrudError(result);
         if (logicalError) throw new Error(logicalError);
       }
+
+      if (customFieldsEnabled && targetIdForCustomValues) {
+        try {
+          await saveCustomFieldValues(targetIdForCustomValues, formState);
+        } catch (customFieldError) {
+          if (__DEV__) {
+            console.warn(
+              "[CrudScreen] Failed to save custom fields",
+              customFieldError,
+            );
+          }
+        }
+      }
+
       setModalOpen(false);
       resetForm();
       load();
@@ -2114,6 +2316,8 @@ export function CrudScreen<T extends Record<string, unknown>>({
     }
   }, [
     buildDiagnosticReport,
+    customFieldKeys,
+    customFieldsEnabled,
     normalizedFields,
     normalizedFormFields,
     formState,
@@ -2124,6 +2328,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
     editingId,
     load,
     resetForm,
+    saveCustomFieldValues,
     user?.id,
   ]);
 
@@ -2298,7 +2503,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const detailValueIsReference = useCallback(
     (detailLabel: string): CrudFieldConfig<any> | null => {
       return (
-        fields.find((f) => {
+        allFields.find((f) => {
           const normalized = normalizeCrudField(f);
           return (
             normalized.type === "reference" &&
@@ -2307,12 +2512,14 @@ export function CrudScreen<T extends Record<string, unknown>>({
         }) ?? null
       );
     },
-    [fields],
+    [allFields],
   );
 
   const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => getTitle(a).localeCompare(getTitle(b)));
-  }, [items, getTitle]);
+    return [...items].sort((a, b) =>
+      getTitleRef.current(a).localeCompare(getTitleRef.current(b)),
+    );
+  }, [items]);
 
   const filterOptions = useMemo(() => {
     const configuredKeys =
@@ -2329,10 +2536,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
       { key: "__all", label: "Todos" },
       ...uniqueKeys.map((key) => ({
         key,
-        label: getFriendlyLabelByKey(key, fields),
+        label: getFriendlyLabelByKey(key, allFields),
       })),
     ];
-  }, [fields, normalizedFields, searchFields]);
+  }, [allFields, normalizedFields, searchFields]);
 
   useEffect(() => {
     const hasActiveKey = filterOptions.some(
@@ -2419,7 +2626,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
   const detailsFromFields = useCallback(
     (item: T): DetailItem[] => {
-      const configured = fields.filter(
+      const configured = allFields.filter(
         (field) => field.visibleInList !== false && field.key !== "id",
       );
       const configuredKeys = new Set(configured.map((field) => field.key));
@@ -2433,7 +2640,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
           (key) =>
             ({
               key,
-              label: getFriendlyLabelByKey(key, fields),
+              label: getFriendlyLabelByKey(key, allFields),
               type: "text" as CrudFieldType,
               visibleInList: true,
             }) satisfies CrudFieldConfig<any>,
@@ -2456,7 +2663,67 @@ export function CrudScreen<T extends Record<string, unknown>>({
         }))
         .filter((detail) => !looksLikeUuid(detail.value));
     },
-    [fields, getCachedReferenceLabel],
+    [allFields, getCachedReferenceLabel],
+  );
+
+  const customDetailsFromFields = useCallback(
+    (item: T): DetailItem[] => {
+      return normalizedFields
+        .filter(
+          (field) =>
+            customFieldKeys.has(field.key) &&
+            field.visibleInList !== false &&
+            field.key !== "id",
+        )
+        .map((field) => ({
+          label: getFriendlyLabelByField(field),
+          value:
+            field.type === "reference"
+              ? getCachedReferenceLabel(field, item[field.key]) || "-"
+              : field.type === "boolean"
+                ? formatBooleanValueByField(field, item[field.key])
+                : formatValueByType(
+                    item[field.key],
+                    field.type,
+                    field.maskType,
+                  ),
+        }))
+        .filter(
+          (detail) =>
+            !looksLikeUuid(detail.value) &&
+            detail.value !== "-" &&
+            String(detail.value).trim() !== "",
+        );
+    },
+    [customFieldKeys, getCachedReferenceLabel, normalizedFields],
+  );
+
+  const resolveItemDetails = useCallback(
+    (item: T): DetailItem[] => {
+      const baseDetails = getDetails
+        ? getDetails(item)
+        : detailsFromFields(item);
+      if (!getDetails) {
+        return baseDetails;
+      }
+
+      const customDetails = customDetailsFromFields(item);
+      if (!customDetails.length) {
+        return baseDetails;
+      }
+
+      const existingLabels = new Set(
+        baseDetails.map((detail) => detail.label.trim().toLowerCase()),
+      );
+      const missingCustomDetails = customDetails.filter(
+        (detail) => !existingLabels.has(detail.label.trim().toLowerCase()),
+      );
+
+      return missingCustomDetails.length
+        ? [...baseDetails, ...missingCustomDetails]
+        : baseDetails;
+    },
+    [customDetailsFromFields, detailsFromFields, getDetails],
   );
 
   const generateAiInsights = useCallback(async () => {
@@ -2465,10 +2732,8 @@ export function CrudScreen<T extends Record<string, unknown>>({
       setAiError(null);
 
       const sampleItems = filteredItems.slice(0, 20).map((item) => {
-        const id = getId(item);
-        const details = (
-          getDetails ? getDetails(item) : detailsFromFields(item)
-        )
+        const id = getIdRef.current(item);
+        const details = resolveItemDetails(item)
           .slice(0, 8)
           .map((detail) => ({
             label: detail.label,
@@ -2477,7 +2742,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
         return {
           id,
-          title: getTitle(item),
+          title: getTitleRef.current(item),
           details,
         };
       });
@@ -2538,13 +2803,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
     }
   }, [
     activeFilterKey,
-    detailsFromFields,
     filterOptions,
     filteredItems,
-    getDetails,
-    getId,
-    getTitle,
     items.length,
+    resolveItemDetails,
     searchQuery,
     subtitle,
     title,
@@ -2591,7 +2853,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
             >
               {title}
             </ThemedText>
-            {filteredItems.length > 0 ? (
+            {filteredItems.length > 0 && !(isPaginated && hasMore) ? (
               <View
                 style={{
                   backgroundColor: tintColor + "18",
@@ -2637,24 +2899,40 @@ export function CrudScreen<T extends Record<string, unknown>>({
           </View>
         ) : null}
 
-        {/* ── Search input (no card, no filter chips) ── */}
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder={searchPlaceholder || "Pesquisar"}
-          placeholderTextColor={mutedTextColor}
+        {/* ── Search input ── */}
+        <View
           style={{
-            borderWidth: 1,
-            borderColor,
-            borderRadius: 10,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            backgroundColor: inputBackground,
-            color: textColor,
-            fontSize: 14,
+            position: "relative",
             marginBottom: responsiveSpacing.cardGap,
           }}
-        />
+        >
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder={searchPlaceholder || "Pesquisar"}
+            placeholderTextColor={mutedTextColor}
+            style={{
+              borderWidth: 1,
+              borderColor,
+              borderRadius: 10,
+              paddingHorizontal: 14,
+              paddingRight: 40,
+              paddingVertical: 10,
+              backgroundColor: inputBackground,
+              color: textColor,
+              fontSize: 14,
+            }}
+          />
+          {isPaginated &&
+          searchQuery.trim() &&
+          (searchQuery.trim() !== debouncedSearch || isSearching) ? (
+            <ActivityIndicator
+              size="small"
+              color={tintColor}
+              style={{ position: "absolute", right: 12, top: 10 }}
+            />
+          ) : null}
+        </View>
 
         {/* ── AI Insights ── */}
         {(aiInsights || aiError) && (
@@ -2704,9 +2982,22 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
         {filteredItems.length === 0 && !error ? (
           <View style={{ alignItems: "center", paddingVertical: 32 }}>
-            <ThemedText style={{ color: mutedTextColor, fontSize: 14 }}>
-              Nenhum registro encontrado.
-            </ThemedText>
+            {isSearching ? (
+              <>
+                <ActivityIndicator
+                  size="small"
+                  color={tintColor}
+                  style={{ marginBottom: 8 }}
+                />
+                <ThemedText style={{ color: mutedTextColor, fontSize: 14 }}>
+                  Pesquisando...
+                </ThemedText>
+              </>
+            ) : (
+              <ThemedText style={{ color: mutedTextColor, fontSize: 14 }}>
+                Nenhum registro encontrado.
+              </ThemedText>
+            )}
           </View>
         ) : null}
 
@@ -2780,9 +3071,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
               ) : null}
 
               {filteredItems.map((item, itemIdx) => {
-                const rawDetails = getDetails
-                  ? getDetails(item)
-                  : detailsFromFields(item);
+                const rawDetails = resolveItemDetails(item);
                 // Hide UUID values that couldn't be resolved to human-readable labels
                 const details = rawDetails.filter(
                   (d) => !looksLikeUuid(d.value),
@@ -3234,7 +3523,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
         })()}
 
         {/* Pagination: "Carregar mais" button */}
-        {isPaginated && hasMore && filteredItems.length > 0 && !searchQuery ? (
+        {isPaginated && hasMore && filteredItems.length > 0 ? (
           <TouchableOpacity
             onPress={loadMore}
             disabled={loadingMore}
@@ -3263,7 +3552,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
           </TouchableOpacity>
         ) : null}
 
-        {isPaginated && !hasMore && items.length > 0 && !searchQuery ? (
+        {isPaginated && !hasMore && items.length > 0 ? (
           <ThemedText
             style={{
               color: mutedTextColor,
@@ -4902,13 +5191,13 @@ export function CrudScreen<T extends Record<string, unknown>>({
                     </ThemedText>
                     {option.raw ? (
                       <View style={{ marginTop: 4, gap: 2 }}>
-                        {formatRecordDetails(option.raw, fields).map(
+                        {formatRecordDetails(option.raw, allFields).map(
                           (detail) => (
                             <ThemedText
                               key={`${option.id}-${detail.key}`}
                               style={{ fontSize: 12, color: mutedTextColor }}
                             >
-                              {getFriendlyLabelByKey(detail.key, fields)}:{" "}
+                              {getFriendlyLabelByKey(detail.key, allFields)}:{" "}
                               {detail.value}
                             </ThemedText>
                           ),
@@ -5030,9 +5319,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
                   style={{ marginTop: 12 }}
                   contentContainerStyle={{ paddingBottom: 8 }}
                 >
-                  {formatRecordDetails(referenceDetailData, fields).map(
+                  {formatRecordDetails(referenceDetailData, allFields).map(
                     (detail) => {
-                      const refField = fields.find(
+                      const refField = allFields.find(
                         (f) =>
                           String(f.key) === detail.key &&
                           f.type === "reference",
@@ -5064,7 +5353,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
                                   marginBottom: 2,
                                 }}
                               >
-                                {getFriendlyLabelByKey(detail.key, fields)}
+                                {getFriendlyLabelByKey(detail.key, allFields)}
                               </ThemedText>
                               <ThemedText
                                 style={{
@@ -5086,7 +5375,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
                                   marginBottom: 2,
                                 }}
                               >
-                                {getFriendlyLabelByKey(detail.key, fields)}
+                                {getFriendlyLabelByKey(detail.key, allFields)}
                               </ThemedText>
                               <ThemedText
                                 style={{

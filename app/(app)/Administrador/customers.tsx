@@ -1,8 +1,8 @@
 import { ThemedText } from "@/components/themed-text";
 import {
-    convertTableInfoToFields,
-    CrudScreen,
-    type CrudFieldConfig,
+  convertTableInfoToFields,
+  CrudScreen,
+  type CrudFieldConfig,
 } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
@@ -10,16 +10,22 @@ import { useSafeTenantId } from "@/hooks/use-safe-tenant-id";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import { formatCpf, validateCpf } from "@/services/brasil-api";
-import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import {
+  aggregateCrud,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  type CrudFilter,
+} from "@/services/crud";
 import { getTableInfo, type TableInfoRow } from "@/services/schema";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const log = __DEV__ ? console.log : () => {};
@@ -467,11 +473,183 @@ export default function CustomersAdminScreen() {
     };
   }, [customerIdParam, safeTenantId, userIdParam]);
 
+  // ── Server-side pagination (used when browsing all customers) ──
+  const shouldPaginate = !userIdParam && !customerIdParam;
+
+  const paginatedLoadRows = useMemo(() => {
+    if (!shouldPaginate) return undefined;
+
+    return async ({
+      limit,
+      offset,
+      search,
+    }: {
+      limit: number;
+      offset: number;
+      search?: string;
+    }): Promise<Row[]> => {
+      const filters: CrudFilter[] = safeTenantId
+        ? [{ field: "tenant_id", value: safeTenantId }]
+        : [];
+      if (search) {
+        filters.push({
+          field: "name",
+          value: `%${search}%`,
+          operator: "ilike",
+        });
+      }
+
+      // 1. Fetch page of customers with server-side limit/offset
+      const response = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "customers",
+        ...buildSearchParams(filters, {
+          sortColumn: "name",
+          limit,
+          offset,
+          autoExcludeDeleted: true,
+        }),
+      });
+
+      const list = normalizeCrudList<Row>(response.data);
+      if (list.length === 0) return [];
+
+      const customerIds = list.map((c) => String(c.id ?? "")).filter(Boolean);
+      const customerUserIds = list
+        .map((c) => String(c.user_id ?? ""))
+        .filter((id) => id && id !== "null" && id !== "undefined");
+
+      // 2. Batch enrichment queries in parallel
+      const usersById: Record<string, Row> = {};
+      let propertyCounts: Record<string, number> = {};
+      const enrichmentQueries: Promise<void>[] = [];
+
+      // Property counts per customer (aggregate GROUP BY)
+      if (customerIds.length > 0) {
+        enrichmentQueries.push(
+          aggregateCrud<{ customer_id: string; count: string }>(
+            "properties",
+            [{ function: "COUNT", field: "*", alias: "count" }],
+            {
+              groupBy: ["customer_id"],
+              filters: [
+                {
+                  field: "customer_id",
+                  value: customerIds.join(","),
+                  operator: "in",
+                },
+              ],
+              autoExcludeDeleted: true,
+            },
+          )
+            .then((rows) => {
+              for (const r of rows) {
+                propertyCounts[r.customer_id] = Number(r.count ?? 0);
+              }
+            })
+            .catch(() => {}),
+        );
+      }
+
+      // Users linked via customers.user_id → users.id
+      if (customerUserIds.length > 0) {
+        enrichmentQueries.push(
+          api
+            .post(CRUD_ENDPOINT, {
+              action: "list",
+              table: "users",
+              ...buildSearchParams([
+                {
+                  field: "id",
+                  value: customerUserIds.join(","),
+                  operator: "in",
+                },
+              ]),
+            })
+            .then((res) => {
+              for (const u of normalizeCrudList<Row>(res.data)) {
+                usersById[String(u.id ?? "")] = u;
+              }
+            })
+            .catch(() => {}),
+        );
+      }
+
+      await Promise.all(enrichmentQueries);
+
+      // 3. Enrich customers with user/property data
+      const enriched = list.map((customer) => {
+        const customerId = String(customer.id ?? "");
+        const customerUserId = String(customer.user_id ?? "");
+
+        const linkedUser = customerUserId
+          ? usersById[customerUserId]
+          : undefined;
+
+        const preferredUser = linkedUser;
+        const effectiveCpf =
+          normalizeCpf(customer.cpf) || normalizeCpf(preferredUser?.cpf);
+
+        return {
+          ...customer,
+          name:
+            String(customer.name ?? "").trim() ||
+            String(preferredUser?.fullname ?? "").trim() ||
+            customer.name,
+          email:
+            String(customer.email ?? "").trim() ||
+            String(preferredUser?.email ?? "").trim() ||
+            customer.email,
+          phone:
+            String(customer.phone ?? "").trim() ||
+            String(preferredUser?.phone ?? "").trim() ||
+            customer.phone,
+          cpf: effectiveCpf || customer.cpf,
+          user_id:
+            customerUserId ||
+            String(preferredUser?.id ?? "").trim() ||
+            customer.user_id,
+          _effective_cpf: effectiveCpf,
+          users_count: linkedUser ? 1 : 0,
+          properties_count: propertyCounts[customerId] ?? 0,
+        };
+      });
+
+      // Update subtitle info on first page
+      if (offset === 0) {
+        setDebugInfo({
+          rawCustomers: enriched.length,
+          rawUsers: Object.keys(usersById).length,
+          rawProperties: 0,
+          propertiesWithCustomerId: 0,
+          propertiesWithCpf: 0,
+          filteredCustomers: enriched.length,
+          customersWithProperties: enriched.filter(
+            (c) => Number(c.properties_count ?? 0) > 0,
+          ).length,
+          excludedNoData: 0,
+          excludedByCustomerId: 0,
+          excludedByTenantId: 0,
+          excludedByUserContext: 0,
+          context: {
+            customerId: "",
+            tenantId: safeTenantId ?? "",
+            userId: "",
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return enriched;
+    };
+  }, [shouldPaginate, safeTenantId]);
+
   const subtitle = useMemo(() => {
     if (!debugInfo) return "Gestão de clientes";
+    if (shouldPaginate) return "Gestão de clientes";
     const count = debugInfo.filteredCustomers;
     return `${count} ${count === 1 ? "cliente" : "clientes"}`;
-  }, [debugInfo]);
+  }, [debugInfo, shouldPaginate]);
 
   const createWithContext = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {
@@ -551,11 +729,14 @@ export default function CustomersAdminScreen() {
 
   return (
     <CrudScreen<Row>
+      tableName="customers"
       title="Clientes"
       subtitle={subtitle}
       searchPlaceholder="Buscar cliente..."
       fields={contextualFields}
       loadItems={loadRowsWithContext}
+      paginatedLoadItems={paginatedLoadRows}
+      pageSize={50}
       createItem={createWithContext}
       updateItem={updateWithContext}
       renderCustomField={(field, value, onChange) => {
