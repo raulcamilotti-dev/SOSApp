@@ -284,7 +284,10 @@ export function ConditionBuilder({
     [parsed, onChange],
   );
 
-  const conditions = parsed.custom_conditions ?? [];
+  const conditions = useMemo(
+    () => parsed.custom_conditions ?? [],
+    [parsed.custom_conditions],
+  );
 
   const updateCondition = useCallback(
     (idx: number, patch: Partial<CustomCondition>) => {
