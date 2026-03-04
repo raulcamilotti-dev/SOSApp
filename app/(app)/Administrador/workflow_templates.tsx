@@ -9,7 +9,7 @@ import {
   CRUD_ENDPOINT,
   normalizeCrudList,
 } from "@/services/crud";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { TouchableOpacity, View } from "react-native";
 
@@ -58,10 +58,6 @@ export default function WorkflowTemplatesScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const tenantId = user?.tenant_id;
-  const params = useLocalSearchParams<{ serviceId?: string }>();
-  const serviceId = Array.isArray(params.serviceId)
-    ? params.serviceId[0]
-    : params.serviceId;
 
   const listRows = useCallback(async (): Promise<Row[]> => {
     const filters = tenantId ? [{ field: "tenant_id", value: tenantId }] : [];
@@ -73,41 +69,22 @@ export default function WorkflowTemplatesScreen() {
     return filterActive(normalizeCrudList<Row>(response.data));
   }, [tenantId]);
 
-  const loadFilteredRows = useMemo(() => {
-    return async (): Promise<Row[]> => {
-      const rows = await listRows();
-      return rows.filter((item) => {
-        // Support legacy serviceId param and new serviceTypeId
-        if (
-          serviceId &&
-          String(item.service_type_id ?? item.service_id ?? "") !== serviceId
-        )
-          return false;
-        return true;
-      });
-    };
-  }, [serviceId, listRows]);
-
   const createWithContext = useMemo(() => {
     return async (payload: Partial<Row>): Promise<unknown> => {
       return createRow({
         ...payload,
         tenant_id: tenantId ?? payload.tenant_id,
-        service_type_id: serviceId ?? payload.service_type_id,
       });
     };
-  }, [serviceId, tenantId]);
+  }, [tenantId]);
 
   const updateWithContext = useMemo(() => {
     return async (
       payload: Partial<Row> & { id?: string | null },
     ): Promise<unknown> => {
-      return updateRow({
-        ...payload,
-        service_type_id: serviceId ?? payload.service_type_id,
-      });
+      return updateRow(payload);
     };
-  }, [serviceId]);
+  }, []);
 
   const loadRowsWithRelations = useMemo(() => {
     return async (): Promise<Row[]> => {
@@ -117,7 +94,7 @@ export default function WorkflowTemplatesScreen() {
 
       const [templateRows, stepsResponse, serviceTypesResponse] =
         await Promise.all([
-          loadFilteredRows(),
+          listRows(),
           api.post(CRUD_ENDPOINT, {
             action: "list",
             table: "workflow_steps",
@@ -156,7 +133,7 @@ export default function WorkflowTemplatesScreen() {
         };
       });
     };
-  }, [loadFilteredRows, tenantId]);
+  }, [listRows, tenantId]);
 
   const tintColor = useThemeColor({}, "tint");
   const borderColor = useThemeColor({}, "border");
@@ -184,21 +161,6 @@ export default function WorkflowTemplatesScreen() {
       visibleInList: true,
     },
     {
-      key: "service_type_id",
-      label: "Tipo de Serviço Principal",
-      placeholder: "Tipo de Serviço",
-      type: "reference",
-      referenceTable: "service_types",
-      referenceLabelField: "name",
-      referenceSearchField: "name",
-      referenceIdField: "id",
-      visibleInList: true,
-      visibleInForm: !serviceId,
-      required: false,
-      showWhen: (formState) =>
-        (formState.workflow_scope || "operational") === "operational",
-    },
-    {
       key: "created_at",
       label: "Criado em",
       placeholder: "Criado em",
@@ -219,10 +181,7 @@ export default function WorkflowTemplatesScreen() {
       deleteItem={deleteRow}
       getDetails={(item) => [
         { label: "Nome", value: String(item.name ?? "-") },
-        {
-          label: "Tipo de Serviço Principal",
-          value: String(item.service_type_id ?? "-"),
-        },
+        { label: "Escopo", value: String(item.workflow_scope ?? "operational") },
         { label: "Steps", value: String(item.workflow_steps_count ?? 0) },
         {
           label: "Tipos de Serviço Vinculados",
