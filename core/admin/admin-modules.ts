@@ -37,16 +37,11 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
   {
     key: "configuracoes",
     label: "Configurações",
-    description: "Sistema, papéis, permissões e plano",
+    description: "Sistema, módulos, tabelas e integrações",
     icon: "settings-outline",
     color: "#64748b",
     pageIds: [
-      "gestao_tenant",
       "modulos",
-      "template_packs",
-      "roles",
-      "permissions",
-      "permissions_sync",
       "tables",
       "tenants",
       "saas_dashboard",
@@ -228,10 +223,18 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
   {
     key: "administrativo",
     label: "Administrativo",
-    description: "Processos internos, compras, RH e manutenção",
+    description: "Minha empresa, acesso, permissões e processos internos",
     icon: "briefcase-outline",
     color: "#0ea5e9",
-    pageIds: ["kanban_administrativo"],
+    pageIds: [
+      "gestao_tenant",
+      "roles",
+      "permissions",
+      "permissions_sync",
+      "role_permissions",
+      "role_permissions_matrix",
+      "kanban_administrativo",
+    ],
   },
   {
     key: "auditoria",
