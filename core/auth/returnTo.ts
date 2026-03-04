@@ -12,7 +12,7 @@
 const STORAGE_KEY = "marketplace_returnTo";
 
 /** Regex for paths that are valid returnTo targets */
-const VALID_RETURN_REGEX = /^\/(loja|p|q|f|blog|lp)(\/|$)/;
+const VALID_RETURN_REGEX = /^\/(loja|p|q|f|blog|lp|site)(\/|$)/;
 
 /** Save a returnTo path to sessionStorage (web only) */
 export function saveReturnTo(path: string): void {

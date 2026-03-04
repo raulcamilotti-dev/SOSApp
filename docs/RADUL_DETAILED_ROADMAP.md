@@ -1467,6 +1467,8 @@ Step 5: Preview & Publicar
 
 ### C.3 Marketplace Discovery
 
+> **Status:** Implementação inicial concluída em **04/03/2026** (filtros, destaque, recomendação por módulos e persistência de sort).
+
 **Objetivo:** Search avançado, categorias hierárquicas, packs em destaque, recomendações baseadas no perfil do tenant.
 
 **Camada afetada:** Solution
@@ -1501,6 +1503,20 @@ ALTER TABLE marketplace_packs ADD COLUMN IF NOT EXISTS featured_order INTEGER DE
 - [ ] Recomendações baseadas nos módulos ativos do tenant
 - [ ] Todos os filtros combinam corretamente
 - [ ] Sort persistente na sessão
+
+#### Implementação inicial (04/03/2026)
+
+- Service `services/marketplace-packs.ts` expandido com:
+  - filtros combináveis (`isOfficial`, `onlyPaid`, `minRating`, faixa de preço)
+  - novos sorts (`featured`, `price_asc`, `price_desc`)
+  - normalização robusta de campos JSON (`tags`, `requirements`, `pack_data`)
+  - recomendação por tenant via `tenant_modules` (`listRecommendedMarketplacePacks`)
+- Tela `app/(app)/Administrador/marketplace.tsx` com:
+  - seção **Em Destaque**
+  - seção **Recomendados para seu Tenant**
+  - filtros de discovery (origem, preço, nota mínima)
+  - persistência do sort em `sessionStorage`
+- Migration criada: `migrations/add-marketplace-discovery.sql`
 
 **Estimativa:** 1.5 semanas  
 **Dependências:** A.5 (marketplace)  

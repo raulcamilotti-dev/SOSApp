@@ -13,7 +13,7 @@ import { Redirect, Slot } from "expo-router";
 import { View } from "react-native";
 
 /** Public path regex — must match the one in AuthGate.tsx */
-const PUBLIC_PATH_REGEX = /^\/(loja|p|q|f|blog|lp)(\/|$)/;
+const PUBLIC_PATH_REGEX = /^\/(loja|p|q|f|blog|lp|site)(\/|$)/;
 
 export default function AppLayout() {
   const { user, loading } = useAuth();

@@ -10,6 +10,7 @@ export default function PublicLayout() {
       <Stack.Screen name="blog/[tenantSlug]/index" />
       <Stack.Screen name="blog/[tenantSlug]/[slug]" />
       <Stack.Screen name="lp/[tenantSlug]/[slug]" />
+      <Stack.Screen name="site/[tenantSlug]/[slug]" />
       <Stack.Screen name="loja/[tenantSlug]/index" />
       <Stack.Screen name="loja/[tenantSlug]/[productSlug]/index" />
       <Stack.Screen name="loja/[tenantSlug]/[productSlug]/orcamento" />

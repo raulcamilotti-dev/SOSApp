@@ -45,7 +45,7 @@ export const breadcrumbMap: Record<string, string> = {
   ConciliadorBancario: "Conciliador Bancário",
   ContasAPagar: "Contas a Pagar",
   ContasAReceber: "Contas a Receber",
-  "content-pages": "Blog & Landing Pages",
+  "content-pages": "Blog, Landing & Institucionais",
   contracts: "Contratos",
   "contas-bancarias": "Contas Bancárias",
   "crm-kanban": "CRM Kanban",

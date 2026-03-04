@@ -102,6 +102,12 @@ interface TaskItem {
   deleted_at?: string;
 }
 
+interface DetailField {
+  label: string;
+  value: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+}
+
 /* ═══════════════════════════════════════════════════════════
  * HELPERS
  * ═══════════════════════════════════════════════════════════ */
@@ -132,6 +138,48 @@ const getPriorityLabel = (p?: string | null): string => {
 
 const getItemTitle = (item: UnifiedKanbanItem): string =>
   item.title || item.description || `Processo ${item.id.slice(0, 8)}`;
+
+const formatDetailValue = (
+  value: unknown,
+  format?: "currency" | "date" | "datetime",
+): string => {
+  if (value === null || value === undefined) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+
+  if (format === "currency") {
+    const num = typeof value === "number" ? value : parseFloat(raw);
+    if (!isNaN(num)) {
+      return num.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+      });
+    }
+  }
+
+  if (format === "date" || format === "datetime") {
+    try {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleString("pt-BR", {
+          ...(format === "date"
+            ? { day: "2-digit", month: "2-digit", year: "numeric" }
+            : {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+        });
+      }
+    } catch {
+      // fallback below
+    }
+  }
+
+  return raw;
+};
 
 /* ═══════════════════════════════════════════════════════════
  * PROPS
@@ -181,6 +229,9 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+  const [detailsModalItem, setDetailsModalItem] =
+    useState<UnifiedKanbanItem | null>(null);
 
   /* ── Derived ── */
   const selectedTemplate = useMemo(
@@ -582,6 +633,101 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     }
   }, [newTaskTitle, tasksModalItem, user?.tenant_id]);
 
+  const openDetailsModal = useCallback((item: UnifiedKanbanItem) => {
+    setDetailsModalItem(item);
+    setDetailsModalVisible(true);
+  }, []);
+
+  const closeDetailsModal = useCallback(() => {
+    setDetailsModalVisible(false);
+    setDetailsModalItem(null);
+  }, []);
+
+  const detailsFields = useMemo<DetailField[]>(() => {
+    if (!detailsModalItem) return [];
+
+    const fields: DetailField[] = [];
+    const item = detailsModalItem;
+    const step = steps.find((s) => s.id === item.current_step_id);
+
+    fields.push({
+      label: "ID do Processo",
+      value: item.id,
+      icon: "barcode-outline",
+    });
+    if (step?.name) {
+      fields.push({
+        label: "Etapa Atual",
+        value: step.name,
+        icon: "git-network-outline",
+      });
+    }
+    if (item.customer_name) {
+      fields.push({
+        label: "Cliente",
+        value: item.customer_name,
+        icon: "person-outline",
+      });
+    }
+    if (item.description) {
+      fields.push({
+        label: "Descrição",
+        value: String(item.description),
+        icon: "document-text-outline",
+      });
+    }
+
+    const priorityLabel = getPriorityLabel(item.priority);
+    if (priorityLabel && item.priority !== "medium") {
+      fields.push({
+        label: "Prioridade",
+        value: priorityLabel,
+        icon: "flag-outline",
+      });
+    }
+
+    if (item.created_at) {
+      fields.push({
+        label: "Criado em",
+        value: formatDetailValue(item.created_at, "datetime"),
+        icon: "calendar-outline",
+      });
+    }
+
+    if (item.tasks_count && item.tasks_count > 0) {
+      fields.push({
+        label: "Tarefas",
+        value: `${item.tasks_count} tarefa${item.tasks_count > 1 ? "s" : ""}`,
+        icon: "checkbox-outline",
+      });
+    }
+
+    if (cardConfig?.subtitle_field && item.entity) {
+      const value = formatDetailValue(item.entity[cardConfig.subtitle_field]);
+      if (value) {
+        fields.push({
+          label: "Resumo",
+          value,
+          icon: "information-circle-outline",
+        });
+      }
+    }
+
+    if (cardConfig?.display_fields && item.entity) {
+      for (const df of cardConfig.display_fields) {
+        const value = formatDetailValue(item.entity[df.key], df.format);
+        if (!value) continue;
+        fields.push({
+          label: df.label,
+          value,
+          icon: (df.icon as keyof typeof Ionicons.glyphMap) ?? "ellipse-outline",
+        });
+      }
+    }
+
+    return fields;
+  }, [detailsModalItem, steps, cardConfig]);
+
   /* ══════════════════════════════════════════════════════════
    * TEMPLATE SWITCH
    * ══════════════════════════════════════════════════════════ */
@@ -682,29 +828,32 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
    */
   const getCardActions = useCallback(
     (item: UnifiedKanbanItem, columnId: string): KanbanCardAction[] => {
+      // Plugin-specific actions
+      const pluginActions =
+        pluginRef.current?.getCardActions(item, columnId) ?? [];
+      const pluginLabels = new Set(
+        pluginActions.map((a) => a.label.trim().toLowerCase()),
+      );
+
       // Common actions available on every scope
-      const common: KanbanCardAction[] = [
-        {
+      const common: KanbanCardAction[] = [];
+      if (!pluginLabels.has("tarefas")) {
+        common.push({
           label: "Tarefas",
           icon: "list-outline",
           color: "#3b82f6",
           onPress: () => openTasksModal(item),
-        },
-        {
+        });
+      }
+      if (!pluginLabels.has("ver")) {
+        common.push({
           label: "Ver",
           icon: "eye-outline",
           color: "#6366f1",
-          onPress: () =>
-            router.push({
-              pathname: "/Servicos/Processo",
-              params: { serviceOrderId: item.id },
-            } as any),
-        },
-      ];
+          onPress: () => openDetailsModal(item),
+        });
+      }
 
-      // Plugin-specific actions
-      const pluginActions =
-        pluginRef.current?.getCardActions(item, columnId) ?? [];
       const mapped: KanbanCardAction[] = pluginActions.map((a) => ({
         label: a.label,
         icon: a.icon,
@@ -715,7 +864,7 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
 
       return [...common, ...mapped];
     },
-    [openTasksModal],
+    [openDetailsModal, openTasksModal],
   );
 
   /** Card tap — plugin handles or default: open Processo page */
@@ -905,6 +1054,83 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
             </View>
           </View>
         </Modal>
+
+        {/* ═══ Shared Details Modal ═══ */}
+        <Modal
+          visible={detailsModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={closeDetailsModal}
+        >
+          <View style={s.modalOverlay}>
+            <View style={[s.modalSheet, { backgroundColor: cardBg }]}>
+              <View style={s.modalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.modalTitle, { color: textColor }]}>Detalhes</Text>
+                  {detailsModalItem && (
+                    <Text
+                      style={[s.modalSubtitle, { color: mutedColor }]}
+                      numberOfLines={2}
+                    >
+                      {getCardTitle(detailsModalItem)}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity onPress={closeDetailsModal}>
+                  <Ionicons name="close" size={24} color={mutedColor} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ maxHeight: 420 }}>
+                {detailsFields.length === 0 ? (
+                  <Text
+                    style={{
+                      color: mutedColor,
+                      textAlign: "center",
+                      paddingVertical: spacing.lg,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Nenhum detalhe disponível.
+                  </Text>
+                ) : (
+                  detailsFields.map((field, idx) => (
+                    <View
+                      key={`${field.label}-${idx}`}
+                      style={[s.detailRow, { borderBottomColor: borderColor }]}
+                    >
+                      <View style={s.detailLabelRow}>
+                        {field.icon ? (
+                          <Ionicons
+                            name={field.icon}
+                            size={16}
+                            color={mutedColor}
+                            style={{ marginTop: 2 }}
+                          />
+                        ) : null}
+                        <Text style={[s.detailLabel, { color: mutedColor }]}>
+                          {field.label}
+                        </Text>
+                      </View>
+                      <Text style={[s.detailValue, { color: textColor }]}>
+                        {field.value}
+                      </Text>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+
+              <TouchableOpacity
+                style={[s.closeBtn, { borderColor }]}
+                onPress={closeDetailsModal}
+              >
+                <Text style={[s.closeBtnText, { color: textColor }]}>
+                  Fechar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </>
     ),
     [
@@ -916,9 +1142,14 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
       tasksLoading,
       newTaskTitle,
       creatingTask,
+      detailsModalVisible,
+      detailsModalItem,
+      detailsFields,
       closeTasksModal,
+      closeDetailsModal,
       createTask,
       toggleTaskStatus,
+      getCardTitle,
       bg,
       cardBg,
       textColor,
@@ -1139,6 +1370,24 @@ const s = StyleSheet.create({
   taskTitle: {
     ...typography.body,
     flex: 1,
+  },
+  detailRow: {
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: spacing.xs,
+  },
+  detailLabelRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.xs,
+  },
+  detailLabel: {
+    ...typography.caption,
+    fontWeight: "600",
+  },
+  detailValue: {
+    ...typography.body,
+    lineHeight: 20,
   },
 
   // Close button

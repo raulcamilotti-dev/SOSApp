@@ -1,9 +1,10 @@
 /**
- * Content Pages Service — Public Blog + Landing Pages per Tenant
+ * Content Pages Service — Public Blog + Marketing Pages per Tenant
  *
  * Every tenant can publish:
  *   - Blog posts (public blog at /blog/{tenantSlug})
  *   - Landing pages (public LP at /lp/{tenantSlug}/{slug})
+ *   - Institutional pages (public site pages at /site/{tenantSlug}/{slug})
  *
  * CTAs embed lead_forms for lead capture.
  * Public routes use unauthenticated axios (no auth token).
@@ -24,7 +25,10 @@ import {
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type ContentPageType = "blog_post" | "landing_page";
+export type ContentPageType =
+  | "blog_post"
+  | "landing_page"
+  | "institutional_page";
 
 export type ContentPageStatus =
   | "draft"
@@ -124,6 +128,7 @@ export interface PublicTenantInfo {
 export const PAGE_TYPES: { value: ContentPageType; label: string }[] = [
   { value: "blog_post", label: "Blog Post" },
   { value: "landing_page", label: "Landing Page" },
+  { value: "institutional_page", label: "Página Institucional" },
 ];
 
 export const PAGE_STATUSES: {
@@ -236,13 +241,24 @@ export function buildLandingPageUrl(
   return `${BASE_URL}/lp/${tenantSlug}/${pageSlug}`;
 }
 
+export function buildInstitutionalPageUrl(
+  tenantSlug: string,
+  pageSlug: string,
+): string {
+  return `${BASE_URL}/site/${tenantSlug}/${pageSlug}`;
+}
+
 export function buildPageUrl(
   tenantSlug: string,
   page: Pick<ContentPage, "page_type" | "slug">,
 ): string {
-  return page.page_type === "blog_post"
-    ? buildBlogPostUrl(tenantSlug, page.slug)
-    : buildLandingPageUrl(tenantSlug, page.slug);
+  if (page.page_type === "blog_post") {
+    return buildBlogPostUrl(tenantSlug, page.slug);
+  }
+  if (page.page_type === "institutional_page") {
+    return buildInstitutionalPageUrl(tenantSlug, page.slug);
+  }
+  return buildLandingPageUrl(tenantSlug, page.slug);
 }
 
 /* ------------------------------------------------------------------ */

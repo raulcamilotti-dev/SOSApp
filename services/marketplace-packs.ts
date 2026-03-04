@@ -46,6 +46,8 @@ export interface MarketplacePack {
   rating_avg: number;
   rating_count: number;
   is_official: boolean;
+  is_featured: boolean;
+  featured_order: number;
   preview_images: string[];
   requirements: MarketplacePackRequirements;
   created_at: string;
@@ -81,7 +83,20 @@ export interface MarketplacePackListFilters {
   category?: string;
   search?: string;
   pricing_type?: MarketplacePackPricing;
-  sort?: "popular" | "newest" | "name" | "rating";
+  onlyPaid?: boolean;
+  minPriceCents?: number;
+  maxPriceCents?: number;
+  minRating?: number;
+  isOfficial?: boolean;
+  isFeatured?: boolean;
+  sort?:
+    | "popular"
+    | "newest"
+    | "name"
+    | "rating"
+    | "price_asc"
+    | "price_desc"
+    | "featured";
   /** When true, includes non-published packs (for builder/admin views) */
   includeAll?: boolean;
   /** Filter by builder_id (for "my packs" view) */
@@ -115,6 +130,68 @@ export interface MarketplacePackSubmission {
 
 const TABLE = "marketplace_packs";
 const TABLE_INSTALLS = "marketplace_installs";
+
+function parseJson<T>(raw: unknown, fallback: T): T {
+  if (raw == null) return fallback;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  if (typeof raw === "object") return raw as T;
+  return fallback;
+}
+
+function toMarketplacePack(row: Record<string, unknown>): MarketplacePack {
+  return {
+    id: String(row.id ?? ""),
+    builder_id: String(row.builder_id ?? ""),
+    builder_tenant_id: row.builder_tenant_id
+      ? String(row.builder_tenant_id)
+      : null,
+    name: String(row.name ?? ""),
+    slug: String(row.slug ?? ""),
+    description: row.description ? String(row.description) : null,
+    long_description: row.long_description ? String(row.long_description) : null,
+    icon: String(row.icon ?? "📦"),
+    category: String(row.category ?? "generico"),
+    tags: parseJson<string[]>(row.tags, []),
+    pack_data: parseJson<TemplatePack>(
+      row.pack_data,
+      {
+        metadata: {
+          key: "empty",
+          name: "Pack vazio",
+          version: "1.0.0",
+          description: "",
+        },
+      } as TemplatePack,
+    ),
+    agent_pack_data: row.agent_pack_data
+      ? parseJson<Record<string, unknown>>(row.agent_pack_data, {})
+      : null,
+    version: String(row.version ?? "1.0.0"),
+    status: String(row.status ?? "draft") as MarketplacePackStatus,
+    rejection_reason: row.rejection_reason ? String(row.rejection_reason) : null,
+    pricing_type: String(row.pricing_type ?? "free") as MarketplacePackPricing,
+    price_cents: Number(row.price_cents ?? 0),
+    trial_days: Number(row.trial_days ?? 0),
+    builder_share_percent: Number(row.builder_share_percent ?? 70),
+    download_count: Number(row.download_count ?? 0),
+    rating_avg: Number(row.rating_avg ?? 0),
+    rating_count: Number(row.rating_count ?? 0),
+    is_official: Boolean(row.is_official),
+    is_featured: Boolean(row.is_featured),
+    featured_order: Number(row.featured_order ?? 0),
+    preview_images: parseJson<string[]>(row.preview_images, []),
+    requirements: parseJson<MarketplacePackRequirements>(row.requirements, {}),
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+    deleted_at: row.deleted_at ? String(row.deleted_at) : null,
+  };
+}
 
 export const MARKETPLACE_CATEGORIES = [
   { value: "juridico", label: "Jurídico", icon: "⚖️" },
@@ -155,6 +232,12 @@ export async function listMarketplacePacks(
   // Pricing type
   if (filters?.pricing_type) {
     crudFilters.push({ field: "pricing_type", value: filters.pricing_type });
+  } else if (filters?.onlyPaid) {
+    crudFilters.push({
+      field: "pricing_type",
+      value: "free",
+      operator: "not_equal",
+    });
   }
 
   // Builder filter (for "my packs")
@@ -162,11 +245,53 @@ export async function listMarketplacePacks(
     crudFilters.push({ field: "builder_id", value: filters.builderId });
   }
 
+  if (filters?.isOfficial !== undefined) {
+    crudFilters.push({
+      field: "is_official",
+      value: filters.isOfficial ? "true" : "false",
+    });
+  }
+
+  if (filters?.isFeatured !== undefined) {
+    crudFilters.push({
+      field: "is_featured",
+      value: filters.isFeatured ? "true" : "false",
+    });
+  }
+
+  if (typeof filters?.minRating === "number" && filters.minRating > 0) {
+    crudFilters.push({
+      field: "rating_avg",
+      value: String(filters.minRating),
+      operator: "gte",
+    });
+  }
+
+  if (typeof filters?.minPriceCents === "number") {
+    crudFilters.push({
+      field: "price_cents",
+      value: String(filters.minPriceCents),
+      operator: "gte",
+    });
+  }
+  if (typeof filters?.maxPriceCents === "number") {
+    crudFilters.push({
+      field: "price_cents",
+      value: String(filters.maxPriceCents),
+      operator: "lte",
+    });
+  }
+
   // Sort
   let sortColumn = "download_count DESC"; // default: popular
   if (filters?.sort === "newest") sortColumn = "created_at DESC";
   if (filters?.sort === "name") sortColumn = "name ASC";
   if (filters?.sort === "rating") sortColumn = "rating_avg DESC";
+  if (filters?.sort === "price_asc") sortColumn = "price_cents ASC";
+  if (filters?.sort === "price_desc") sortColumn = "price_cents DESC";
+  if (filters?.sort === "featured") {
+    sortColumn = "is_featured DESC, featured_order ASC, download_count DESC";
+  }
 
   const res = await api.post(CRUD_ENDPOINT, {
     action: "list",
@@ -177,7 +302,9 @@ export async function listMarketplacePacks(
     }),
   });
 
-  let packs = normalizeCrudList<MarketplacePack>(res.data);
+  let packs = normalizeCrudList<Record<string, unknown>>(res.data).map(
+    toMarketplacePack,
+  );
 
   // Client-side text search (ilike not great for multi-field search)
   if (filters?.search) {
@@ -208,7 +335,9 @@ export async function getPackDetails(
     table: TABLE,
     ...buildSearchParams([{ field: "id", value: packId }]),
   });
-  const list = normalizeCrudList<MarketplacePack>(res.data);
+  const list = normalizeCrudList<Record<string, unknown>>(res.data).map(
+    toMarketplacePack,
+  );
   return list.find((p) => p.id === packId) ?? null;
 }
 
@@ -225,7 +354,9 @@ export async function getPackBySlug(
       autoExcludeDeleted: true,
     }),
   });
-  const list = normalizeCrudList<MarketplacePack>(res.data);
+  const list = normalizeCrudList<Record<string, unknown>>(res.data).map(
+    toMarketplacePack,
+  );
   return list.find((p) => p.slug === slug) ?? null;
 }
 
@@ -446,6 +577,8 @@ export async function submitPackForReview(
     requirements: JSON.stringify(submission.requirements ?? {}),
     download_count: 0,
     is_official: false,
+    is_featured: false,
+    featured_order: 0,
     created_at: now,
     updated_at: now,
   };
@@ -456,7 +589,7 @@ export async function submitPackForReview(
     payload,
   });
 
-  return normalizeCrudOne<MarketplacePack>(res.data);
+  return toMarketplacePack(normalizeCrudOne<Record<string, unknown>>(res.data));
 }
 
 /**
@@ -502,7 +635,7 @@ export async function updatePack(
     payload,
   });
 
-  return normalizeCrudOne<MarketplacePack>(res.data);
+  return toMarketplacePack(normalizeCrudOne<Record<string, unknown>>(res.data));
 }
 
 /**
@@ -560,6 +693,73 @@ export async function archivePack(packId: string): Promise<void> {
   });
 }
 
+export async function getTenantActiveModuleKeys(
+  tenantId: string,
+): Promise<string[]> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "tenant_modules",
+    ...buildSearchParams(
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "enabled", value: "true" },
+      ],
+      { fields: ["module_key"] },
+    ),
+  });
+
+  return normalizeCrudList<Record<string, unknown>>(res.data)
+    .map((row) => String(row.module_key ?? "").trim())
+    .filter(Boolean);
+}
+
+function getPackRequiredModules(pack: MarketplacePack): string[] {
+  const modules = pack.requirements?.modules;
+  if (!Array.isArray(modules)) return [];
+  return modules.map((m) => String(m).trim()).filter(Boolean);
+}
+
+function getRecommendationScore(
+  pack: MarketplacePack,
+  activeModules: Set<string>,
+): number {
+  const required = getPackRequiredModules(pack);
+  if (required.length === 0) return 0;
+  const overlapCount = required.filter((m) => activeModules.has(m)).length;
+  if (overlapCount === 0) return 0;
+
+  const overlapRatio = overlapCount / required.length;
+  const ratingBonus = Math.min(1, Number(pack.rating_avg ?? 0) / 5);
+  const popularityBonus = Math.min(1, Number(pack.download_count ?? 0) / 200);
+  return overlapRatio * 0.7 + ratingBonus * 0.2 + popularityBonus * 0.1;
+}
+
+export async function listRecommendedMarketplacePacks(
+  tenantId: string,
+  sourcePacks?: MarketplacePack[],
+  limit = 6,
+): Promise<MarketplacePack[]> {
+  const [packs, moduleKeys] = await Promise.all([
+    sourcePacks
+      ? Promise.resolve(sourcePacks)
+      : listMarketplacePacks({ sort: "featured" }),
+    getTenantActiveModuleKeys(tenantId),
+  ]);
+
+  const activeModules = new Set(moduleKeys);
+  if (activeModules.size === 0) return [];
+
+  return packs
+    .map((pack) => ({
+      pack,
+      score: getRecommendationScore(pack, activeModules),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.max(1, limit))
+    .map((entry) => entry.pack);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Seed Official Packs                                                */
 /* ------------------------------------------------------------------ */
@@ -614,6 +814,8 @@ export async function seedOfficialPacks(
           price_cents: 0,
           download_count: 0,
           is_official: true,
+          is_featured: false,
+          featured_order: 0,
           preview_images: JSON.stringify([]),
           requirements: JSON.stringify({ modules: pack.modules }),
           created_at: now,

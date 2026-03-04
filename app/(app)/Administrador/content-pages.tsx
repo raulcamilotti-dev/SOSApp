@@ -1,13 +1,15 @@
 /**
- * CONTEÚDO PÚBLICO — Blog Posts & Landing Pages
+ * CONTEÚDO PÚBLICO — Blog, Landing e Páginas Institucionais
  *
  * CrudScreen para gestão de conteúdo público. Cada tenant pode publicar
- * blog posts e landing pages com CTA (formulário de captação de leads).
+ * blog posts, landing pages e páginas institucionais com CTA
+ * (formulário de captação de leads).
  *
  * URLs públicas:
  *   Blog listing:  /blog/{tenantSlug}
  *   Blog post:     /blog/{tenantSlug}/{slug}
  *   Landing page:  /lp/{tenantSlug}/{slug}
+ *   Site page:     /site/{tenantSlug}/{slug}
  */
 
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
@@ -251,7 +253,9 @@ export default function ContentPagesScreen() {
       placeholder: "0",
       visibleInList: false,
       visibleInForm: true,
-      showWhen: (state) => state.page_type === "landing_page",
+      showWhen: (state) =>
+        state.page_type === "landing_page" ||
+        state.page_type === "institutional_page",
     },
     // ── Publicação ──
     {
@@ -435,6 +439,14 @@ export default function ContentPagesScreen() {
     const status = String(item.status ?? "draft");
     const statusCfg = getStatusConfig(status as ContentPage["status"]);
     const pageType = String(item.page_type ?? "blog_post");
+    const isBlog = pageType === "blog_post";
+    const isLanding = pageType === "landing_page";
+    const typeColor = isBlog ? "#3b82f6" : isLanding ? "#8b5cf6" : "#0ea5e9";
+    const typeIcon: keyof typeof Ionicons.glyphMap = isBlog
+      ? "newspaper-outline"
+      : isLanding
+        ? "megaphone-outline"
+        : "business-outline";
 
     return (
       <View
@@ -467,8 +479,7 @@ export default function ContentPagesScreen() {
         {/* Type badge */}
         <View
           style={{
-            backgroundColor:
-              pageType === "blog_post" ? "#3b82f618" : "#8b5cf618",
+            backgroundColor: typeColor + "18",
             paddingHorizontal: 10,
             paddingVertical: 4,
             borderRadius: 12,
@@ -477,18 +488,10 @@ export default function ContentPagesScreen() {
             gap: 4,
           }}
         >
-          <Ionicons
-            name={
-              pageType === "blog_post"
-                ? "newspaper-outline"
-                : "megaphone-outline"
-            }
-            size={12}
-            color={pageType === "blog_post" ? "#3b82f6" : "#8b5cf6"}
-          />
+          <Ionicons name={typeIcon} size={12} color={typeColor} />
           <Text
             style={{
-              color: pageType === "blog_post" ? "#3b82f6" : "#8b5cf6",
+              color: typeColor,
               fontSize: 12,
               fontWeight: "600",
             }}
@@ -545,7 +548,7 @@ export default function ContentPagesScreen() {
     <CrudScreen<Row>
       tableName="content_pages"
       title="Conteúdo Público"
-      subtitle="Blog posts e landing pages com CTA de captação"
+      subtitle="Blog, landing pages e páginas institucionais com CTA"
       searchPlaceholder="Buscar por título, categoria..."
       searchFields={["title", "category", "author_name", "slug"]}
       fields={fields}

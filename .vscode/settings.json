@@ -29,5 +29,21 @@
   "[html]": {
     "editor.defaultFormatter": "vscode.html-language-features"
   },
-  "stylelint.ignoreDisables": false
+  "stylelint.ignoreDisables": false,
+  "sqltools.connections": [
+    {
+      "ssh": "Disabled",
+      "previewLimit": 50,
+      "server": "postgres://postgres:rVnF5WSmo7ZWq4@easypanel.sosescritura.com.br:5433/sos-escrituras?sslmode=disable",
+      "sshOptions": {
+        "port": 22
+      },
+      "driver": "PostgreSQL",
+      "name": "Postgres SOS",
+      "username": "postgres",
+      "database": "sos-escrituras",
+      "password": "rVnF5WSmo7ZWq4",
+      "connectString": "postgres://postgres:rVnF5WSmo7ZWq4@easypanel.sosescritura.com.br:5433/sos-escrituras?sslmode=disable"
+    }
+  ]
 }

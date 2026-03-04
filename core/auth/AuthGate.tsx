@@ -18,7 +18,7 @@ import { usePermissions } from "./usePermissions";
  * Uses window.location.pathname (ground truth) instead of useSegments() which may
  * have timing issues during SPA hydration / full page reloads.
  */
-const PUBLIC_PATH_REGEX = /^\/(loja|p|q|f|blog|lp)(\/|$)/;
+const PUBLIC_PATH_REGEX = /^\/(loja|p|q|f|blog|lp|site)(\/|$)/;
 function isPublicWebRoute(): boolean {
   if (typeof window === "undefined") return false;
   return PUBLIC_PATH_REGEX.test(window.location.pathname);

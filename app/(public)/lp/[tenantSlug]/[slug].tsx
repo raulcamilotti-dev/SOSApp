@@ -21,7 +21,7 @@ import {
   type PublicTenantInfo,
 } from "@/services/content-pages";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useSegments } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -174,6 +174,7 @@ export default function PublicLandingPage() {
     tenantSlug: string;
     slug: string;
   }>();
+  const segments = useSegments() as string[];
 
   const { width: screenWidth } = useWindowDimensions();
   const isDesktop = screenWidth >= 768;
@@ -197,6 +198,9 @@ export default function PublicLandingPage() {
   const primaryColor = tenant?.primary_color || DEFAULT_PRIMARY;
   const brandName = tenant?.brand_name || tenant?.company_name || "";
   const hasInstitutional = INSTITUTIONAL_SLUGS.has(tenantSlug ?? "");
+  const pageType = segments.includes("site")
+    ? "institutional_page"
+    : "landing_page";
 
   /* ── Resolve site base URL ─────────────────────────────────── */
   /** Extract root domain handling .com.br style 2-part TLDs */
@@ -241,7 +245,7 @@ export default function PublicLandingPage() {
     if (!tenantSlug || !slug) return;
     (async () => {
       try {
-        const result = await loadPublicPage(tenantSlug, slug, "landing_page");
+        const result = await loadPublicPage(tenantSlug, slug, pageType);
         setTenant(result.tenant);
         setPage(result.page);
 
@@ -270,7 +274,7 @@ export default function PublicLandingPage() {
         setPhase("error");
       }
     })();
-  }, [tenantSlug, slug]);
+  }, [tenantSlug, slug, pageType]);
 
   /* ── Parse content into sections ───────────────────────────── */
   const sections = useMemo(() => {

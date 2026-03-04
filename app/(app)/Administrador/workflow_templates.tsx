@@ -9,6 +9,10 @@ import {
   CRUD_ENDPOINT,
   normalizeCrudList,
 } from "@/services/crud";
+import {
+  countLinkedEntities,
+  getScopeEntityConfig,
+} from "@/services/workflow-service-types";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import { TouchableOpacity, View } from "react-native";
@@ -92,20 +96,14 @@ export default function WorkflowTemplatesScreen() {
         ? buildSearchParams([{ field: "tenant_id", value: tenantId }])
         : {};
 
-      const [templateRows, stepsResponse, serviceTypesResponse] =
-        await Promise.all([
-          listRows(),
-          api.post(CRUD_ENDPOINT, {
-            action: "list",
-            table: "workflow_steps",
-            ...tenantFilter,
-          }),
-          api.post(CRUD_ENDPOINT, {
-            action: "list",
-            table: "service_types",
-            ...tenantFilter,
-          }),
-        ]);
+      const [templateRows, stepsResponse] = await Promise.all([
+        listRows(),
+        api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "workflow_steps",
+          ...tenantFilter,
+        }),
+      ]);
 
       const steps = filterActive(
         Array.isArray(stepsResponse.data)
@@ -113,23 +111,30 @@ export default function WorkflowTemplatesScreen() {
           : (((stepsResponse.data as any)?.data ?? []) as Row[]),
       );
 
-      const serviceTypes = filterActive(
-        normalizeCrudList<Row>(serviceTypesResponse.data),
+      // Count linked entities per template (scope-aware: service_types, campaigns, etc.)
+      const entityCounts = await Promise.all(
+        templateRows.map(async (template) => {
+          const templateId = String(template.id ?? "");
+          const scope = String(template.workflow_scope ?? "operational");
+          if (!tenantId) return 0;
+          try {
+            return await countLinkedEntities(tenantId, templateId, scope);
+          } catch {
+            return 0;
+          }
+        }),
       );
 
-      return templateRows.map((template) => {
+      return templateRows.map((template, idx) => {
         const templateId = String(template.id ?? "");
         const stepsCount = steps.filter(
           (step) => String(step.template_id ?? "") === templateId,
-        ).length;
-        const linkedServiceTypes = serviceTypes.filter(
-          (st) => String(st.default_template_id ?? "") === templateId,
         ).length;
 
         return {
           ...template,
           workflow_steps_count: stepsCount,
-          linked_service_types_count: linkedServiceTypes,
+          linked_entities_count: entityCounts[idx],
         };
       });
     };
@@ -179,19 +184,29 @@ export default function WorkflowTemplatesScreen() {
       createItem={createWithContext}
       updateItem={updateWithContext}
       deleteItem={deleteRow}
-      getDetails={(item) => [
-        { label: "Nome", value: String(item.name ?? "-") },
-        { label: "Escopo", value: String(item.workflow_scope ?? "operational") },
-        { label: "Steps", value: String(item.workflow_steps_count ?? 0) },
-        {
-          label: "Tipos de Serviço Vinculados",
-          value: String(item.linked_service_types_count ?? 0),
-        },
-      ]}
+      getDetails={(item) => {
+        const scope = String(item.workflow_scope ?? "operational");
+        const scopeConfig = getScopeEntityConfig(scope);
+        const entityLabel = scopeConfig?.entityLabel ?? "Entidades";
+        return [
+          { label: "Nome", value: String(item.name ?? "-") },
+          {
+            label: "Escopo",
+            value: String(item.workflow_scope ?? "operational"),
+          },
+          { label: "Steps", value: String(item.workflow_steps_count ?? 0) },
+          {
+            label: `${entityLabel} Vinculados`,
+            value: String(item.linked_entities_count ?? 0),
+          },
+        ];
+      }}
       renderItemActions={(item) => {
         const templateId = String(item.id ?? "");
         const stepsCount = Number(item.workflow_steps_count ?? 0);
-        const linkedCount = Number(item.linked_service_types_count ?? 0);
+        const linkedCount = Number(item.linked_entities_count ?? 0);
+        const scope = String(item.workflow_scope ?? "operational");
+        const scopeConfig = getScopeEntityConfig(scope);
 
         return (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -237,31 +252,34 @@ export default function WorkflowTemplatesScreen() {
                 Steps (lista)
               </ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: "/Administrador/ServicosWorkflow" as any,
-                  params: {
-                    workflowId: templateId,
-                    tenantId: String(item.tenant_id ?? ""),
-                    workflowName: String(item.name ?? "Workflow"),
-                  },
-                })
-              }
-              style={{
-                borderWidth: 1,
-                borderColor,
-                borderRadius: 999,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <ThemedText
-                style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+            {scopeConfig && (
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: "/Administrador/ServicosWorkflow" as any,
+                    params: {
+                      workflowId: templateId,
+                      tenantId: String(item.tenant_id ?? ""),
+                      workflowName: String(item.name ?? "Workflow"),
+                      workflowScope: scope,
+                    },
+                  })
+                }
+                style={{
+                  borderWidth: 1,
+                  borderColor,
+                  borderRadius: 999,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                }}
               >
-                Tipos de Serviço ({linkedCount})
-              </ThemedText>
-            </TouchableOpacity>
+                <ThemedText
+                  style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
+                >
+                  {scopeConfig.entityLabel} ({linkedCount})
+                </ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
         );
       }}

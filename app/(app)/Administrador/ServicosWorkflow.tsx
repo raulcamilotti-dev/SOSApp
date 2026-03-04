@@ -1,13 +1,17 @@
 /**
- * ServicosWorkflow — Admin screen to assign which service types use a workflow template.
+ * ServicosWorkflow — Scope-aware entity ↔ workflow linking screen.
  *
  * Navigated from workflow_templates.tsx via:
- *   /Administrador/ServicosWorkflow?workflowId=X&tenantId=Y&workflowName=Z
+ *   /Administrador/ServicosWorkflow?workflowId=X&tenantId=Y&workflowName=Z&workflowScope=S
  *
- * Shows a list of all tenant service types with toggle switches.
- * Active toggle = that service type's default_template_id points to this workflow.
+ * Depending on the workflow scope, shows:
+ *   - operational → Tipos de Serviço (service_types toggle)
+ *   - stock       → Tipos de Produto (service_types toggle, different labels)
+ *   - crm         → Campanhas (campaigns toggle)
+ *   - admin       → not navigated here (button hidden in workflow_templates)
  *
- * Pattern follows ServicosParceiro.tsx (partner↔service toggle screen).
+ * All entity types use the generic EntityWorkflowLink + ScopeEntityConfig
+ * from services/workflow-service-types.ts.
  */
 
 import { ThemedText } from "@/components/themed-text";
@@ -15,13 +19,13 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { getApiErrorMessage } from "@/services/api";
 import {
-    listServiceTypesForWorkflow,
-    toggleServiceTypeWorkflowLink,
-    type ServiceTypeWorkflowLink,
+    getScopeEntityConfig,
+    type EntityWorkflowLink,
+    type ScopeEntityConfig,
 } from "@/services/workflow-service-types";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -41,6 +45,7 @@ export default function ServicosWorkflow() {
     workflowId?: string;
     tenantId?: string;
     workflowName?: string;
+    workflowScope?: string;
   }>();
 
   const workflowId = Array.isArray(params.workflowId)
@@ -52,6 +57,15 @@ export default function ServicosWorkflow() {
   const workflowName = Array.isArray(params.workflowName)
     ? params.workflowName[0]
     : params.workflowName;
+  const workflowScope = Array.isArray(params.workflowScope)
+    ? params.workflowScope[0]
+    : (params.workflowScope ?? "operational");
+
+  /* ── Scope config — drives all labels, data loading, and toggle actions ── */
+  const scopeConfig: ScopeEntityConfig | null = useMemo(
+    () => getScopeEntityConfig(workflowScope),
+    [workflowScope],
+  );
 
   /* ── Theme ── */
   const backgroundColor = useThemeColor({}, "background");
@@ -66,9 +80,7 @@ export default function ServicosWorkflow() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [serviceTypes, setServiceTypes] = useState<ServiceTypeWorkflowLink[]>(
-    [],
-  );
+  const [entities, setEntities] = useState<EntityWorkflowLink[]>([]);
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
@@ -80,17 +92,28 @@ export default function ServicosWorkflow() {
       return;
     }
 
+    if (!scopeConfig) {
+      setError("Este escopo não suporta vinculação de entidades.");
+      setLoading(false);
+      return;
+    }
+
     try {
       setError(null);
-      const data = await listServiceTypesForWorkflow(tenantId, workflowId);
-      setServiceTypes(data);
+      const data = await scopeConfig.load(tenantId, workflowId);
+      setEntities(data);
     } catch (e) {
-      setError(getApiErrorMessage(e, "Falha ao carregar tipos de serviço."));
+      setError(
+        getApiErrorMessage(
+          e,
+          `Falha ao carregar ${scopeConfig.entityLabel.toLowerCase()}.`,
+        ),
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [tenantId, workflowId]);
+  }, [tenantId, workflowId, scopeConfig]);
 
   useEffect(() => {
     load();
@@ -103,13 +126,13 @@ export default function ServicosWorkflow() {
 
   /* ── Toggle handler ── */
   const handleToggle = useCallback(
-    async (serviceTypeId: string, newValue: boolean) => {
-      if (!workflowId) return;
+    async (entityId: string, newValue: boolean) => {
+      if (!workflowId || !scopeConfig) return;
 
-      // If activating and the service type is already linked to a DIFFERENT workflow, confirm
-      const st = serviceTypes.find((s) => s.id === serviceTypeId);
-      if (newValue && st?.other_workflow_name) {
-        const confirmMessage = `Este tipo de serviço já está vinculado ao workflow "${st.other_workflow_name}". Deseja trocar para este workflow?`;
+      // If activating and entity is already linked to a DIFFERENT workflow, confirm
+      const entity = entities.find((e) => e.id === entityId);
+      if (newValue && entity?.other_workflow_name) {
+        const confirmMessage = `Este ${scopeConfig.entitySingular} já está vinculado ao workflow "${entity.other_workflow_name}". Deseja trocar para este workflow?`;
 
         if (Platform.OS === "web") {
           if (!window.confirm(confirmMessage)) return;
@@ -132,55 +155,50 @@ export default function ServicosWorkflow() {
         }
       }
 
-      setTogglingIds((prev) => new Set(prev).add(serviceTypeId));
+      setTogglingIds((prev) => new Set(prev).add(entityId));
 
       try {
-        await toggleServiceTypeWorkflowLink(
-          serviceTypeId,
-          workflowId,
-          newValue,
-        );
+        await scopeConfig.toggle(entityId, workflowId, newValue);
 
         // Optimistic update
-        setServiceTypes((prev) =>
-          prev.map((s) =>
-            s.id === serviceTypeId
+        setEntities((prev) =>
+          prev.map((e) =>
+            e.id === entityId
               ? {
-                  ...s,
+                  ...e,
                   is_linked: newValue,
                   default_template_id: newValue ? workflowId : null,
                   other_workflow_name: null,
                 }
-              : s,
+              : e,
           ),
         );
       } catch (e) {
         setError(getApiErrorMessage(e, "Falha ao atualizar vínculo."));
-        // Revert optimistic update on error
         load();
       } finally {
         setTogglingIds((prev) => {
           const next = new Set(prev);
-          next.delete(serviceTypeId);
+          next.delete(entityId);
           return next;
         });
       }
     },
-    [workflowId, serviceTypes, load],
+    [workflowId, entities, scopeConfig, load],
   );
 
   /* ── Derived data ── */
-  const filteredServiceTypes = search.trim()
-    ? serviceTypes.filter((s) => {
+  const filteredEntities = search.trim()
+    ? entities.filter((e) => {
         const term = search.trim().toLowerCase();
-        const text = [s.name, s.description]
+        const text = [e.name, e.subtitle]
           .map((v) => String(v ?? "").toLowerCase())
           .join(" ");
         return text.includes(term);
       })
-    : serviceTypes;
+    : entities;
 
-  const activeCount = filteredServiceTypes.filter((s) => s.is_linked).length;
+  const activeCount = filteredEntities.filter((e) => e.is_linked).length;
 
   /* ── Render ── */
   if (loading) {
@@ -195,8 +213,38 @@ export default function ServicosWorkflow() {
       >
         <ActivityIndicator size="large" color={tintColor} />
         <ThemedText style={{ color: mutedColor, marginTop: 12 }}>
-          Carregando tipos de serviço...
+          Carregando...
         </ThemedText>
+      </View>
+    );
+  }
+
+  if (!scopeConfig) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 24,
+        }}
+      >
+        <ThemedText
+          style={{ color: mutedColor, textAlign: "center", fontSize: 14 }}
+        >
+          Este escopo não suporta vinculação de entidades.
+        </ThemedText>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginTop: 16 }}
+        >
+          <ThemedText
+            style={{ color: tintColor, fontWeight: "600", fontSize: 14 }}
+          >
+            ← Voltar
+          </ThemedText>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -234,7 +282,7 @@ export default function ServicosWorkflow() {
         <ThemedText
           style={{ fontSize: 18, fontWeight: "700", color: textColor }}
         >
-          Tipos de Serviço do Workflow
+          {scopeConfig.title}
         </ThemedText>
         {workflowName ? (
           <ThemedText style={{ fontSize: 13, color: mutedColor, marginTop: 2 }}>
@@ -242,13 +290,13 @@ export default function ServicosWorkflow() {
           </ThemedText>
         ) : null}
         <ThemedText style={{ fontSize: 12, color: mutedColor, marginTop: 4 }}>
-          {activeCount} de {filteredServiceTypes.length} vinculados
+          {activeCount} de {filteredEntities.length} vinculados
         </ThemedText>
 
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar tipo de serviço..."
+          placeholder={scopeConfig.searchPlaceholder}
           placeholderTextColor={mutedColor}
           style={{
             marginTop: 10,
@@ -272,35 +320,33 @@ export default function ServicosWorkflow() {
         </View>
       ) : null}
 
-      {/* ── Service Types List ── */}
+      {/* ── Entity List ── */}
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {filteredServiceTypes.length === 0 ? (
+        {filteredEntities.length === 0 ? (
           <ThemedText
             style={{ color: mutedColor, textAlign: "center", marginTop: 24 }}
           >
-            {serviceTypes.length === 0
-              ? "Nenhum tipo de serviço cadastrado neste tenant."
-              : "Nenhum tipo de serviço encontrado."}
+            {entities.length === 0
+              ? scopeConfig.emptyMessage
+              : `Nenhum ${scopeConfig.entitySingular} encontrado.`}
           </ThemedText>
         ) : null}
 
-        {filteredServiceTypes.map((serviceType) => {
-          const isToggling = togglingIds.has(serviceType.id);
+        {filteredEntities.map((entity) => {
+          const isToggling = togglingIds.has(entity.id);
 
           return (
             <View
-              key={serviceType.id}
+              key={entity.id}
               style={{
                 backgroundColor: cardColor,
                 borderWidth: 1,
-                borderColor: serviceType.is_linked
-                  ? tintColor + "40"
-                  : borderColor,
+                borderColor: entity.is_linked ? tintColor + "40" : borderColor,
                 borderRadius: 12,
                 padding: 14,
                 marginBottom: 10,
@@ -310,27 +356,27 @@ export default function ServicosWorkflow() {
                 opacity: isToggling ? 0.6 : 1,
               }}
             >
-              {/* Icon */}
-              {serviceType.icon ? (
+              {/* Icon (only when entity has one, e.g. service types) */}
+              {entity.icon ? (
                 <View
                   style={{
                     width: 36,
                     height: 36,
                     borderRadius: 8,
-                    backgroundColor: (serviceType.color ?? tintColor) + "1A",
+                    backgroundColor: (entity.color ?? tintColor) + "1A",
                     justifyContent: "center",
                     alignItems: "center",
                   }}
                 >
                   <Ionicons
-                    name={serviceType.icon as any}
+                    name={entity.icon as any}
                     size={18}
-                    color={serviceType.color ?? tintColor}
+                    color={entity.color ?? tintColor}
                   />
                 </View>
               ) : null}
 
-              {/* Service type info */}
+              {/* Entity info */}
               <View style={{ flex: 1 }}>
                 <ThemedText
                   style={{
@@ -340,20 +386,20 @@ export default function ServicosWorkflow() {
                   }}
                   numberOfLines={2}
                 >
-                  {serviceType.name}
+                  {entity.name}
                 </ThemedText>
 
-                {serviceType.description ? (
+                {entity.subtitle ? (
                   <ThemedText
                     style={{ fontSize: 12, color: mutedColor, marginTop: 2 }}
                     numberOfLines={2}
                   >
-                    {serviceType.description}
+                    {entity.subtitle}
                   </ThemedText>
                 ) : null}
 
                 {/* Show other workflow warning */}
-                {serviceType.other_workflow_name ? (
+                {entity.other_workflow_name ? (
                   <View
                     style={{
                       flexDirection: "row",
@@ -368,13 +414,13 @@ export default function ServicosWorkflow() {
                       color="#f59e0b"
                     />
                     <ThemedText style={{ fontSize: 11, color: "#f59e0b" }}>
-                      Vinculado a: {serviceType.other_workflow_name}
+                      Vinculado a: {entity.other_workflow_name}
                     </ThemedText>
                   </View>
                 ) : null}
 
                 {/* Show linked status */}
-                {serviceType.is_linked ? (
+                {entity.is_linked ? (
                   <View
                     style={{
                       flexDirection: "row",
@@ -400,13 +446,13 @@ export default function ServicosWorkflow() {
                 <ActivityIndicator size="small" color={tintColor} />
               ) : (
                 <Switch
-                  value={serviceType.is_linked}
-                  onValueChange={(val) => handleToggle(serviceType.id, val)}
+                  value={entity.is_linked}
+                  onValueChange={(val) => handleToggle(entity.id, val)}
                   trackColor={{
                     false: borderColor,
                     true: tintColor + "80",
                   }}
-                  thumbColor={serviceType.is_linked ? tintColor : mutedColor}
+                  thumbColor={entity.is_linked ? tintColor : mutedColor}
                 />
               )}
             </View>
@@ -414,7 +460,7 @@ export default function ServicosWorkflow() {
         })}
 
         {/* Bulk actions */}
-        {filteredServiceTypes.length > 0 ? (
+        {filteredEntities.length > 0 ? (
           <View
             style={{
               flexDirection: "row",
@@ -425,11 +471,9 @@ export default function ServicosWorkflow() {
           >
             <TouchableOpacity
               onPress={async () => {
-                const inactive = filteredServiceTypes.filter(
-                  (s) => !s.is_linked,
-                );
-                for (const s of inactive) {
-                  await handleToggle(s.id, true);
+                const inactive = filteredEntities.filter((e) => !e.is_linked);
+                for (const e of inactive) {
+                  await handleToggle(e.id, true);
                 }
               }}
               style={{
@@ -450,9 +494,9 @@ export default function ServicosWorkflow() {
 
             <TouchableOpacity
               onPress={async () => {
-                const active = filteredServiceTypes.filter((s) => s.is_linked);
-                for (const s of active) {
-                  await handleToggle(s.id, false);
+                const active = filteredEntities.filter((e) => e.is_linked);
+                for (const e of active) {
+                  await handleToggle(e.id, false);
                 }
               }}
               style={{

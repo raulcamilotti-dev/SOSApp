@@ -12,6 +12,7 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
     getPackDetails,
+    listRecommendedMarketplacePacks,
     getTenantInstalls,
     installPack,
     listMarketplacePacks,
@@ -79,8 +80,32 @@ export default function MarketplaceScreen() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeSort, setActiveSort] = useState<
-    "popular" | "newest" | "name" | "rating"
-  >("popular");
+    "featured" | "popular" | "newest" | "name" | "rating" | "price_asc" | "price_desc"
+  >(() => {
+    if (Platform.OS === "web" && typeof sessionStorage !== "undefined") {
+      const stored = sessionStorage.getItem("marketplace_sort");
+      if (
+        stored === "featured" ||
+        stored === "popular" ||
+        stored === "newest" ||
+        stored === "name" ||
+        stored === "rating" ||
+        stored === "price_asc" ||
+        stored === "price_desc"
+      ) {
+        return stored;
+      }
+    }
+    return "featured";
+  });
+  const [creatorFilter, setCreatorFilter] = useState<
+    "all" | "official" | "community"
+  >("all");
+  const [priceFilter, setPriceFilter] = useState<"all" | "free" | "paid">("all");
+  const [ratingFilter, setRatingFilter] = useState<0 | 4 | 4.5>(0);
+  const [recommendedPacks, setRecommendedPacks] = useState<MarketplacePack[]>(
+    [],
+  );
 
   // Detail modal
   const [detailPack, setDetailPack] = useState<MarketplacePack | null>(null);
@@ -143,6 +168,15 @@ export default function MarketplaceScreen() {
         sort: activeSort,
         category: activeCategory ?? undefined,
         search: search.trim() || undefined,
+        pricing_type: priceFilter === "free" ? "free" : undefined,
+        onlyPaid: priceFilter === "paid",
+        isOfficial:
+          creatorFilter === "official"
+            ? true
+            : creatorFilter === "community"
+              ? false
+              : undefined,
+        minRating: ratingFilter > 0 ? ratingFilter : undefined,
       };
 
       const [packsList, installsList] = await Promise.all([
@@ -157,20 +191,65 @@ export default function MarketplaceScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeSort, activeCategory, search, tenantId]);
+  }, [
+    activeSort,
+    activeCategory,
+    search,
+    tenantId,
+    creatorFilter,
+    priceFilter,
+    ratingFilter,
+  ]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  /* ---- Sections: official first, then community ---- */
-  const officialPacks = useMemo(
-    () => packs.filter((p) => p.is_official),
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof sessionStorage === "undefined") return;
+    sessionStorage.setItem("marketplace_sort", activeSort);
+  }, [activeSort]);
+
+  useEffect(() => {
+    if (!tenantId || packs.length === 0) {
+      setRecommendedPacks([]);
+      return;
+    }
+    listRecommendedMarketplacePacks(tenantId, packs, 6)
+      .then(setRecommendedPacks)
+      .catch(() => setRecommendedPacks([]));
+  }, [tenantId, packs]);
+
+  /* ---- Sections: featured, recommended, official, community ---- */
+  const featuredPacks = useMemo(
+    () =>
+      packs
+        .filter((p) => p.is_featured)
+        .sort((a, b) => a.featured_order - b.featured_order),
     [packs],
   );
+  const featuredIds = useMemo(
+    () => new Set(featuredPacks.map((p) => p.id)),
+    [featuredPacks],
+  );
+  const recommendedIds = useMemo(
+    () => new Set(recommendedPacks.map((p) => p.id)),
+    [recommendedPacks],
+  );
+  const officialPacks = useMemo(
+    () =>
+      packs.filter(
+        (p) => p.is_official && !featuredIds.has(p.id) && !recommendedIds.has(p.id),
+      ),
+    [packs, featuredIds, recommendedIds],
+  );
   const communityPacks = useMemo(
-    () => packs.filter((p) => !p.is_official),
-    [packs],
+    () =>
+      packs.filter(
+        (p) =>
+          !p.is_official && !featuredIds.has(p.id) && !recommendedIds.has(p.id),
+      ),
+    [packs, featuredIds, recommendedIds],
   );
 
   /* ---- Install handler ---- */
@@ -553,6 +632,22 @@ export default function MarketplaceScreen() {
                     style={{ fontSize: 9, fontWeight: "700", color: tintColor }}
                   >
                     OFICIAL
+                  </ThemedText>
+                </View>
+              )}
+              {pack.is_featured && (
+                <View
+                  style={{
+                    backgroundColor: "#f59e0b20",
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 4,
+                  }}
+                >
+                  <ThemedText
+                    style={{ fontSize: 9, fontWeight: "700", color: "#b45309" }}
+                  >
+                    DESTAQUE
                   </ThemedText>
                 </View>
               )}
@@ -1609,12 +1704,20 @@ export default function MarketplaceScreen() {
         </ScrollView>
 
         {/* Sort chips */}
-        <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 8 }}
+          contentContainerStyle={{ gap: 8, paddingRight: 16 }}
+        >
           {(
             [
+              { key: "featured", label: "✨ Destaque" },
               { key: "popular", label: "🔥 Popular" },
               { key: "newest", label: "🆕 Recentes" },
               { key: "rating", label: "⭐ Rating" },
+              { key: "price_asc", label: "💸 Menor Preço" },
+              { key: "price_desc", label: "💰 Maior Preço" },
               { key: "name", label: "🔤 Nome" },
             ] as const
           ).map((sort) => (
@@ -1642,7 +1745,111 @@ export default function MarketplaceScreen() {
               </ThemedText>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
+
+        {/* Discovery filters */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 16 }}
+          contentContainerStyle={{ gap: 8, paddingRight: 16 }}
+        >
+          {(
+            [
+              { key: "all", label: "Todos" },
+              { key: "official", label: "Oficiais" },
+              { key: "community", label: "Comunidade" },
+            ] as const
+          ).map((item) => (
+            <TouchableOpacity
+              key={`creator-${item.key}`}
+              onPress={() => setCreatorFilter(item.key)}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: creatorFilter === item.key ? tintColor : borderColor,
+                backgroundColor:
+                  creatorFilter === item.key ? tintColor + "15" : "transparent",
+              }}
+            >
+              <ThemedText
+                style={{
+                  fontSize: 11,
+                  fontWeight: creatorFilter === item.key ? "700" : "500",
+                  color: creatorFilter === item.key ? tintColor : mutedColor,
+                }}
+              >
+                {item.label}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+
+          {(
+            [
+              { key: "all", label: "Preço: Todos" },
+              { key: "free", label: "Só Grátis" },
+              { key: "paid", label: "Só Pagos" },
+            ] as const
+          ).map((item) => (
+            <TouchableOpacity
+              key={`price-${item.key}`}
+              onPress={() => setPriceFilter(item.key)}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: priceFilter === item.key ? tintColor : borderColor,
+                backgroundColor:
+                  priceFilter === item.key ? tintColor + "15" : "transparent",
+              }}
+            >
+              <ThemedText
+                style={{
+                  fontSize: 11,
+                  fontWeight: priceFilter === item.key ? "700" : "500",
+                  color: priceFilter === item.key ? tintColor : mutedColor,
+                }}
+              >
+                {item.label}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+
+          {(
+            [
+              { key: 0, label: "Sem nota mínima" },
+              { key: 4, label: "⭐ 4.0+" },
+              { key: 4.5, label: "⭐ 4.5+" },
+            ] as const
+          ).map((item) => (
+            <TouchableOpacity
+              key={`rating-${item.key}`}
+              onPress={() => setRatingFilter(item.key)}
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: ratingFilter === item.key ? tintColor : borderColor,
+                backgroundColor:
+                  ratingFilter === item.key ? tintColor + "15" : "transparent",
+              }}
+            >
+              <ThemedText
+                style={{
+                  fontSize: 11,
+                  fontWeight: ratingFilter === item.key ? "700" : "500",
+                  color: ratingFilter === item.key ? tintColor : mutedColor,
+                }}
+              >
+                {item.label}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         {/* Error */}
         {error && (
@@ -1684,10 +1891,64 @@ export default function MarketplaceScreen() {
             <ThemedText
               style={{ fontSize: 13, color: mutedColor, marginTop: 4 }}
             >
-              {search || activeCategory
+              {search ||
+              activeCategory ||
+              creatorFilter !== "all" ||
+              priceFilter !== "all" ||
+              ratingFilter > 0
                 ? "Tente ajustar os filtros"
                 : "Packs serão publicados em breve"}
             </ThemedText>
+          </View>
+        )}
+
+        {/* Featured packs section */}
+        {!loading && featuredPacks.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <ThemedText
+              style={{
+                fontSize: 15,
+                fontWeight: "700",
+                color: textColor,
+                marginBottom: 10,
+              }}
+            >
+              ✨ Em Destaque
+            </ThemedText>
+            <View
+              style={
+                IS_DESKTOP
+                  ? { flexDirection: "row", flexWrap: "wrap" }
+                  : undefined
+              }
+            >
+              {featuredPacks.map(renderPackCard)}
+            </View>
+          </View>
+        )}
+
+        {/* Recommended packs section */}
+        {!loading && recommendedPacks.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <ThemedText
+              style={{
+                fontSize: 15,
+                fontWeight: "700",
+                color: textColor,
+                marginBottom: 10,
+              }}
+            >
+              🎯 Recomendados para seu Tenant
+            </ThemedText>
+            <View
+              style={
+                IS_DESKTOP
+                  ? { flexDirection: "row", flexWrap: "wrap" }
+                  : undefined
+              }
+            >
+              {recommendedPacks.map(renderPackCard)}
+            </View>
           </View>
         )}
 

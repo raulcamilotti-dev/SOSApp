@@ -173,6 +173,14 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
       null,
     );
     const [creatingOrder, setCreatingOrder] = useState(false);
+    const [ensuringAdminServiceType, setEnsuringAdminServiceType] =
+      useState(false);
+
+    const templateServiceTypeId = useMemo(() => {
+      const raw = (template as unknown as Record<string, unknown>)
+        .service_type_id;
+      return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+    }, [template]);
 
     /* ══════════════════════════════════════════════════════
      * STEP HELPERS
@@ -350,6 +358,62 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
       }
     }, [isAdminScope, partnerId, tenantId]);
 
+    const ensureAdministrativeServiceTypeId = useCallback(async () => {
+      if (templateServiceTypeId) return templateServiceTypeId;
+
+      const internalName = "Workflow Administrativo (Interno)";
+
+      const listExisting = async () => {
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "service_types",
+          ...buildSearchParams(
+            [{ field: "tenant_id", value: tenantId }],
+            { sortColumn: "created_at ASC", autoExcludeDeleted: true },
+          ),
+        });
+        const list = normalizeCrudList<{ id: string; name?: string }>(res.data);
+        const existing = list.find(
+          (s) => (s.name ?? "").trim().toLowerCase() === internalName.toLowerCase(),
+        );
+        return existing?.id ? String(existing.id) : null;
+      };
+
+      const existingId = await listExisting();
+      if (existingId) return existingId;
+
+      try {
+        const createRes = await api.post(CRUD_ENDPOINT, {
+          action: "create",
+          table: "service_types",
+          payload: {
+            tenant_id: tenantId,
+            name: internalName,
+            description:
+              "Tipo técnico criado automaticamente para processos administrativos.",
+            icon: "briefcase-outline",
+            color: "#64748b",
+            is_active: true,
+            created_at: new Date().toISOString(),
+          },
+        });
+        const created = Array.isArray(createRes.data)
+          ? createRes.data[0]
+          : createRes.data;
+        const createdId = created?.id ? String(created.id) : "";
+        if (createdId) return createdId;
+      } catch {
+        // Concorrência/duplicidade: tenta resolver abaixo via nova leitura.
+      }
+
+      const refetchedId = await listExisting();
+      if (refetchedId) return refetchedId;
+
+      throw new Error(
+        "Não foi possível resolver o tipo de serviço interno para o workflow administrativo.",
+      );
+    }, [templateServiceTypeId, tenantId]);
+
     const handleCreateOrder = useCallback(async () => {
       if (!isAdminScope && !selectedCustomerId) {
         Alert.alert("Atenção", "Selecione um cliente.");
@@ -364,12 +428,19 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
 
       setCreatingOrder(true);
       try {
+        let resolvedServiceTypeId = templateServiceTypeId;
+        if (isAdminScope && !resolvedServiceTypeId) {
+          setEnsuringAdminServiceType(true);
+          resolvedServiceTypeId = await ensureAdministrativeServiceTypeId();
+        }
+
         const soPayload: Record<string, unknown> = {
           tenant_id: tenantId,
+          service_type_id: resolvedServiceTypeId,
           template_id: template.id,
           current_step_id: firstStep.id,
           process_status: "active",
-          title: createTitle.trim() || null,
+          title: createTitle.trim() || "Processo interno",
           description: createDescription.trim() || null,
           started_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
@@ -427,9 +498,12 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
           getApiErrorMessage(err, "Falha ao criar processo."),
         );
       } finally {
+        setEnsuringAdminServiceType(false);
         setCreatingOrder(false);
       }
     }, [
+      ensureAdministrativeServiceTypeId,
+      templateServiceTypeId,
       isAdminScope,
       selectedCustomerId,
       steps,
@@ -1127,11 +1201,15 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
               <TouchableOpacity
                 onPress={handleCreateOrder}
                 disabled={
-                  (!isAdminScope && !selectedCustomerId) || creatingOrder
+                  (!isAdminScope && !selectedCustomerId) ||
+                  creatingOrder ||
+                  ensuringAdminServiceType
                 }
                 style={{
                   backgroundColor:
-                    (isAdminScope || selectedCustomerId) && !creatingOrder
+                    (isAdminScope || selectedCustomerId) &&
+                    !creatingOrder &&
+                    !ensuringAdminServiceType
                       ? tintColor
                       : mutedColor,
                   paddingVertical: spacing.md,
@@ -1143,7 +1221,7 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
                   gap: 8,
                 }}
               >
-                {creatingOrder ? (
+                {creatingOrder || ensuringAdminServiceType ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <>

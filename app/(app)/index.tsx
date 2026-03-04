@@ -16,7 +16,7 @@ export default function HomeScreen() {
   // fully resolves the URL to the (public) group.
   if (
     typeof window !== "undefined" &&
-    /^\/(loja|p|q|f|blog|lp)(\/|$)/.test(window.location.pathname)
+    /^\/(loja|p|q|f|blog|lp|site)(\/|$)/.test(window.location.pathname)
   ) {
     return null;
   }
