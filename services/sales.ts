@@ -28,6 +28,10 @@ import {
   type CrudFilter,
 } from "./crud";
 import { startServiceOrderProcess } from "./service-order-engine";
+import {
+  createServiceOrder,
+  createServiceOrderContext,
+} from "./service-orders";
 import { recordStockMovement } from "./stock";
 
 /* ------------------------------------------------------------------ */
@@ -301,6 +305,48 @@ async function resolveWorkflowForServiceType(
   }
 }
 
+/**
+ * Resolve the first active stock-scoped workflow template for a tenant.
+ * Used to create stock SOs for product fulfillment (separation → delivery).
+ */
+async function resolveStockWorkflowTemplate(
+  tenantId: string,
+): Promise<{ templateId: string; currentStepId: string }> {
+  const tplRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "workflow_templates",
+    ...buildSearchParams(
+      [
+        { field: "tenant_id", value: tenantId },
+        { field: "workflow_scope", value: "stock" },
+        { field: "is_active", value: "true" },
+      ],
+      { autoExcludeDeleted: true, sortColumn: "created_at ASC", limit: 1 },
+    ),
+  });
+  const templates = normalizeCrudList<{ id: string }>(tplRes.data);
+  if (templates.length === 0) {
+    throw new Error("No active stock workflow template found");
+  }
+  const templateId = templates[0].id;
+
+  const stepsRes = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "workflow_steps",
+    ...buildSearchParams([{ field: "template_id", value: templateId }], {
+      autoExcludeDeleted: true,
+      sortColumn: "step_order ASC",
+      limit: 1,
+    }),
+  });
+  const steps = normalizeCrudList<{ id: string }>(stepsRes.data);
+  if (steps.length === 0) {
+    throw new Error("Stock workflow template has no steps");
+  }
+
+  return { templateId, currentStepId: steps[0].id };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Create Sale                                                        */
 /* ------------------------------------------------------------------ */
@@ -515,6 +561,7 @@ export async function createSale(
 
   // 6. Create sale_items
   const createdItems: SaleItem[] = [];
+  const createdServiceOrderIds: string[] = [];
   const parentIdMap = new Map<number, string>();
   let hasPendingServices = false;
   let hasPendingProducts = false;
@@ -660,6 +707,45 @@ export async function createSale(
     }
   }
 
+  // 6b. Create stock-scoped service order for product fulfillment (1 SO per sale)
+  if (hasPendingProducts) {
+    try {
+      const stockWorkflow = await resolveStockWorkflowTemplate(tenantId);
+      const stockSo = await createServiceOrder({
+        tenant_id: tenantId,
+        partner_id: partnerId ?? null,
+        customer_id: customerId,
+        template_id: stockWorkflow.templateId,
+        current_step_id: stockWorkflow.currentStepId,
+        process_status: "active",
+        title: `Separação — Venda #${sale.id.slice(0, 8)}`,
+        description: `Fluxo de separação/entrega para venda ${sale.id}`,
+        started_at: now,
+        created_by: soldByUserId,
+      });
+      const stockSoId = String(stockSo.id);
+      createdServiceOrderIds.push(stockSoId);
+
+      await createServiceOrderContext({
+        service_order_id: stockSoId,
+        entity_type: "sale",
+        entity_id: sale.id,
+      });
+
+      // Start the stock workflow engine process
+      try {
+        await startServiceOrderProcess(stockSoId, stockWorkflow.templateId, {
+          tenantId,
+          userId: soldByUserId ?? "",
+        });
+      } catch {
+        // Non-blocking — SO created, engine side effects failed
+      }
+    } catch {
+      // Stock template not configured — skip silently
+    }
+  }
+
   // Update sale pending flags
   if (hasPendingServices || hasPendingProducts) {
     await api.post(CRUD_ENDPOINT, {
@@ -707,8 +793,6 @@ export async function createSale(
       invoicePixKeyType = null;
     }
   }
-
-  const createdServiceOrderIds: string[] = [];
 
   // 9. Create invoice
   const invoiceRes = await api.post(CRUD_ENDPOINT, {
