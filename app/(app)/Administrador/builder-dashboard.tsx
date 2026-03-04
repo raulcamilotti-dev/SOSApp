@@ -4,6 +4,9 @@
 /*  Dashboard for pack builders: KPIs, recent sales, reviews,          */
 /*  and pack listing with status tabs.                                 */
 /*  Dynamic access: visible to any user with packs in marketplace.     */
+/*                                                                     */
+/*  Cross-promo: builders can also become channel partners and         */
+/*  vice-versa — the ecosystem page unifies both programs.             */
 /* ------------------------------------------------------------------ */
 
 import { ThemedText } from "@/components/themed-text";
@@ -19,13 +22,16 @@ import {
     type BuilderSaleEntry,
 } from "@/services/builder-analytics";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
+    Platform,
     RefreshControl,
     ScrollView,
     TouchableOpacity,
+    useColorScheme,
     View,
 } from "react-native";
 
@@ -94,9 +100,15 @@ type PackTab = "active" | "review" | "draft";
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
+/* ── Accent colors for builder/partner programs ── */
+const BUILDER_ACCENT = "#7c3aed"; // violet
+const PARTNER_ACCENT = "#16a34a"; // green
+
 export default function BuilderDashboard() {
   const { user } = useAuth();
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   /* ── Theme ── */
   const backgroundColor = useThemeColor({}, "background");
@@ -172,37 +184,63 @@ export default function BuilderDashboard() {
     color,
     subtitle,
     icon,
+    accentBg,
   }: {
     label: string;
     value: string;
     color?: string;
     subtitle?: string;
     icon?: string;
+    accentBg?: string;
   }) => (
     <View
       style={{
         flex: 1,
         backgroundColor: cardColor,
-        borderRadius: 12,
+        borderRadius: 14,
         borderWidth: 1,
         borderColor,
-        padding: 14,
+        padding: 16,
         minWidth: 140,
+        ...(Platform.OS === "web"
+          ? { boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }
+          : {
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 3,
+              elevation: 1,
+            }),
       }}
     >
       <View
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 6,
-          marginBottom: 4,
+          gap: 8,
+          marginBottom: 8,
         }}
       >
         {icon ? (
-          <Ionicons name={icon as any} size={13} color={mutedTextColor} />
+          <View
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              backgroundColor: (accentBg ?? color ?? tintColor) + "18",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Ionicons
+              name={icon as any}
+              size={14}
+              color={accentBg ?? color ?? tintColor}
+            />
+          </View>
         ) : null}
         <ThemedText
-          style={{ fontSize: 11, color: mutedTextColor }}
+          style={{ fontSize: 11, color: mutedTextColor, flex: 1 }}
           numberOfLines={1}
         >
           {label}
@@ -210,16 +248,17 @@ export default function BuilderDashboard() {
       </View>
       <ThemedText
         style={{
-          fontSize: 18,
-          fontWeight: "700",
+          fontSize: 20,
+          fontWeight: "800",
           color: color ?? textColor,
+          letterSpacing: -0.3,
         }}
       >
         {value}
       </ThemedText>
       {subtitle ? (
         <ThemedText
-          style={{ fontSize: 11, color: mutedTextColor, marginTop: 2 }}
+          style={{ fontSize: 11, color: mutedTextColor, marginTop: 4 }}
         >
           {subtitle}
         </ThemedText>
@@ -666,17 +705,28 @@ export default function BuilderDashboard() {
           padding: 32,
         }}
       >
-        <Ionicons name="lock-closed-outline" size={48} color={mutedTextColor} />
+        <View
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 20,
+            backgroundColor: BUILDER_ACCENT + "18",
+            justifyContent: "center",
+            alignItems: "center",
+            marginBottom: 20,
+          }}
+        >
+          <Ionicons name="cube-outline" size={36} color={BUILDER_ACCENT} />
+        </View>
         <ThemedText
           style={{
-            fontSize: 18,
-            fontWeight: "700",
+            fontSize: 20,
+            fontWeight: "800",
             color: textColor,
-            marginTop: 16,
             textAlign: "center",
           }}
         >
-          Área do Builder
+          Área do Criador
         </ThemedText>
         <ThemedText
           style={{
@@ -684,28 +734,75 @@ export default function BuilderDashboard() {
             color: mutedTextColor,
             marginTop: 8,
             textAlign: "center",
+            lineHeight: 20,
+            maxWidth: 320,
           }}
         >
-          Publique seu primeiro Template Pack para acessar o dashboard.
+          Crie e publique Template Packs, Agent Packs e workflows para ajudar
+          outras empresas — e ganhe por cada instalação.
         </ThemedText>
         <TouchableOpacity
           onPress={() =>
             router.push("/(app)/Administrador/marketplace-publish")
           }
           style={{
-            marginTop: 20,
-            backgroundColor: tintColor,
-            paddingHorizontal: 24,
-            paddingVertical: 12,
-            borderRadius: 10,
+            marginTop: 24,
+            backgroundColor: BUILDER_ACCENT,
+            paddingHorizontal: 28,
+            paddingVertical: 14,
+            borderRadius: 12,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
           }}
         >
+          <Ionicons name="rocket-outline" size={18} color="#fff" />
           <ThemedText
-            style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}
+            style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}
           >
             Criar Meu Primeiro Pack
           </ThemedText>
         </TouchableOpacity>
+
+        {/* Cross-promo: also become a channel partner */}
+        <View
+          style={{
+            marginTop: 32,
+            borderTopWidth: 1,
+            borderTopColor: borderColor,
+            paddingTop: 24,
+            alignItems: "center",
+          }}
+        >
+          <ThemedText
+            style={{ fontSize: 12, color: mutedTextColor, marginBottom: 8 }}
+          >
+            Também quer indicar empresas e ganhar comissão?
+          </ThemedText>
+          <TouchableOpacity
+            onPress={() =>
+              router.push("/(app)/Administrador/channel-partners" as any)
+            }
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: PARTNER_ACCENT + "40",
+              backgroundColor: PARTNER_ACCENT + "0A",
+            }}
+          >
+            <Ionicons name="people-outline" size={14} color={PARTNER_ACCENT} />
+            <ThemedText
+              style={{ fontSize: 12, fontWeight: "600", color: PARTNER_ACCENT }}
+            >
+              Conheça o Programa de Parceiros
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
       </ThemedView>
     );
   }
@@ -730,48 +827,106 @@ export default function BuilderDashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* ── Header ── */}
+        {/* ── Hero Header ── */}
         <View
           style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: 16,
+            borderRadius: 16,
+            overflow: "hidden",
+            marginBottom: 20,
           }}
         >
-          <View style={{ flex: 1 }}>
-            <ThemedText
-              style={{ fontSize: 22, fontWeight: "700", color: textColor }}
-            >
-              Dashboard Builder
-            </ThemedText>
-            <ThemedText
-              style={{ fontSize: 13, color: mutedTextColor, marginTop: 4 }}
-            >
-              Métricas e gestão dos seus Template Packs
-            </ThemedText>
-          </View>
-          <TouchableOpacity
-            onPress={() =>
-              router.push("/(app)/Administrador/marketplace-publish")
+          <LinearGradient
+            colors={
+              isDark
+                ? [BUILDER_ACCENT + "30", "#1e1b4b20"]
+                : [BUILDER_ACCENT + "14", "#ede9fe"]
             }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={{
-              backgroundColor: tintColor,
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 8,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
+              padding: 20,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderColor: BUILDER_ACCENT + "20",
             }}
           >
-            <Ionicons name="add" size={18} color="#fff" />
-            <ThemedText
-              style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+              }}
             >
-              Criar Pack
-            </ThemedText>
-          </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    marginBottom: 6,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      backgroundColor: BUILDER_ACCENT + "22",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Ionicons
+                      name="cube-outline"
+                      size={20}
+                      color={BUILDER_ACCENT}
+                    />
+                  </View>
+                  <ThemedText
+                    style={{
+                      fontSize: 22,
+                      fontWeight: "800",
+                      color: textColor,
+                      letterSpacing: -0.3,
+                    }}
+                  >
+                    Dashboard Criador
+                  </ThemedText>
+                </View>
+                <ThemedText
+                  style={{
+                    fontSize: 13,
+                    color: mutedTextColor,
+                    marginTop: 2,
+                    marginLeft: 46,
+                  }}
+                >
+                  Métricas e gestão dos seus Template Packs
+                </ThemedText>
+              </View>
+              <TouchableOpacity
+                onPress={() =>
+                  router.push("/(app)/Administrador/marketplace-publish")
+                }
+                style={{
+                  backgroundColor: BUILDER_ACCENT,
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Ionicons name="add" size={18} color="#fff" />
+                <ThemedText
+                  style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}
+                >
+                  Criar Pack
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
 
         {error ? (
@@ -801,30 +956,39 @@ export default function BuilderDashboard() {
         ) : null}
 
         {/* ── KPI Cards ── */}
-        <ThemedText
+        <View
           style={{
-            fontSize: 13,
-            fontWeight: "700",
-            color: mutedTextColor,
-            marginBottom: 8,
-            textTransform: "uppercase",
-            letterSpacing: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: 10,
           }}
         >
-          Visão Geral
-        </ThemedText>
+          <ThemedText
+            style={{
+              fontSize: 13,
+              fontWeight: "700",
+              color: mutedTextColor,
+              textTransform: "uppercase",
+              letterSpacing: 1,
+            }}
+          >
+            Visão Geral
+          </ThemedText>
+        </View>
         <View
           style={{
             flexDirection: "row",
             flexWrap: "wrap",
-            gap: 8,
-            marginBottom: 8,
+            gap: 10,
+            marginBottom: 10,
           }}
         >
           <KpiCard
             label="Packs Ativos"
             value={String(kpis?.activePacks ?? 0)}
             icon="cube-outline"
+            accentBg={BUILDER_ACCENT}
             subtitle={`${kpis?.totalPacks ?? 0} total`}
           />
           <KpiCard
@@ -838,8 +1002,8 @@ export default function BuilderDashboard() {
           style={{
             flexDirection: "row",
             flexWrap: "wrap",
-            gap: 8,
-            marginBottom: 8,
+            gap: 10,
+            marginBottom: 10,
           }}
         >
           <KpiCard
@@ -858,8 +1022,8 @@ export default function BuilderDashboard() {
           style={{
             flexDirection: "row",
             flexWrap: "wrap",
-            gap: 8,
-            marginBottom: 16,
+            gap: 10,
+            marginBottom: 20,
           }}
         >
           <KpiCard
@@ -972,6 +1136,105 @@ export default function BuilderDashboard() {
         ) : (
           filteredPacks.map(renderPack)
         )}
+
+        {/* ── Cross-promo: Channel Partner CTA ── */}
+        <View
+          style={{
+            marginTop: 24,
+            borderRadius: 14,
+            overflow: "hidden",
+          }}
+        >
+          <LinearGradient
+            colors={
+              isDark
+                ? [PARTNER_ACCENT + "18", "#05250e20"]
+                : [PARTNER_ACCENT + "0C", "#f0fdf4"]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              padding: 20,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: PARTNER_ACCENT + "20",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  backgroundColor: PARTNER_ACCENT + "1A",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Ionicons
+                  name="people-outline"
+                  size={22}
+                  color={PARTNER_ACCENT}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <ThemedText
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "700",
+                    color: textColor,
+                  }}
+                >
+                  Também seja Parceiro de Canal
+                </ThemedText>
+                <ThemedText
+                  style={{
+                    fontSize: 12,
+                    color: mutedTextColor,
+                    marginTop: 2,
+                    lineHeight: 17,
+                  }}
+                >
+                  Indique empresas para a Radul e ganhe comissão recorrente —
+                  combine os dois programas e maximize seus ganhos.
+                </ThemedText>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() =>
+                router.push("/(app)/Administrador/channel-partners" as any)
+              }
+              style={{
+                marginTop: 14,
+                alignSelf: "flex-start",
+                backgroundColor: PARTNER_ACCENT,
+                paddingHorizontal: 18,
+                paddingVertical: 10,
+                borderRadius: 10,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <ThemedText
+                style={{
+                  color: "#fff",
+                  fontWeight: "700",
+                  fontSize: 13,
+                }}
+              >
+                Explorar Programa de Parceiros
+              </ThemedText>
+              <Ionicons name="arrow-forward" size={14} color="#fff" />
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
       </ScrollView>
     </ThemedView>
   );

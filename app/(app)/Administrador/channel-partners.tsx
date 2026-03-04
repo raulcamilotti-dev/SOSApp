@@ -12,6 +12,7 @@ import {
     type CrudFieldConfig,
     type CrudScreenHandle,
 } from "@/components/ui/CrudScreen";
+import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import {
     generateReferralCode,
@@ -23,10 +24,13 @@ import {
     CRUD_ENDPOINT,
     normalizeCrudList,
 } from "@/services/crud";
+import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, TouchableOpacity, View } from "react-native";
+
+const BUILDER_ACCENT = "#7c3aed"; // violet
 
 // Generic row type for CrudScreen compatibility
 type Row = Record<string, unknown>;
@@ -35,6 +39,9 @@ export default function ChannelPartnersScreen() {
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<CrudFieldConfig<Row>[]>([]);
   const crudRef = useRef<CrudScreenHandle>(null);
+  const textColor = useThemeColor({}, "text");
+  const mutedTextColor = useThemeColor({}, "muted");
+  const borderColor = useThemeColor({}, "border");
 
   // Load schema
   useEffect(() => {
@@ -392,6 +399,62 @@ export default function ChannelPartnersScreen() {
     );
   }
 
+  /* ── Cross-promo: builder CTA ── */
+  const builderCTA = useMemo(
+    () => (
+      <TouchableOpacity
+        onPress={() =>
+          router.push("/(app)/Administrador/builder-dashboard" as any)
+        }
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: BUILDER_ACCENT + "30",
+          backgroundColor: BUILDER_ACCENT + "0A",
+        }}
+      >
+        <View
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 7,
+            backgroundColor: BUILDER_ACCENT + "1A",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <Ionicons name="cube-outline" size={14} color={BUILDER_ACCENT} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <ThemedText
+            style={{
+              fontSize: 12,
+              fontWeight: "700",
+              color: textColor,
+            }}
+          >
+            Também seja um Criador
+          </ThemedText>
+          <ThemedText
+            style={{
+              fontSize: 11,
+              color: mutedTextColor,
+            }}
+          >
+            Crie Template Packs e ganhe por instalação
+          </ThemedText>
+        </View>
+        <Ionicons name="arrow-forward" size={14} color={BUILDER_ACCENT} />
+      </TouchableOpacity>
+    ),
+    [textColor, mutedTextColor],
+  );
+
   return (
     <CrudScreen<Row>
       tableName="channel_partners"
@@ -415,6 +478,7 @@ export default function ChannelPartnersScreen() {
       renderItemActions={renderItemActions}
       controlRef={crudRef}
       addButtonLabel="+ Novo Parceiro"
+      headerActions={builderCTA}
     />
   );
 }

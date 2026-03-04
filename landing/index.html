@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Radul — Plataforma de Operações para Empresas de Serviço</title>
+  <meta name="description" content="CRM, financeiro, estoque, kanban, marketplace e mais — tudo em um só lugar. Configure em 15 minutos, sem treinamento." />
+  <meta property="og:title" content="Radul — Plataforma de Operações" />
+  <meta property="og:description" content="CRM, financeiro, estoque, kanban, marketplace e mais — tudo em um só lugar." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://radul.com.br" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/ionicons@7.1.0/dist/css/ionicons.min.css" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PLACEHOLDER"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PLACEHOLDER');</script>
+</head>
+<body>
+
+<!-- ═══════════ NAV ═══════════ -->
+<nav class="nav" id="navbar">
+  <div class="container nav-inner">
+    <a href="#" class="nav-logo">Rad<span>ul</span></a>
+
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#funcionalidades">Funcionalidades</a></li>
+      <li><a href="#modulos">Módulos</a></li>
+      <li><a href="#planos">Planos</a></li>
+      <li><a href="#verticais">Verticais</a></li>
+      <li><a href="#ecossistema">Ecossistema</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a href="/blog" class="nav-link-blog">Blog</a></li>
+    </ul>
+
+    <div class="nav-cta">
+      <a href="#" class="btn btn-ghost btn-sm nav-link-login">Entrar</a>
+      <a href="#" class="btn btn-primary btn-sm btn-pill nav-link-register">Começar Grátis</a>
+    </div>
+
+    <button class="nav-mobile-toggle" onclick="toggleMenu()" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="4" y1="6" x2="20" y2="6"/>
+        <line x1="4" y1="12" x2="20" y2="12"/>
+        <line x1="4" y1="18" x2="20" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero">
+  <div class="container hero-inner">
+
+    <!-- Partner referral banner -->
+    <div class="partner-cta-banner" id="partnerBanner" style="display:none;">
+      🤝 Indicado por um parceiro&nbsp;—&nbsp;
+      <a href="#" class="nav-link-register">ganhe vantagens exclusivas</a>
+    </div>
+
+    <div class="hero-badge">
+      ⚡ Plataforma nº1 para serviços&nbsp;&nbsp;<strong>100% configurável</strong>
+    </div>
+
+    <h1>Sua operação inteira<br /><span class="text-gradient">em um só lugar.</span></h1>
+
+    <p class="hero-desc">CRM, financeiro, estoque, kanban, marketplace, portal do cliente e mais — configure em 15 minutos, sem treinamento.</p>
+
+    <div class="hero-actions">
+      <a href="#" class="btn btn-accent btn-lg btn-pill nav-link-register">Começar Grátis →</a>
+      <a href="#como-funciona" class="btn btn-secondary btn-lg btn-pill">Como funciona</a>
+    </div>
+
+    <div class="hero-trust">
+      <span class="hero-trust-item">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 110 16A8 8 0 018 0zm3.5 5.5l-4.5 5-2.5-2.5"/></svg>
+        Sem cartão de crédito
+      </span>
+      <span class="hero-trust-item">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 110 16A8 8 0 018 0zm3.5 5.5l-4.5 5-2.5-2.5"/></svg>
+        Setup em 15 min
+      </span>
+      <span class="hero-trust-item">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 110 16A8 8 0 018 0zm3.5 5.5l-4.5 5-2.5-2.5"/></svg>
+        Cancele quando quiser
+      </span>
+    </div>
+  </div>
+
+  <!-- Feature pills -->
+  <div class="hero-visual container">
+    <div class="hero-feature-stack">
+      <span class="hero-feature-pill"><span>📋</span> Ordens de Serviço</span>
+      <span class="hero-feature-pill"><span>📊</span> Kanban</span>
+      <span class="hero-feature-pill"><span>👥</span> CRM &amp; Leads</span>
+      <span class="hero-feature-pill"><span>💰</span> Financeiro</span>
+      <span class="hero-feature-pill"><span>📦</span> Estoque</span>
+      <span class="hero-feature-pill"><span>🛒</span> Marketplace</span>
+      <span class="hero-feature-pill"><span>📱</span> App Mobile</span>
+      <span class="hero-feature-pill"><span>🌐</span> Portal do Cliente</span>
+      <span class="hero-feature-pill"><span>🤖</span> IA &amp; Automação</span>
+      <span class="hero-feature-pill"><span>📈</span> BI &amp; Relatórios</span>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="hero-stats-bar">
+    <div class="container">
+      <div class="hero-stats">
+        <div>
+          <div class="hero-stat-value">15+</div>
+          <div class="hero-stat-label">Módulos</div>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div>
+          <div class="hero-stat-value">170+</div>
+          <div class="hero-stat-label">Telas</div>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div>
+          <div class="hero-stat-value">6</div>
+          <div class="hero-stat-label">Verticais</div>
+        </div>
+        <div class="hero-stat-divider"></div>
+        <div>
+          <div class="hero-stat-value">∞</div>
+          <div class="hero-stat-label">Usuários</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FEATURES ═══════════ -->
+<section id="funcionalidades">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-badge">✦ Funcionalidades</div>
+      <h2 class="section-title">Tudo que sua empresa precisa.<br /><span class="text-gradient">Nada que não precisa.</span></h2>
+      <p class="section-desc">Cada módulo é simples sozinho. Juntos, formam a plataforma mais completa do mercado.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon fi-blue">📋</div>
+        <h3>Ordens de Serviço</h3>
+        <p>Crie, acompanhe e gerencie qualquer tipo de serviço. Workflow configurável com kanban, timeline e SLA.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-violet">📊</div>
+        <h3>Kanban Inteligente</h3>
+        <p>Visualize processos em colunas arrastáveis. Cada board segue o workflow configurado pelo seu negócio.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-emerald">👥</div>
+        <h3>Clientes &amp; CRM</h3>
+        <p>Pipeline de leads com kanban, campanhas, lead scoring, follow-up automático e conversão em 1 clique.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-amber">📦</div>
+        <h3>Estoque Completo</h3>
+        <p>Movimentações, locais, alertas, composições/BOM, separação kanban e integração com vendas e compras.</p>
+        <span class="feature-tag feature-tag-new">Novo</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-pink">💰</div>
+        <h3>Financeiro Integrado</h3>
+        <p>Faturas, pagamentos, contas a receber/pagar, DRE, conciliação bancária OFX e inadimplentes.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-indigo">📈</div>
+        <h3>Relatórios &amp; Insights</h3>
+        <p>Dashboards interativos com Metabase, cross-filters, relatórios personalizados e export contábil.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-yellow">📅</div>
+        <h3>Agenda &amp; Equipes</h3>
+        <p>Calendário consolidado multi-user com sincronização iCal e export .ics. Gerencie a agenda de todo o time.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-purple">🏢</div>
+        <h3>Multi-Filial</h3>
+        <p>Gerencie múltiplas unidades de negócio, filiais e equipes com isolamento de dados e permissões RBAC.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-blue">📱</div>
+        <h3>Aplicativo Mobile</h3>
+        <p>Acesse tudo pelo celular com a mesma experiência do desktop. iOS, Android e Web com o mesmo código.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-violet">🧩</div>
+        <h3>Marketplace de Packs</h3>
+        <p>Instale packs de workflow, templates e automações criados por nossa comunidade de Criadores.</p>
+        <span class="feature-tag feature-tag-new">Novo</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-emerald">💬</div>
+        <h3>WhatsApp &amp; Notificações</h3>
+        <p>Chatbot inteligente, handoff humano e 9 tipos de notificação em 4 canais. Tudo integrado ao workflow.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-amber">🌐</div>
+        <h3>Portal do Cliente</h3>
+        <p>Link público para o cliente acompanhar o processo sem login. Timeline, progresso %, review automático.</p>
+        <span class="feature-tag feature-tag-core">Core</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ MODULES ═══════════ -->
+<section id="modulos">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-badge">🧩 Módulos</div>
+      <h2 class="section-title">Ative só o que você precisa</h2>
+      <p class="section-desc">15 módulos opt-in. O tenant vê só o que ativou — sem complexidade desnecessária.</p>
+    </div>
+
+    <div class="modules-grid">
+      <div class="module-card"><div class="module-icon">📋</div><h4>Ordens de Serviço</h4><p>Core</p></div>
+      <div class="module-card"><div class="module-icon">📊</div><h4>Kanban</h4><p>Core</p></div>
+      <div class="module-card"><div class="module-icon">👥</div><h4>Clientes</h4><p>Core</p></div>
+      <div class="module-card"><div class="module-icon">📦</div><h4>Estoque</h4><p>Opt-in</p></div>
+      <div class="module-card"><div class="module-icon">💰</div><h4>Financeiro</h4><p>Opt-in</p></div>
+      <div class="module-card"><div class="module-icon">📈</div><h4>Relatórios</h4><p>Opt-in</p></div>
+      <div class="module-card"><div class="module-icon">📅</div><h4>Agenda</h4><p>Core</p></div>
+      <div class="module-card"><div class="module-icon">👷</div><h4>Equipes</h4><p>Core</p></div>
+      <div class="module-card"><div class="module-icon">🏢</div><h4>Multi-Filial</h4><p>Opt-in</p></div>
+      <div class="module-card"><div class="module-icon">📱</div><h4>App Mobile</h4><p>Core</p></div>
+      <div class="module-card"><div class="module-icon">🧩</div><h4>Marketplace</h4><p>Opt-in</p></div>
+      <div class="module-card"><div class="module-icon">💬</div><h4>WhatsApp</h4><p>Opt-in</p></div>
+      <div class="module-card"><div class="module-icon">🌐</div><h4>Portal Cliente</h4><p>Core</p></div>
+      <div class="module-card"><div class="module-icon">⚙️</div><h4>Workflow</h4><p>Core</p></div>
+      <div class="module-card"><div class="module-icon">📣</div><h4>Campanhas</h4><p>Opt-in</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ PRICING ═══════════ -->
+<section id="planos">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-badge">💎 Planos</div>
+      <h2 class="section-title">Comece grátis,<br /><span class="text-gradient">escale sem limites.</span></h2>
+      <p class="section-desc">Pague apenas pelo que usar. Upgrade ou downgrade a qualquer momento.</p>
+    </div>
+
+    <div class="pricing-grid">
+      <!-- Grátis -->
+      <div class="pricing-card">
+        <div class="pricing-name">Grátis</div>
+        <div class="pricing-desc">Para começar e validar</div>
+        <div class="pricing-price">
+          <span class="pricing-currency">R$</span>
+          <span class="pricing-amount">0</span>
+          <span class="pricing-period">/mês</span>
+        </div>
+        <div class="pricing-limit">Até 5 OS/mês · 1 usuário</div>
+        <ul class="pricing-features">
+          <li>CrudScreen universal</li>
+          <li>Kanban &amp; Workflow</li>
+          <li>Portal do cliente</li>
+          <li>1 Template Pack</li>
+          <li class="disabled">Módulos opcionais</li>
+          <li class="disabled">IA &amp; Automação</li>
+          <li class="disabled">Suporte prioritário</li>
+        </ul>
+        <a href="#" class="btn btn-secondary nav-link-register">Começar Grátis</a>
+      </div>
+
+      <!-- Starter -->
+      <div class="pricing-card">
+        <div class="pricing-name">Starter</div>
+        <div class="pricing-desc">Para pequenos negócios</div>
+        <div class="pricing-price">
+          <span class="pricing-currency">R$</span>
+          <span class="pricing-amount">99</span>
+          <span class="pricing-period">/mês</span>
+        </div>
+        <div class="pricing-limit">Até 50 OS/mês · 5 usuários</div>
+        <ul class="pricing-features">
+          <li>Tudo do Grátis</li>
+          <li>Módulos opt-in</li>
+          <li>Financeiro &amp; CRM</li>
+          <li>WhatsApp bot</li>
+          <li>2 Template Packs</li>
+          <li class="disabled">IA &amp; Automação</li>
+        </ul>
+        <a href="#" class="btn btn-secondary nav-link-register">Começar com Starter</a>
+      </div>
+
+      <!-- Growth -->
+      <div class="pricing-card">
+        <div class="pricing-name">Growth</div>
+        <div class="pricing-desc">Para empresas em crescimento</div>
+        <div class="pricing-price">
+          <span class="pricing-currency">R$</span>
+          <span class="pricing-amount">249</span>
+          <span class="pricing-period">/mês</span>
+        </div>
+        <div class="pricing-limit">Até 200 OS/mês · 15 usuários</div>
+        <ul class="pricing-features">
+          <li>Tudo do Starter</li>
+          <li>BI &amp; Dashboards</li>
+          <li>Estoque &amp; Compras</li>
+          <li>Marketplace</li>
+          <li>Todos os Packs</li>
+          <li>Suporte chat</li>
+        </ul>
+        <a href="#" class="btn btn-accent nav-link-register">Começar com Growth</a>
+      </div>
+
+      <!-- Scale -->
+      <div class="pricing-card featured">
+        <div class="pricing-popular">Mais popular</div>
+        <div class="pricing-name">Scale</div>
+        <div class="pricing-desc">Para operações robustas</div>
+        <div class="pricing-price">
+          <span class="pricing-currency">R$</span>
+          <span class="pricing-amount">499</span>
+          <span class="pricing-period">/mês</span>
+        </div>
+        <div class="pricing-limit">OS ilimitadas · Usuários ilimitados</div>
+        <ul class="pricing-features">
+          <li>Tudo do Growth</li>
+          <li>IA &amp; Automação</li>
+          <li>AI Agents &amp; Playbooks</li>
+          <li>Multi-filial</li>
+          <li>Conciliação bancária</li>
+          <li>Suporte prioritário</li>
+        </ul>
+        <a href="#" class="btn btn-primary nav-link-register">Começar com Scale</a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="pricing-card">
+        <div class="pricing-name">Enterprise</div>
+        <div class="pricing-desc">Para grandes operações</div>
+        <div class="pricing-price">
+          <span class="pricing-amount pricing-amount-enterprise">Sob consulta</span>
+        </div>
+        <div class="pricing-limit">Customizado por empresa</div>
+        <ul class="pricing-features">
+          <li>Tudo do Scale</li>
+          <li>SLA dedicado</li>
+          <li>API customizada</li>
+          <li>Treinamento in-loco</li>
+          <li>Deploy self-hosted</li>
+          <li>Account manager</li>
+        </ul>
+        <a href="#" class="btn btn-secondary nav-link-register">Falar com vendas</a>
+      </div>
+    </div>
+
+    <div class="pricing-note">
+      <div class="pricing-note-icon">💡</div>
+      <div>
+        <strong>Usuários ilimitados nos planos pagos</strong>
+        <p>Diferente de outros SaaS que cobram por usuário, a Radul cobra por volume de operações. Convide toda a equipe sem custo adicional.</p>
+      </div>
+    </div>
+
+    <div class="pricing-auto">
+      <h3>📊 Ajuste automático de plano</h3>
+      <p>A Radul monitora seu uso mensal e sugere upgrades ou downgrades automaticamente. Sem surpresas, sem desperdício. Você sempre paga o justo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ VERTICALS ═══════════ -->
+<section id="verticais">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-badge">🎯 Verticais</div>
+      <h2 class="section-title">Um motor.<br /><span class="text-gradient">Infinitas configurações.</span></h2>
+      <p class="section-desc">Escolha um Template Pack e comece com workflows, serviços e terminologia do seu segmento — pronto em 15 minutos.</p>
+    </div>
+
+    <div class="verticals-grid">
+      <div class="vertical-card">
+        <div class="vertical-emoji">🔧</div>
+        <h3>Serviços</h3>
+        <p>Prestadores, manutenção, instalações, reparos. Controle de campo e equipes com kanban visual.</p>
+        <div class="vertical-tags">
+          <span class="vertical-tag">OS</span>
+          <span class="vertical-tag">Kanban</span>
+          <span class="vertical-tag">Parceiros</span>
+          <span class="vertical-tag">Portal</span>
+        </div>
+      </div>
+      <div class="vertical-card">
+        <div class="vertical-emoji">⚖️</div>
+        <h3>Advocacia</h3>
+        <p>Gestão de processos, prazos, honorários, documentos e clientes. Workflow jurídico pré-configurado.</p>
+        <div class="vertical-tags">
+          <span class="vertical-tag">Processos</span>
+          <span class="vertical-tag">Prazos</span>
+          <span class="vertical-tag">Honorários</span>
+          <span class="vertical-tag">Docs</span>
+        </div>
+      </div>
+      <div class="vertical-card">
+        <div class="vertical-emoji">🏪</div>
+        <h3>Comércio</h3>
+        <p>PDV, catálogo de produtos, estoque, compras, fornecedores, expedição e entregas com rastreamento.</p>
+        <div class="vertical-tags">
+          <span class="vertical-tag">PDV</span>
+          <span class="vertical-tag">Estoque</span>
+          <span class="vertical-tag">Compras</span>
+          <span class="vertical-tag">Entregas</span>
+        </div>
+      </div>
+      <div class="vertical-card">
+        <div class="vertical-emoji">💼</div>
+        <h3>Consultoria</h3>
+        <p>Projetos, diagnósticos, sprints e entregáveis. Workflow de proposta a encerramento com CRM integrado.</p>
+        <div class="vertical-tags">
+          <span class="vertical-tag">Projetos</span>
+          <span class="vertical-tag">CRM</span>
+          <span class="vertical-tag">Proposta</span>
+          <span class="vertical-tag">Financeiro</span>
+        </div>
+      </div>
+      <div class="vertical-card">
+        <div class="vertical-emoji">🏥</div>
+        <h3>Saúde</h3>
+        <p>Consultas, exames e procedimentos. Agendamento, triagem, atendimento até alta — tudo em workflow.</p>
+        <div class="vertical-tags">
+          <span class="vertical-tag">Agenda</span>
+          <span class="vertical-tag">Triagem</span>
+          <span class="vertical-tag">Prontuário</span>
+          <span class="vertical-tag">Parceiros</span>
+        </div>
+      </div>
+      <div class="vertical-card">
+        <div class="vertical-emoji">🔄</div>
+        <h3>Revenda</h3>
+        <p>Encomendas, recebimento, expedição e entrega. Gestão de fornecedores e rastreamento de pedidos.</p>
+        <div class="vertical-tags">
+          <span class="vertical-tag">Catálogo</span>
+          <span class="vertical-tag">Fornecedores</span>
+          <span class="vertical-tag">Lotes</span>
+          <span class="vertical-tag">Margem</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ ECOSYSTEM ═══════════ -->
+<section id="ecossistema">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-badge">🌐 Ecossistema</div>
+      <h2 class="section-title">Cresça com a Radul.<br /><span class="text-gradient">Duas formas de participar.</span></h2>
+      <p class="section-desc">Seja indicando clientes como Parceiro de Canal ou construindo packs como Criador — os dois programas podem ser combinados.</p>
+    </div>
+
+    <div class="ecosystem-grid">
+      <!-- Partners -->
+      <div class="ecosystem-card ecosystem-card-partners">
+        <div class="ecosystem-icon ecosystem-icon-partners">🤝</div>
+        <h3>Parceiros de Canal</h3>
+        <p>Indique clientes e ganhe comissão recorrente sobre cada assinatura ativa. Ideal para consultores, contadores, agências e revendedores.</p>
+        <ul class="ecosystem-features">
+          <li>Comissão recorrente mensal</li>
+          <li>Link de indicação personalizado</li>
+          <li>Dashboard de performance</li>
+          <li>Materiais de venda e onboarding</li>
+          <li>Suporte co-branded com sua marca</li>
+        </ul>
+        <a href="ecossistema.html#parceiros" class="btn btn-primary btn-pill">Seja Parceiro →</a>
+      </div>
+
+      <!-- Builders / Criadores -->
+      <div class="ecosystem-card ecosystem-card-builders">
+        <div class="ecosystem-icon ecosystem-icon-builders">🛠️</div>
+        <h3>Criadores</h3>
+        <p>Crie Template Packs, Agent Packs e automações para o marketplace da Radul. Monetize seu conhecimento de domínio e ganhe por instalação.</p>
+        <ul class="ecosystem-features">
+          <li>Publique packs no marketplace</li>
+          <li>Revenue share por instalação</li>
+          <li>Ferramentas de criação no-code</li>
+          <li>Acesso antecipado a novas APIs</li>
+          <li>Badge de Criador verificado</li>
+        </ul>
+        <a href="ecossistema.html#criadores" class="btn btn-primary btn-pill">Seja Criador →</a>
+      </div>
+    </div>
+
+    <div class="pricing-note" style="margin-top: 40px;">
+      <div class="pricing-note-icon">💡</div>
+      <div>
+        <strong>Combine os dois programas</strong>
+        <p>Parceiros de Canal podem ser Criadores e vice-versa. Indique clientes e crie packs para o marketplace — maximize sua receita no ecossistema Radul.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ HOW IT WORKS ═══════════ -->
+<section id="como-funciona">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-badge">🚀 Como funciona</div>
+      <h2 class="section-title">Operando em 4 passos</h2>
+      <p class="section-desc">Da conta gratuita à operação completa — sem consultoria, sem treinamento obrigatório.</p>
+    </div>
+
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-number">1</div>
+        <h3>Crie sua conta grátis</h3>
+        <p>Cadastro com email, Google ou Gov.br. Sem cartão de crédito.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">2</div>
+        <h3>Configure seu negócio</h3>
+        <p>Escolha um Template Pack ou configure do zero. O setup guiado leva 15 minutos.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">3</div>
+        <h3>Importe seus dados</h3>
+        <p>Traga clientes, serviços e histórico via CSV ou cadastre manualmente.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">4</div>
+        <h3>Comece a operar</h3>
+        <p>Crie ordens de serviço, acompanhe no kanban e encante seus clientes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FAQ ═══════════ -->
+<section id="faq">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-badge">❓ FAQ</div>
+      <h2 class="section-title">Perguntas frequentes</h2>
+    </div>
+
+    <div class="faq-grid">
+      <details class="faq-item">
+        <summary>O que é a Radul?</summary>
+        <p>A Radul é uma plataforma de operações configurável para empresas de serviço. Em vez de usar vários sistemas separados (CRM, financeiro, estoque, kanban), você tem tudo integrado em um só lugar — e configura para o seu tipo de negócio com Template Packs.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Quanto custa?</summary>
+        <p>Começa grátis com até 5 OS/mês e 1 usuário. Os planos pagos vão de R$99 a R$499/mês, e diferente de outros SaaS, cobramos por volume de operações — não por usuário. Convide toda a equipe sem custo extra.</p>
+      </details>
+      <details class="faq-item">
+        <summary>O plano gratuito tem alguma limitação?</summary>
+        <p>O plano gratuito inclui o core da plataforma: CrudScreen universal, kanban, workflow, portal do cliente e 1 Template Pack. Para módulos avançados como financeiro, CRM, IA e marketplace, é necessário um plano pago.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Posso usar para qualquer tipo de empresa?</summary>
+        <p>Sim. A Radul é um motor genérico que se adapta via configuração. Temos Template Packs pré-configurados para serviços, advocacia, comércio, consultoria, saúde e revenda — e você pode criar o seu próprio.</p>
+      </details>
+      <details class="faq-item">
+        <summary>O que são módulos opt-in?</summary>
+        <p>São funcionalidades que o tenant ativa conforme a necessidade. Se sua empresa não precisa de estoque, o menu "Estoque" simplesmente não aparece. Isso mantém a interface limpa e intuitiva.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Como funciona a migração de outro sistema?</summary>
+        <p>Você pode importar dados via CSV ou cadastrar manualmente. Para migrações mais complexas, oferecemos suporte guiado nos planos Growth e acima, e a API pública está no roadmap.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Funciona no celular?</summary>
+        <p>Sim. A Radul é construída com Expo React Native e roda nativamente em iOS, Android e Web com a mesma experiência. A equipe em campo acessa tudo pelo celular.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Posso cancelar a qualquer momento?</summary>
+        <p>Sim. Sem fidelidade, sem multa. Você pode fazer downgrade ou cancelar diretamente pelo app. Seus dados ficam disponíveis por 30 dias após o cancelamento.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CTA ═══════════ -->
+<section class="cta-section">
+  <div class="container">
+    <h2>Pronto para simplificar<br />sua operação?</h2>
+    <p>Junte-se a empresas que já operam com a Radul. Comece grátis e escale quando precisar.</p>
+    <a href="#" class="btn btn-primary btn-lg btn-pill nav-link-register">Começar Grátis →</a>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="nav-logo">Rad<span>ul</span></div>
+        <p>Plataforma de operações configurável para qualquer empresa de serviço. CRM, financeiro, estoque, kanban, marketplace e mais.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Produto</h4>
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#modulos">Módulos</a>
+        <a href="#planos">Planos</a>
+        <a href="#verticais">Verticais</a>
+        <a href="#ecossistema">Ecossistema</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="footer-col">
+        <h4>Empresa</h4>
+        <a href="/blog" class="nav-link-blog">Blog</a>
+        <a href="ecossistema.html">Parceiros</a>
+        <a href="ecossistema.html#criadores">Criadores</a>
+        <a href="#">Contato</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="termos-de-uso.html">Termos de Uso</a>
+        <a href="politica-de-privacidade.html">Política de Privacidade</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 Radul Platform. Todos os direitos reservados.</span>
+      <div class="footer-cnpj">CNPJ: 54.152.041/0001-22 · Raulcamilotti Tecnologia LTDA</div>
+    </div>
+  </div>
+</footer>
+
+<!-- ═══════════ SCRIPTS ═══════════ -->
+<script>
+/* ---- URL Resolution & Attribution ---- */
+
+/**
+ * Resolve the app base URL dynamically.
+ * - On radul.com.br → app.radul.com.br
+ * - On {slug}.radul.com.br → app.{slug}.radul.com.br (future)
+ * - On localhost → localhost:8081
+ * - On custom domain → app.{domain}
+ */
+function resolveAppBaseUrl() {
+  var host = window.location.hostname;
+  var protocol = window.location.protocol;
+  // Local dev
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return protocol + '//localhost:8081';
+  }
+  // Known main domains
+  if (host === 'radul.com.br' || host === 'www.radul.com.br') {
+    return protocol + '//app.radul.com.br';
+  }
+  // Subdomain pattern: {slug}.radul.com.br → app.{slug}.radul.com.br
+  if (host.endsWith('.radul.com.br')) {
+    var subdomain = host.replace('.radul.com.br', '');
+    if (subdomain && subdomain !== 'www') {
+      return protocol + '//app.' + subdomain + '.radul.com.br';
+    }
+    return protocol + '//app.radul.com.br';
+  }
+  // Custom domain fallback
+  return protocol + '//app.' + host;
+}
+
+/**
+ * Append attribution params (partner/referral/UTM) from the landing URL to any target URL.
+ */
+function appendAttributionParams(targetUrl) {
+  var url;
+  try { url = new URL(targetUrl); } catch (e) { return targetUrl; }
+  var params = new URLSearchParams(window.location.search);
+  // Forward partner/referral params
+  ['partner_id', 'ref', 'referral_code', 'tenant', 'tenant_slug'].forEach(function(key) {
+    var val = params.get(key);
+    if (val) url.searchParams.set(key, val);
+  });
+  // Forward UTM params
+  ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'].forEach(function(key) {
+    var val = params.get(key);
+    if (val) url.searchParams.set(key, val);
+  });
+  return url.toString();
+}
+
+/**
+ * Wire up all CTA/nav links that point to the app (login, register, blog).
+ */
+function configureInstitutionalRedirectLinks() {
+  var appBase = resolveAppBaseUrl();
+  // Register links
+  document.querySelectorAll('.nav-link-register').forEach(function(el) {
+    el.href = appendAttributionParams(appBase + '/registro');
+  });
+  // Login links
+  document.querySelectorAll('.nav-link-login').forEach(function(el) {
+    el.href = appendAttributionParams(appBase + '/login');
+  });
+  // Blog links
+  document.querySelectorAll('.nav-link-blog').forEach(function(el) {
+    el.href = appBase + '/blog';
+  });
+}
+
+/* ---- Partner Banner ---- */
+function showPartnerBannerIfReferred() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('partner_id') || params.get('ref') || params.get('referral_code')) {
+    var banner = document.getElementById('partnerBanner');
+    if (banner) banner.style.display = 'inline-flex';
+  }
+}
+
+/* ---- Mobile Menu Toggle ---- */
+function toggleMenu() {
+  var navLinks = document.getElementById('navLinks');
+  if (navLinks) navLinks.classList.toggle('open');
+}
+
+/* ---- Nav Shadow on Scroll ---- */
+function handleNavScroll() {
+  var nav = document.getElementById('navbar');
+  if (!nav) return;
+  if (window.scrollY > 10) {
+    nav.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)';
+  } else {
+    nav.style.boxShadow = 'none';
+  }
+}
+
+/* ---- Smooth Scroll for Anchor Links ---- */
+function setupSmoothScroll() {
+  document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
+    anchor.addEventListener('click', function(e) {
+      var href = this.getAttribute('href');
+      if (!href || href === '#') return;
+      var target = document.querySelector(href);
+      if (target) {
+        e.preventDefault();
+        var navHeight = 80;
+        var top = target.getBoundingClientRect().top + window.pageYOffset - navHeight;
+        window.scrollTo({ top: top, behavior: 'smooth' });
+        // Close mobile menu if open
+        var navLinks = document.getElementById('navLinks');
+        if (navLinks) navLinks.classList.remove('open');
+      }
+    });
+  });
+}
+
+/* ---- FAQ Accordion (auto-close others) ---- */
+function setupFaqAccordion() {
+  document.querySelectorAll('.faq-item').forEach(function(item) {
+    item.addEventListener('toggle', function() {
+      if (this.open) {
+        document.querySelectorAll('.faq-item').forEach(function(other) {
+          if (other !== item) other.removeAttribute('open');
+        });
+      }
+    });
+  });
+}
+
+/* ---- Init ---- */
+document.addEventListener('DOMContentLoaded', function() {
+  configureInstitutionalRedirectLinks();
+  showPartnerBannerIfReferred();
+  setupSmoothScroll();
+  setupFaqAccordion();
+  window.addEventListener('scroll', handleNavScroll);
+});
+</script>
+
+</body>
+</html>

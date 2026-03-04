@@ -92,16 +92,12 @@ export default function WorkflowTemplatesScreen() {
 
   const loadRowsWithRelations = useMemo(() => {
     return async (): Promise<Row[]> => {
-      const tenantFilter = tenantId
-        ? buildSearchParams([{ field: "tenant_id", value: tenantId }])
-        : {};
-
       const [templateRows, stepsResponse] = await Promise.all([
         listRows(),
         api.post(CRUD_ENDPOINT, {
           action: "list",
           table: "workflow_steps",
-          ...tenantFilter,
+          auto_exclude_deleted: true,
         }),
       ]);
 
