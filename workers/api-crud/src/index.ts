@@ -215,6 +215,7 @@ const AUTH_RATE_LIMITS = {
   "/auth/request-password-reset": { maxRequests: 3, windowMs: 60_000 }, // 3/min
   "/auth/confirm-password-reset": { maxRequests: 5, windowMs: 60_000 }, // 5/min
   "/auth/login": { maxRequests: 10, windowMs: 60_000 }, // 10/min
+  "/auth/google": { maxRequests: 10, windowMs: 60_000 }, // 10/min
   "/auth/register": { maxRequests: 5, windowMs: 60_000 }, // 5/min
 } as const;
 
@@ -1415,6 +1416,247 @@ async function handleLogin(
   }
 }
 
+interface GoogleTokenInfo {
+  aud?: string;
+  email?: string;
+  email_verified?: string;
+  exp?: string;
+  iss?: string;
+  name?: string;
+  picture?: string;
+  sub?: string;
+}
+
+function parseAllowedGoogleClientIds(env: Env): Set<string> {
+  const raw = String(env.GOOGLE_CLIENT_IDS ?? "").trim();
+  if (!raw) return new Set();
+  const ids = raw
+    .split(/[,\s;]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return new Set(ids);
+}
+
+async function verifyGoogleIdToken(
+  idToken: string,
+  env: Env,
+): Promise<GoogleTokenInfo> {
+  const tokenInfoUrl = new URL("https://oauth2.googleapis.com/tokeninfo");
+  tokenInfoUrl.searchParams.set("id_token", idToken);
+
+  const response = await fetch(tokenInfoUrl.toString(), {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error("Token do Google inválido");
+  }
+
+  const payload = (await response.json()) as GoogleTokenInfo & {
+    error_description?: string;
+  };
+
+  if (!payload.sub) {
+    throw new Error("Token do Google sem identificador");
+  }
+
+  const issuer = String(payload.iss ?? "").trim();
+  const validIssuer =
+    issuer === "accounts.google.com" || issuer === "https://accounts.google.com";
+  if (!validIssuer) {
+    throw new Error("Emissor do token Google inválido");
+  }
+
+  const expUnix = Number(payload.exp ?? "0");
+  if (!Number.isFinite(expUnix) || expUnix <= Math.floor(Date.now() / 1000)) {
+    throw new Error("Token do Google expirado");
+  }
+
+  const allowedClientIds = parseAllowedGoogleClientIds(env);
+  const aud = String(payload.aud ?? "").trim();
+  if (allowedClientIds.size > 0 && (!aud || !allowedClientIds.has(aud))) {
+    throw new Error("Token Google com client_id não autorizado");
+  }
+
+  return payload;
+}
+
+async function handleGoogleLogin(
+  body: Record<string, unknown>,
+  env: Env,
+): Promise<Response> {
+  const idToken = String(body.id_token ?? "").trim();
+  const hostname = String(body.hostname ?? "").trim();
+  const tenantSlug = String(body.tenant_slug ?? "").trim();
+
+  if (!idToken) {
+    return errorResponse(400, "id_token é obrigatório");
+  }
+
+  try {
+    // 1. Validate Google token and extract profile
+    const google = await verifyGoogleIdToken(idToken, env);
+    const email = String(google.email ?? "")
+      .trim()
+      .toLowerCase();
+    const fullname = String(google.name ?? "").trim();
+    const emailVerified =
+      String(google.email_verified ?? "").toLowerCase() === "true";
+
+    if (!email) {
+      return errorResponse(400, "Conta Google sem e-mail");
+    }
+
+    if (!emailVerified) {
+      return errorResponse(401, "E-mail Google não verificado");
+    }
+
+    // 2. Find existing user by email or create one
+    const users = await executeQuery(
+      env,
+      'SELECT "id", "cpf", "email", "fullname", "phone", "role" FROM "users" WHERE LOWER("email") = $1 AND "deleted_at" IS NULL LIMIT 1',
+      [email],
+    );
+
+    let userId = "";
+    let userCpf: string | null = null;
+    let userEmail = email;
+    let userFullname = fullname;
+    let userPhone: string | null = null;
+    let userRole = "user";
+
+    if (users.length > 0) {
+      const existing = users[0] as {
+        id: string;
+        cpf: string | null;
+        email: string | null;
+        fullname: string | null;
+        phone: string | null;
+        role: string | null;
+      };
+      userId = existing.id;
+      userCpf = existing.cpf;
+      userEmail = existing.email ?? email;
+      userFullname = existing.fullname ?? fullname;
+      userPhone = existing.phone;
+      userRole = existing.role ?? "user";
+
+      if (fullname && fullname !== existing.fullname) {
+        try {
+          await executeQuery(
+            env,
+            'UPDATE "users" SET "fullname" = $1, "updated_at" = NOW() WHERE "id" = $2',
+            [fullname, existing.id],
+          );
+          userFullname = fullname;
+        } catch {
+          /* best effort */
+        }
+      }
+    } else {
+      const newUserId = crypto.randomUUID();
+      await executeQuery(
+        env,
+        'INSERT INTO "users" ("id", "email", "fullname", "role", "created_at", "updated_at") VALUES ($1, $2, $3, $4, NOW(), NOW())',
+        [newUserId, email, fullname || null, "user"],
+      );
+      userId = newUserId;
+      userRole = "user";
+      userFullname = fullname;
+    }
+
+    // 3. Resolve tenant from hostname/slug and auto-link user_tenants
+    let tenantId = "";
+    try {
+      const tenantResolution = await resolveTenantInternal(
+        env,
+        tenantSlug,
+        hostname,
+      );
+      if (tenantResolution.resolved && tenantResolution.tenant) {
+        const tenant = tenantResolution.tenant;
+        tenantId = tenant.id;
+
+        const existingLink = await executeQuery(
+          env,
+          'SELECT ut."tenant_id", COALESCE(r."key", r."name", $3) AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."tenant_id" = $2 AND ut."deleted_at" IS NULL LIMIT 1',
+          [userId, tenantId, userRole],
+        );
+
+        if (existingLink.length > 0) {
+          const link = existingLink[0] as { role: string };
+          userRole = link.role;
+        } else {
+          const defaultRole = tenant.default_client_role || "client";
+          let roleId: string | null = null;
+          try {
+            const roles = await executeQuery(
+              env,
+              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "deleted_at" IS NULL LIMIT 1',
+              [defaultRole],
+            );
+            if (roles.length > 0) {
+              roleId = (roles[0] as { id: string }).id;
+            }
+          } catch {
+            /* role lookup non-critical */
+          }
+
+          try {
+            await executeQuery(
+              env,
+              'INSERT INTO "user_tenants" ("id", "user_id", "tenant_id", "role_id", "is_active", "created_at") VALUES ($1, $2, $3, $4, true, NOW())',
+              [crypto.randomUUID(), userId, tenantId, roleId],
+            );
+            userRole = defaultRole;
+          } catch {
+            /* auto-link non-critical */
+          }
+        }
+      } else {
+        const authContext = await resolveUserAuthContext(env, userId);
+        tenantId = authContext.tenant_id;
+        userRole = authContext.role;
+      }
+    } catch {
+      const authContext = await resolveUserAuthContext(env, userId);
+      tenantId = authContext.tenant_id;
+      userRole = authContext.role;
+    }
+
+    // 4. Generate JWT and return login payload
+    const token = await signToken(
+      { sub: userId, tenant_id: tenantId, role: userRole },
+      env.JWT_SECRET,
+    );
+
+    return corsResponse(200, {
+      user: {
+        id: userId,
+        cpf: userCpf,
+        email: userEmail,
+        fullname: userFullname || null,
+        phone: userPhone,
+        role: userRole,
+        tenant_id: tenantId || null,
+      },
+      token,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[auth/google]", message);
+
+    if (message.toLowerCase().includes("inválido")) {
+      return errorResponse(401, "Token Google inválido");
+    }
+    if (message.toLowerCase().includes("expirado")) {
+      return errorResponse(401, "Token Google expirado");
+    }
+    return errorResponse(500, "Falha no login com Google. Tente novamente.");
+  }
+}
+
 /* ================================================================== */
 /*  API Key Management (server-side key generation)                    */
 /* ================================================================== */
@@ -1600,6 +1842,8 @@ export default {
           return handleRegister(body, env);
         case "/auth/login":
           return handleLogin(body, env);
+        case "/auth/google":
+          return handleGoogleLogin(body, env);
         default:
           return errorResponse(404, "Not found: " + path);
       }

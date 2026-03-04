@@ -3,12 +3,13 @@
 /* ================================================================== */
 
 export interface Env {
-  DATABASE_URL: string; // set via `wrangler secret put DATABASE_URL`
-  API_KEY: string; // set via `wrangler secret put API_KEY`
-  JWT_SECRET: string; // set via `wrangler secret put JWT_SECRET` (use: openssl rand -base64 48)
-  CLOUDFLARE_DNS_API_KEY: string; // Global API Key — set via `wrangler secret put CLOUDFLARE_DNS_API_KEY`
-  CLOUDFLARE_DNS_EMAIL: string; // Account email — set via `wrangler secret put CLOUDFLARE_DNS_EMAIL`
-  CLOUDFLARE_ZONE_ID: string; // set via `wrangler secret put CLOUDFLARE_ZONE_ID`
+  DATABASE_URL: string; // set via wrangler secret put DATABASE_URL
+  API_KEY: string; // set via wrangler secret put API_KEY
+  JWT_SECRET: string; // set via wrangler secret put JWT_SECRET (use: openssl rand -base64 48)
+  GOOGLE_CLIENT_IDS?: string; // optional comma-separated list of allowed Google OAuth client IDs
+  CLOUDFLARE_DNS_API_KEY: string; // Global API Key — set via wrangler secret put CLOUDFLARE_DNS_API_KEY
+  CLOUDFLARE_DNS_EMAIL: string; // Account email — set via wrangler secret put CLOUDFLARE_DNS_EMAIL
+  CLOUDFLARE_ZONE_ID: string; // set via wrangler secret put CLOUDFLARE_ZONE_ID
   ENVIRONMENT: string;
   /** Cloudflare KV namespace for public API rate limiting */
   RATE_LIMIT_KV: KVNamespace;

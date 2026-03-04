@@ -42,6 +42,7 @@ export function AuthGate({ children }: Props) {
 
   const inAuthGroup = segments[0] === "(auth)";
   const inPublicGroup = segments[0] === "(public)";
+  const isRegisterRoute = segments.some((s) => s === "register");
   const isProfileComplete = isUserProfileComplete(user);
   const canAccessAdmin = hasAnyPermission(ADMIN_PANEL_PERMISSIONS);
   const adminOnlyRoutes = ["Administrador"];
@@ -103,6 +104,10 @@ export function AuthGate({ children }: Props) {
     }
 
     if (user && inAuthGroup) {
+      // Allow register page to handle the "already logged in" state
+      // (shows logout option so user can create a new account)
+      if (isRegisterRoute) return;
+
       if (!isProfileComplete) {
         router.replace("/(app)/Usuario/complete-profile");
         return;

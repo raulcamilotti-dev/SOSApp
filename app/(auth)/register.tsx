@@ -21,7 +21,7 @@ import {
 
 export default function Register() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, logout, user } = useAuth();
   const branding = useTenantBranding();
   const colors = useMemo(
     () =>
@@ -136,6 +136,8 @@ export default function Register() {
   /* ======================================================
    * Render
    * ====================================================== */
+  const [loggingOut, setLoggingOut] = useState(false);
+
   if (branding.loading) {
     return (
       <View style={[st.screen, { backgroundColor: colors.screenBg }]}>
@@ -144,6 +146,85 @@ export default function Register() {
           color={colors.primary}
           style={{ flex: 1 }}
         />
+      </View>
+    );
+  }
+
+  /* ── Already logged in: show options ── */
+  if (user && !loggingOut) {
+    return (
+      <View style={[st.screen, { backgroundColor: colors.screenBg }]}>
+        <ScrollView
+          contentContainerStyle={st.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={st.header}>
+            <View
+              style={[st.logoCircle, { backgroundColor: colors.primaryLight }]}
+            >
+              <Text style={[st.logoText, { color: colors.primary }]}>
+                {branding.brandName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <Text style={[st.brandTitle, { color: colors.heading }]}>
+              {branding.brandName}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              st.card,
+              {
+                backgroundColor: colors.cardBg,
+                shadowColor: colors.shadow,
+              },
+            ]}
+          >
+            <Text style={[st.cardTitle, { color: colors.heading }]}>
+              Sessão ativa
+            </Text>
+            <Text style={[st.cardSubtitle, { color: colors.body }]}>
+              Você já está logado como{" "}
+              {user.fullname || user.email || "usuário"}.{"\n"}Para criar uma
+              nova conta, saia primeiro.
+            </Text>
+
+            <Pressable
+              onPress={async () => {
+                setLoggingOut(true);
+                await logout();
+                setLoggingOut(false);
+              }}
+              style={({ pressed }) => [
+                st.btnPrimary,
+                {
+                  backgroundColor: pressed
+                    ? colors.primaryDark
+                    : colors.primary,
+                  marginTop: 20,
+                },
+              ]}
+            >
+              <Text style={[st.btnPrimaryText, { color: colors.primaryText }]}>
+                Sair e criar nova conta
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.replace("/")}
+              style={{
+                marginTop: 16,
+                alignItems: "center",
+                paddingVertical: 8,
+              }}
+            >
+              <Text style={[st.footerLink, { color: colors.primary }]}>
+                Voltar para o app
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       </View>
     );
   }
