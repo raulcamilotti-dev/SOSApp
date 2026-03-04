@@ -1,15 +1,12 @@
 /**
- * KANBAN ADMINISTRATIVO
+ * KANBAN ADMINISTRATIVO — Thin wrapper
  *
- * Thin wrapper that renders the shared ProcessKanbanScreen
- * with scope="administrative". This makes the customer picker
- * optional and filters workflow templates by administrative scope.
- *
- * Lives under the "Administrativo" menu group in admin navigation.
+ * Routes to the unified kanban with scope="administrative".
+ * All kanban logic is in kanban-universal.tsx.
  */
 
-import ProcessKanbanScreen from "./kanban-processos";
+import UnifiedKanbanScreen from "./kanban-universal";
 
 export default function KanbanAdministrativoScreen() {
-  return <ProcessKanbanScreen scope="administrative" />;
+  return <UnifiedKanbanScreen scope="administrative" />;
 }
