@@ -8,13 +8,14 @@
 
 import { api, getApiErrorMessage } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
+import { startServiceOrderProcess } from "@/services/service-order-engine";
 import {
-    createServiceOrder,
-    createServiceOrderContext,
+  createServiceOrder,
+  createServiceOrderContext,
 } from "@/services/service-orders";
 
 /* ------------------------------------------------------------------ */
@@ -218,6 +219,19 @@ export async function startCollectionProcess(
       });
     } catch {
       // Non-blocking
+    }
+
+    // 7. Trigger workflow engine (tasks, deadlines, automations)
+    if (serviceType.templateId) {
+      try {
+        await startServiceOrderProcess(serviceOrderId, serviceType.templateId, {
+          tenantId,
+          userId: createdBy ?? "",
+        });
+      } catch (engineErr) {
+        // Non-blocking — SO was created, engine side effects failed
+        console.warn("[Cobrança] Engine startProcess failed:", engineErr);
+      }
     }
 
     return { serviceOrderId, success: true };

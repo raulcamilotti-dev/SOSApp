@@ -24,7 +24,7 @@ import {
 } from "@/services/crud";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -515,20 +515,33 @@ export default function ProcessKanbanScreen({
     [workflowSteps],
   );
 
+  /** Engine context derived from current user session */
+  const engineCtx = useMemo<EngineContext>(
+    () => ({
+      tenantId: user?.tenant_id ?? "",
+      userId: user?.id ?? "",
+    }),
+    [user?.tenant_id, user?.id],
+  );
+
   const doAdvance = useCallback(
     async (order: ServiceOrderItem, nextStep: WorkflowStep) => {
       try {
-        await api.post(CRUD_ENDPOINT, {
-          action: "update",
-          table: "service_orders",
-          payload: { id: order.id, current_step_id: nextStep.id },
-        });
+        const result = await moveServiceOrder(order.id, nextStep.id, engineCtx);
+        if (result.warning) {
+          // Soft-warn: transition succeeded but no explicit rule configured
+          if (Platform.OS === "web") {
+            window.alert(`Aviso: ${result.warning}`);
+          } else {
+            Alert.alert("Aviso", result.warning);
+          }
+        }
         kanbanRef.current?.reload();
       } catch {
         Alert.alert("Erro", "Falha ao mover processo");
       }
     },
-    [],
+    [engineCtx],
   );
 
   const handleQuickAdvance = useCallback(
@@ -563,14 +576,14 @@ export default function ProcessKanbanScreen({
 
   const onMoveItem = useCallback(
     async (order: ServiceOrderItem, toColumnId: string) => {
-      await api.post(CRUD_ENDPOINT, {
-        action: "update",
-        table: "service_orders",
-        payload: { id: order.id, current_step_id: toColumnId },
-      });
-      Alert.alert("Sucesso", "Processo movido para nova etapa");
+      const result = await moveServiceOrder(order.id, toColumnId, engineCtx);
+      if (result.warning) {
+        Alert.alert("Processo movido", result.warning);
+      } else {
+        Alert.alert("Sucesso", "Processo movido para nova etapa");
+      }
     },
-    [],
+    [engineCtx],
   );
 
   /* ══════════════════════════════════════════════════════
@@ -756,6 +769,20 @@ export default function ProcessKanbanScreen({
 
       const created = Array.isArray(res.data) ? res.data[0] : res.data;
 
+      // Trigger workflow engine side effects (tasks, deadlines, automations)
+      if (created?.id && firstStep.template_id) {
+        try {
+          await startServiceOrderProcess(
+            created.id,
+            firstStep.template_id,
+            engineCtx,
+          );
+        } catch (engineErr) {
+          // Non-fatal: SO was created, engine side effects failed
+          if (__DEV__) console.warn("[Engine] startProcess failed:", engineErr);
+        }
+      }
+
       setCreateModalVisible(false);
       kanbanRef.current?.reload();
 
@@ -787,6 +814,7 @@ export default function ProcessKanbanScreen({
     createDescription,
     createCustomers,
     user,
+    engineCtx,
   ]);
 
   /* ══════════════════════════════════════════════════════

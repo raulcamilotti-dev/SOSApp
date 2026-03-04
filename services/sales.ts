@@ -27,6 +27,7 @@ import {
   normalizeCrudOne,
   type CrudFilter,
 } from "./crud";
+import { startServiceOrderProcess } from "./service-order-engine";
 import { recordStockMovement } from "./stock";
 
 /* ------------------------------------------------------------------ */
@@ -583,6 +584,19 @@ export async function createSale(
           entity_type: "sale",
           entity_id: sale.id,
         });
+
+        // Trigger workflow engine side effects (tasks, deadlines, automations)
+        if (workflow.templateId) {
+          try {
+            await startServiceOrderProcess(
+              linkedServiceOrderId,
+              workflow.templateId,
+              { tenantId, userId: soldByUserId ?? "" },
+            );
+          } catch {
+            // Non-blocking — SO was created, engine side effects failed
+          }
+        }
       } catch {
         linkedServiceOrderId = null;
       }

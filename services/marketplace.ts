@@ -1297,6 +1297,20 @@ export async function requestMarketplaceQuote(
     created_by: params.userId,
   });
 
+  // ── 4b. Trigger workflow engine (tasks, deadlines, automations) ──
+  if (workflowTemplateId) {
+    try {
+      const { startServiceOrderProcess } =
+        await import("./service-order-engine");
+      await startServiceOrderProcess(so.id, workflowTemplateId, {
+        tenantId: params.tenantId,
+        userId: params.userId,
+      });
+    } catch {
+      // Non-blocking — SO was created, workflow trigger is best-effort
+    }
+  }
+
   // ── 5. Resolve quote template items + document_template_id ──
   let items: QuoteItemInput[] = [];
   let discount = 0;
