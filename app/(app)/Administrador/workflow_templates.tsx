@@ -5,9 +5,9 @@ import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
 } from "@/services/crud";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
@@ -178,6 +178,8 @@ export default function WorkflowTemplatesScreen() {
       options: [
         { label: "Operacional", value: "operational" },
         { label: "Administrativo", value: "administrative" },
+        { label: "CRM", value: "crm" },
+        { label: "Estoque", value: "stock" },
       ],
       visibleInList: true,
     },
