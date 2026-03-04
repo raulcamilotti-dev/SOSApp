@@ -483,4 +483,3 @@ export const STEP_COLOR_PRESETS = [
 export function getDefaultStepColor(index: number): string {
   return STEP_COLOR_PRESETS[index % STEP_COLOR_PRESETS.length].value;
 }
-
