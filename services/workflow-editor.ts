@@ -375,6 +375,17 @@ export async function createStepForm(
   return normalizeCrudList<StepForm>(res.data)[0];
 }
 
+export async function updateStepForm(
+  payload: Partial<StepForm> & { id: string },
+): Promise<StepForm> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "update",
+    table: "step_forms",
+    payload: { ...payload, updated_at: new Date().toISOString() },
+  });
+  return normalizeCrudList<StepForm>(res.data)[0];
+}
+
 export async function deleteStepForm(id: string): Promise<void> {
   await api.post(CRUD_ENDPOINT, {
     action: "delete",
@@ -398,6 +409,17 @@ export async function createStepTaskTemplate(
   return normalizeCrudList<StepTaskTemplate>(res.data)[0];
 }
 
+export async function updateStepTaskTemplate(
+  payload: Partial<StepTaskTemplate> & { id: string },
+): Promise<StepTaskTemplate> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "update",
+    table: "step_task_templates",
+    payload: { ...payload, updated_at: new Date().toISOString() },
+  });
+  return normalizeCrudList<StepTaskTemplate>(res.data)[0];
+}
+
 export async function deleteStepTaskTemplate(id: string): Promise<void> {
   await api.post(CRUD_ENDPOINT, {
     action: "delete",
@@ -417,6 +439,17 @@ export async function createDeadlineRule(
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },
+  });
+  return normalizeCrudList<DeadlineRule>(res.data)[0];
+}
+
+export async function updateDeadlineRule(
+  payload: Partial<DeadlineRule> & { id: string },
+): Promise<DeadlineRule> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "update",
+    table: "deadline_rules",
+    payload: { ...payload, updated_at: new Date().toISOString() },
   });
   return normalizeCrudList<DeadlineRule>(res.data)[0];
 }
