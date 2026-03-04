@@ -104,6 +104,11 @@ export type CrudFieldConfig<T> = {
 
 type DetailItem = { label: string; value: string };
 type ReferenceOption = { id: string; label: string; raw: any };
+type ReferenceTenantFilter = {
+  field: "tenant_id" | "tenants";
+  operator: "equal" | "ilike";
+  value: string;
+};
 type QuickCreateReturnTarget =
   | { scope: "form"; fieldKey: string }
   | { scope: "quick"; fieldKey: string };
@@ -998,24 +1003,26 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
   // Ref to track which reference cache keys have been attempted (prevents duplicate batch fetches)
   const attemptedRefsRef = useRef<Set<string>>(new Set());
-  const referenceTenantScopeCacheRef = useRef<Map<string, boolean>>(new Map());
+  const referenceTenantScopeCacheRef = useRef<
+    Map<string, ReferenceTenantFilter | null>
+  >(new Map());
 
-  const tableSupportsTenantScope = useCallback(async (table?: string) => {
+  const getReferenceTenantFilter = useCallback(async (table?: string) => {
     const normalizedTable = String(table ?? "")
       .trim()
       .toLowerCase();
-    if (!normalizedTable) return false;
+    if (!normalizedTable || !user?.tenant_id) return null;
 
     if (
       normalizedTable === "tenants" ||
       normalizedTable === "permissions" ||
       normalizedTable === "role_permissions"
     ) {
-      return false;
+      return null;
     }
 
     const cached = referenceTenantScopeCacheRef.current.get(normalizedTable);
-    if (typeof cached === "boolean") {
+    if (cached !== undefined) {
       return cached;
     }
 
@@ -1024,24 +1031,36 @@ export function CrudScreen<T extends Record<string, unknown>>({
       const hasTenantId = info.some(
         (column) => String(column.column_name ?? "") === "tenant_id",
       );
-      referenceTenantScopeCacheRef.current.set(normalizedTable, hasTenantId);
-      return hasTenantId;
-    } catch {
-      referenceTenantScopeCacheRef.current.set(normalizedTable, false);
-      return false;
-    }
-  }, []);
+      if (hasTenantId) {
+        const filter: ReferenceTenantFilter = {
+          field: "tenant_id",
+          operator: "equal",
+          value: String(user.tenant_id),
+        };
+        referenceTenantScopeCacheRef.current.set(normalizedTable, filter);
+        return filter;
+      }
 
-  const shouldApplyTenantIsolationToReference = useCallback(
-    async (table?: string) => {
-      // Always apply tenant isolation when user has a tenant context,
-      // even for superadmin — they should see data scoped to the tenant
-      // they are currently browsing, not data from all tenants.
-      if (!user?.tenant_id) return false;
-      return tableSupportsTenantScope(table);
-    },
-    [tableSupportsTenantScope, user?.tenant_id],
-  );
+      const hasTenantsField = info.some(
+        (column) => String(column.column_name ?? "") === "tenants",
+      );
+      if (hasTenantsField) {
+        const filter: ReferenceTenantFilter = {
+          field: "tenants",
+          operator: "ilike",
+          value: `%${String(user.tenant_id)}%`,
+        };
+        referenceTenantScopeCacheRef.current.set(normalizedTable, filter);
+        return filter;
+      }
+
+      referenceTenantScopeCacheRef.current.set(normalizedTable, null);
+      return null;
+    } catch {
+      referenceTenantScopeCacheRef.current.set(normalizedTable, null);
+      return null;
+    }
+  }, [user?.tenant_id]);
 
   // Pagination state (only active when paginatedLoadItems is provided)
   const pageSize = propPageSize ?? 20;
@@ -1258,13 +1277,11 @@ export function CrudScreen<T extends Record<string, unknown>>({
           search_operator1: "equal",
         };
 
-        const applyTenantIsolation =
-          await shouldApplyTenantIsolationToReference(field.referenceTable);
-
-        if (applyTenantIsolation) {
-          requestPayload.search_field2 = "tenant_id";
-          requestPayload.search_value2 = String(user?.tenant_id ?? "");
-          requestPayload.search_operator2 = "equal";
+        const tenantFilter = await getReferenceTenantFilter(field.referenceTable);
+        if (tenantFilter) {
+          requestPayload.search_field2 = tenantFilter.field;
+          requestPayload.search_value2 = tenantFilter.value;
+          requestPayload.search_operator2 = tenantFilter.operator;
           requestPayload.combine_type = "AND";
         }
 
@@ -1293,7 +1310,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
         return "";
       }
     },
-    [referenceCache, shouldApplyTenantIsolationToReference, user?.tenant_id],
+    [getReferenceTenantFilter, referenceCache],
   );
 
   const getCachedReferenceLabel = useCallback(
@@ -1365,8 +1382,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
           .filter((group) => group.ids.size > 0)
           .map(async (group) => {
             try {
-              const applyTenantIsolation =
-                await shouldApplyTenantIsolationToReference(group.table);
+              const tenantFilter = await getReferenceTenantFilter(group.table);
               const idsArray = Array.from(group.ids);
               // Chunk large ID lists (max 50 per request to avoid overly long queries)
               const CHUNK_SIZE = 50;
@@ -1380,10 +1396,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
                   search_operator1: "in",
                 };
 
-                if (applyTenantIsolation) {
-                  requestPayload.search_field2 = "tenant_id";
-                  requestPayload.search_value2 = String(user?.tenant_id ?? "");
-                  requestPayload.search_operator2 = "equal";
+                if (tenantFilter) {
+                  requestPayload.search_field2 = tenantFilter.field;
+                  requestPayload.search_value2 = tenantFilter.value;
+                  requestPayload.search_operator2 = tenantFilter.operator;
                   requestPayload.combine_type = "AND";
                 }
 
@@ -1423,7 +1439,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
         setReferenceCache((prev) => ({ ...prev, ...newCacheEntries }));
       }
     },
-    [shouldApplyTenantIsolationToReference, user?.tenant_id],
+    [getReferenceTenantFilter],
   );
 
   const load = useCallback(async () => {
@@ -1744,14 +1760,12 @@ export function CrudScreen<T extends Record<string, unknown>>({
           nextFilterIndex += 1;
         }
 
-        const applyTenantIsolation =
-          await shouldApplyTenantIsolationToReference(field.referenceTable);
-        if (applyTenantIsolation) {
-          requestPayload[`search_field${nextFilterIndex}`] = "tenant_id";
-          requestPayload[`search_value${nextFilterIndex}`] = String(
-            user?.tenant_id ?? "",
-          );
-          requestPayload[`search_operator${nextFilterIndex}`] = "equal";
+        const tenantFilter = await getReferenceTenantFilter(field.referenceTable);
+        if (tenantFilter) {
+          requestPayload[`search_field${nextFilterIndex}`] = tenantFilter.field;
+          requestPayload[`search_value${nextFilterIndex}`] = tenantFilter.value;
+          requestPayload[`search_operator${nextFilterIndex}`] =
+            tenantFilter.operator;
           requestPayload.combine_type = "AND";
           nextFilterIndex += 1;
         }
@@ -1760,7 +1774,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
         // (users table has no tenant_id column — scoping is via user_tenants.tenant_id)
         if (
           field.referenceTable === "users" &&
-          !applyTenantIsolation &&
+          !tenantFilter &&
           user?.tenant_id
         ) {
           try {
@@ -1848,7 +1862,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
     [
       formState,
       quickCreateState,
-      shouldApplyTenantIsolationToReference,
+      getReferenceTenantFilter,
       user?.tenant_id,
     ],
   );
@@ -2463,13 +2477,23 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
       try {
         const idField = field.referenceIdField ?? "id";
-        const response = await api.post(REFERENCE_ENDPOINT, {
+        const requestPayload: Record<string, unknown> = {
           action: "list",
           table: field.referenceTable,
           search_field1: idField,
           search_value1: referenceId,
           search_operator1: "equal",
-        });
+        };
+
+        const tenantFilter = await getReferenceTenantFilter(field.referenceTable);
+        if (tenantFilter) {
+          requestPayload.search_field2 = tenantFilter.field;
+          requestPayload.search_value2 = tenantFilter.value;
+          requestPayload.search_operator2 = tenantFilter.operator;
+          requestPayload.combine_type = "AND";
+        }
+
+        const response = await api.post(REFERENCE_ENDPOINT, requestPayload);
         const data = response.data;
         const list = Array.isArray(data) ? data : (data?.data ?? []);
         const exactMatch = Array.isArray(list)
@@ -2489,7 +2513,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
         setReferenceDetailLoading(false);
       }
     },
-    [],
+    [getReferenceTenantFilter],
   );
 
   const closeReferenceDetail = useCallback(() => {

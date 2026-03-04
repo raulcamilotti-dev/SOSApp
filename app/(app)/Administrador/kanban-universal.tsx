@@ -41,6 +41,7 @@ import {
     type UnifiedKanbanItem,
     type WorkflowScope,
     type WorkflowStep,
+    type WorkflowTransition,
     type WorkflowTemplate,
 } from "@/services/kanban-plugins/types";
 import {
@@ -210,6 +211,7 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
   const kanbanRef = useRef<KanbanScreenRef>(null);
   const pluginRef = useRef<KanbanPluginRef>(null);
   const stepsRef = useRef<WorkflowStep[]>([]);
+  const [, setPluginReadyTick] = useState(0);
 
   /* ── Template state ── */
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([]);
@@ -217,9 +219,11 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     null,
   );
   const [templatesLoading, setTemplatesLoading] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   /* ── Steps (cached for plugin props) ── */
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
+  const [transitions, setTransitions] = useState<WorkflowTransition[]>([]);
 
   /* ── Tasks modal state ── */
   const [tasksModalVisible, setTasksModalVisible] = useState(false);
@@ -259,6 +263,11 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     () => getPluginForScope(scope),
     [scope],
   );
+
+  const handlePluginRef = useCallback((instance: KanbanPluginRef | null) => {
+    pluginRef.current = instance;
+    setPluginReadyTick((v) => v + 1);
+  }, []);
 
   /* ══════════════════════════════════════════════════════════
    * LOAD TEMPLATES
@@ -341,6 +350,31 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     stepsRef.current = loaded;
     setSteps(loaded);
 
+    // Load active transitions for these steps (to expose labels like "Finalizar")
+    if (loaded.length > 0) {
+      try {
+        const stepIds = loaded.map((s) => s.id);
+        const trRes = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "workflow_step_transitions",
+          ...buildSearchParams(
+            [{ field: "from_step_id", value: stepIds.join(","), operator: "in" }],
+            { sortColumn: "created_at ASC", autoExcludeDeleted: true },
+          ),
+        });
+
+        const loadedTransitions = normalizeCrudList<WorkflowTransition>(
+          trRes.data,
+        ).filter((t) => !t.deleted_at && t.is_active !== false);
+
+        setTransitions(loadedTransitions);
+      } catch {
+        setTransitions([]);
+      }
+    } else {
+      setTransitions([]);
+    }
+
     return loaded.map((step, i) => ({
       id: step.id,
       label: step.name,
@@ -363,6 +397,10 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     const filters = [
       { field: "template_id", value: selectedTemplateId },
       { field: "tenant_id", value: user.tenant_id },
+      { field: "process_status", value: "cancelled", operator: "not_equal" },
+      ...(!showCompleted
+        ? [{ field: "process_status", value: "finished", operator: "not_equal" }]
+        : []),
       ...partnerFilter,
     ];
 
@@ -376,10 +414,7 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     });
 
     let orders = normalizeCrudList<UnifiedKanbanItem>(soRes.data).filter(
-      (o) =>
-        !o.deleted_at &&
-        o.process_status !== "cancelled" &&
-        o.process_status !== "finished",
+      (o) => !o.deleted_at,
     );
 
     if (orders.length === 0) return [];
@@ -500,7 +535,13 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     }
 
     return orders;
-  }, [selectedTemplateId, user?.tenant_id, partnerFilter, cardConfig]);
+  }, [
+    selectedTemplateId,
+    user?.tenant_id,
+    partnerFilter,
+    cardConfig,
+    showCompleted,
+  ]);
 
   /* ══════════════════════════════════════════════════════════
    * MOVE HANDLING
@@ -901,10 +942,11 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
       userName: (user as any)?.fullname ?? user?.email ?? "",
       template: selectedTemplate ?? { id: "", tenant_id: "", name: "", scope },
       steps,
+      transitions,
       cardConfig,
       onReload: () => kanbanRef.current?.reload(),
     }),
-    [user, selectedTemplate, steps, cardConfig, scope],
+    [user, selectedTemplate, steps, transitions, cardConfig, scope],
   );
 
   /* ══════════════════════════════════════════════════════════
@@ -925,7 +967,7 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     () => (
       <>
         {/* Plugin component — renders scope-specific modals internally */}
-        <PluginComponent ref={pluginRef} {...pluginProps} />
+        <PluginComponent ref={handlePluginRef} {...pluginProps} />
 
         {/* ═══ Shared Tasks Modal ═══ */}
         <Modal
@@ -1135,6 +1177,7 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     ),
     [
       PluginComponent,
+      handlePluginRef,
       pluginProps,
       tasksModalVisible,
       tasksModalItem,
@@ -1206,46 +1249,71 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
   if (!selectedTemplateId) return null;
 
   /* ── Template picker (only when multiple templates exist for scope) ── */
-  const templatePicker =
-    templates.length > 1 ? (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm,
-          gap: spacing.sm,
-        }}
-        style={{ flexGrow: 0 }}
-      >
-        {templates.map((t) => {
-          const isSelected = t.id === selectedTemplateId;
-          return (
-            <TouchableOpacity
-              key={t.id}
-              onPress={() => switchTemplate(t.id)}
-              style={[
-                s.templateChip,
-                {
-                  backgroundColor: isSelected ? tintColor : cardBg,
-                  borderColor: isSelected ? tintColor : borderColor,
-                },
-              ]}
-            >
-              <Text
+  const templatePicker = (
+    <View style={s.headerControls}>
+      {templates.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.sm,
+            gap: spacing.sm,
+          }}
+          style={{ flexGrow: 0 }}
+        >
+          {templates.map((t) => {
+            const isSelected = t.id === selectedTemplateId;
+            return (
+              <TouchableOpacity
+                key={t.id}
+                onPress={() => switchTemplate(t.id)}
                 style={[
-                  s.templateChipText,
-                  { color: isSelected ? "#fff" : textColor },
+                  s.templateChip,
+                  {
+                    backgroundColor: isSelected ? tintColor : cardBg,
+                    borderColor: isSelected ? tintColor : borderColor,
+                  },
                 ]}
-                numberOfLines={1}
               >
-                {t.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    ) : null;
+                <Text
+                  style={[
+                    s.templateChipText,
+                    { color: isSelected ? "#fff" : textColor },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {t.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
+      <View style={s.completedToggleRow}>
+        <TouchableOpacity
+          onPress={() => setShowCompleted((prev) => !prev)}
+          style={[
+            s.templateChip,
+            {
+              backgroundColor: showCompleted ? tintColor : cardBg,
+              borderColor: showCompleted ? tintColor : borderColor,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              s.templateChipText,
+              { color: showCompleted ? "#fff" : textColor },
+            ]}
+          >
+            {showCompleted ? "Ocultar Concluídos" : "Mostrar Concluídos"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   return (
     <View style={[s.container, { backgroundColor: bg }]}>
@@ -1302,6 +1370,13 @@ const s = StyleSheet.create({
   },
 
   // Template picker chips
+  headerControls: {
+    paddingBottom: spacing.xs,
+  },
+  completedToggleRow: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+  },
   templateChip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

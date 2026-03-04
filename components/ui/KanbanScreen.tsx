@@ -74,7 +74,7 @@ export interface KanbanCardAction {
   icon: string;
   /** Background color */
   color: string;
-  onPress: () => void;
+  onPress: () => void | Promise<void>;
   disabled?: boolean;
 }
 
@@ -233,6 +233,7 @@ function KanbanScreenInner<T>(
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [selectedItem, setSelectedItem] = useState<T | null>(null);
   const [moving, setMoving] = useState(false);
+  const [loadingActionKey, setLoadingActionKey] = useState<string | null>(null);
 
   // Horizontal scroll
   const kanbanScrollRef = useRef<ScrollView>(null);
@@ -354,6 +355,21 @@ function KanbanScreenInner<T>(
   const renderDefaultCard = (item: T, columnId: string) => {
     const fields = getCardFields?.(item) ?? [];
     const actions = getCardActions?.(item, columnId) ?? [];
+    const itemActionPrefix = `${getId(item)}::`;
+    const isItemBusy = !!loadingActionKey?.startsWith(itemActionPrefix);
+
+    const handleActionPress = async (
+      action: KanbanCardAction,
+      actionIndex: number,
+    ) => {
+      const key = `${itemActionPrefix}${columnId}::${actionIndex}`;
+      setLoadingActionKey(key);
+      try {
+        await Promise.resolve(action.onPress());
+      } finally {
+        setLoadingActionKey((current) => (current === key ? null : current));
+      }
+    };
 
     return (
       <TouchableOpacity
@@ -397,23 +413,36 @@ function KanbanScreenInner<T>(
         {/* Action buttons */}
         {actions.length > 0 && (
           <View style={s.cardActions}>
-            {actions.map((action, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[
-                  s.actionBtn,
-                  {
-                    backgroundColor: action.color,
-                    opacity: action.disabled ? 0.5 : 1,
-                  },
-                ]}
-                onPress={action.onPress}
-                disabled={action.disabled}
-              >
-                <Ionicons name={action.icon as any} size={12} color="#fff" />
-                <Text style={s.actionBtnText}>{action.label}</Text>
-              </TouchableOpacity>
-            ))}
+            {actions.map((action, i) => {
+              const actionKey = `${itemActionPrefix}${columnId}::${i}`;
+              const isLoading = loadingActionKey === actionKey;
+              const isDisabled = !!action.disabled || isItemBusy;
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[
+                    s.actionBtn,
+                    {
+                      backgroundColor: action.color,
+                      opacity: isDisabled ? 0.5 : 1,
+                    },
+                  ]}
+                  onPress={() => {
+                    void handleActionPress(action, i);
+                  }}
+                  disabled={isDisabled}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name={action.icon as any} size={12} color="#fff" />
+                      <Text style={s.actionBtnText}>{action.label}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </TouchableOpacity>
@@ -850,19 +879,26 @@ const s = StyleSheet.create({
   cardMeta: { ...typography.caption, flex: 1 },
   cardActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
     marginTop: spacing.sm,
   },
   actionBtn: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
-    paddingVertical: 5,
+    gap: 4,
+    minHeight: 28,
+    minWidth: 88,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 6,
+    ...Platform.select({
+      web: { cursor: "pointer" as any },
+      default: {},
+    }),
   },
-  actionBtnText: { fontSize: 10, fontWeight: "700", color: "#fff" },
+  actionBtnText: { fontSize: 11, fontWeight: "700", color: "#fff" },
 
   // Move modal
   modalOverlay: {

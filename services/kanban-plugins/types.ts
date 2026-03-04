@@ -71,6 +71,16 @@ export interface WorkflowStep {
   deleted_at?: string | null;
 }
 
+export interface WorkflowTransition {
+  id: string;
+  from_step_id: string;
+  to_step_id: string;
+  name?: string | null;
+  description?: string | null;
+  is_active?: boolean | null;
+  deleted_at?: string | null;
+}
+
 /* ═══════════════════════════════════════════════════════
  * WORKFLOW TEMPLATE (from DB)
  * ═══════════════════════════════════════════════════════ */
@@ -148,7 +158,7 @@ export interface PluginCardAction {
   /** Background color */
   color: string;
   /** Handler */
-  onPress: () => void;
+  onPress: () => void | Promise<void>;
   /** Whether the action is currently disabled */
   disabled?: boolean;
 }
@@ -220,6 +230,8 @@ export interface KanbanPluginProps {
   template: WorkflowTemplate;
   /** All non-deleted steps for this template (sorted by step_order) */
   steps: WorkflowStep[];
+  /** Active transitions for the template steps */
+  transitions?: WorkflowTransition[];
   /** Card config from the template (may be null for generic operational templates) */
   cardConfig: CardConfig | null;
   /** Callback to trigger a board reload */

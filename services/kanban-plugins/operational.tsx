@@ -54,6 +54,7 @@ import type {
     PluginCardAction,
     UnifiedKanbanItem,
     WorkflowStep,
+    WorkflowTransition,
 } from "./types";
 
 /* ═══════════════════════════════════════════════════════
@@ -131,11 +132,24 @@ const getOrderTitle = (item: UnifiedKanbanItem) =>
 
 export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
   function OperationalPlugin(props, ref) {
-    const { tenantId, userId, userName, template, steps, onReload } = props;
+    const {
+      tenantId,
+      userId,
+      userName,
+      template,
+      steps,
+      transitions = [],
+      onReload,
+    } = props;
     const { user } = useAuth();
     const { partnerId } = usePartnerScope();
 
-    const isAdminScope = template.scope === "administrative";
+    const templateScope = String(
+      (template as unknown as Record<string, unknown>).scope ??
+        (template as unknown as Record<string, unknown>).workflow_scope ??
+        "",
+    ).toLowerCase();
+    const isAdminScope = templateScope === "administrative";
 
     /* ── Theme ── */
     const bg = useThemeColor({}, "background");
@@ -190,10 +204,24 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
       (currentStepId: string): WorkflowStep | null => {
         const idx = steps.findIndex((s) => s.id === currentStepId);
         if (idx < 0 || idx >= steps.length - 1) return null;
-        const next = steps[idx + 1];
-        return next?.is_terminal ? null : next;
+        return steps[idx + 1] ?? null;
       },
       [steps],
+    );
+
+    const getTransitionName = useCallback(
+      (fromStepId: string, toStepId: string): string | null => {
+        const direct = transitions.find(
+          (t: WorkflowTransition) =>
+            t.from_step_id === fromStepId &&
+            t.to_step_id === toStepId &&
+            !t.deleted_at &&
+            t.is_active !== false,
+        );
+        const name = (direct?.name ?? "").trim();
+        return name || null;
+      },
+      [transitions],
     );
 
     /* ══════════════════════════════════════════════════════
@@ -220,20 +248,29 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
     );
 
     const handleQuickAdvance = useCallback(
-      (item: UnifiedKanbanItem) => {
+      async (item: UnifiedKanbanItem) => {
         const next = getNextStep(item.current_step_id);
         if (!next) return;
 
         if (Platform.OS === "web") {
           if (window.confirm(`Avançar para "${next.name}"?`)) {
-            doAdvance(item, next);
+            await doAdvance(item, next);
           }
-        } else {
-          Alert.alert("Avançar Etapa", `Mover para "${next.name}"?`, [
-            { text: "Cancelar", style: "cancel" },
-            { text: "Avançar", onPress: () => doAdvance(item, next) },
-          ]);
+          return;
         }
+
+        await new Promise<void>((resolve) => {
+          Alert.alert("Avançar Etapa", `Mover para "${next.name}"?`, [
+            { text: "Cancelar", style: "cancel", onPress: () => resolve() },
+            {
+              text: "Avançar",
+              onPress: async () => {
+                await doAdvance(item, next);
+                resolve();
+              },
+            },
+          ]);
+        });
       },
       [doAdvance, getNextStep],
     );
@@ -540,6 +577,10 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
           _stepId: string,
         ): PluginCardAction[] {
           const next = getNextStep(item.current_step_id);
+          const advanceLabel =
+            next != null
+              ? (getTransitionName(item.current_step_id, next.id) ?? "Avançar")
+              : "Final";
           const actions: PluginCardAction[] = [
             {
               id: "tasks",
@@ -564,7 +605,7 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
           if (next) {
             actions.push({
               id: "advance",
-              label: "Avançar",
+              label: advanceLabel,
               icon: "arrow-forward-outline",
               color: "#10b981",
               onPress: () => handleQuickAdvance(item),
@@ -603,6 +644,10 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
           theme: KanbanTheme,
         ): ReactNode {
           const next = getNextStep(item.current_step_id);
+          const advanceLabel =
+            next != null
+              ? (getTransitionName(item.current_step_id, next.id) ?? "Avançar")
+              : "Final";
 
           return (
             <TouchableOpacity
@@ -711,7 +756,7 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
                       size={12}
                       color="#fff"
                     />
-                    <Text style={s.actionBtnText}>Avançar</Text>
+                    <Text style={s.actionBtnText}>{advanceLabel}</Text>
                   </TouchableOpacity>
                 ) : (
                   <View
@@ -734,6 +779,7 @@ export const OperationalPlugin = forwardRef<KanbanPluginRef, KanbanPluginProps>(
         },
       }),
       [
+        getTransitionName,
         getNextStep,
         handleQuickAdvance,
         isAdminScope,
