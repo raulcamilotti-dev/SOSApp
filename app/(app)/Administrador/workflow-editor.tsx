@@ -9,55 +9,60 @@
  */
 
 import { spacing, typography } from "@/app/theme/styles";
-import { JsonEditor } from "@/components/ui/JsonEditor";
+import {
+    ConditionBuilder,
+    EscalationRuleBuilder,
+    FormSchemaBuilder,
+    ValidationRulesBuilder,
+} from "@/components/ui/StructuredJsonEditors";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { getApiErrorMessage } from "@/services/api";
 import {
-    createDeadlineRule,
-    createStep,
-    createStepForm,
-    createStepTaskTemplate,
-    createTransition,
-    deleteDeadlineRule,
-    deleteStep,
-    deleteStepForm,
-    deleteStepTaskTemplate,
-    deleteTransition,
-    getDefaultStepColor,
-    getStepSummaries,
-    loadWorkflowEditorData,
-    reorderSteps,
-    STEP_COLOR_PRESETS,
-    updateDeadlineRule,
-    updateStep,
-    updateTemplate,
-    updateStepForm,
-    updateStepTaskTemplate,
-    updateTransition,
-    type DeadlineRule,
-    type StepForm,
-    type StepSummary,
-    type StepTaskTemplate,
-    type WorkflowEditorData,
-    type WorkflowStep,
-    type WorkflowTransition,
+  createDeadlineRule,
+  createStep,
+  createStepForm,
+  createStepTaskTemplate,
+  createTransition,
+  deleteDeadlineRule,
+  deleteStep,
+  deleteStepForm,
+  deleteStepTaskTemplate,
+  deleteTransition,
+  getDefaultStepColor,
+  getStepSummaries,
+  loadWorkflowEditorData,
+  reorderSteps,
+  STEP_COLOR_PRESETS,
+  updateDeadlineRule,
+  updateStep,
+  updateStepForm,
+  updateStepTaskTemplate,
+  updateTemplate,
+  updateTransition,
+  type DeadlineRule,
+  type StepForm,
+  type StepSummary,
+  type StepTaskTemplate,
+  type WorkflowEditorData,
+  type WorkflowStep,
+  type WorkflowTransition,
 } from "@/services/workflow-editor";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 /* ═══════════════════════════════════════════════
@@ -138,7 +143,10 @@ export default function WorkflowEditorScreen() {
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
   /* ── Toast notification ── */
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
 
   /* ── Template edit ── */
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -268,7 +276,9 @@ export default function WorkflowEditorScreen() {
    * TOAST HELPER
    * ═══════════════════════════════════════════════ */
 
-  const toastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const showToast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
@@ -330,7 +340,9 @@ export default function WorkflowEditorScreen() {
         });
       }
       setStepModalOpen(false);
-      showToast(stepModalMode === "create" ? "Etapa criada" : "Etapa atualizada");
+      showToast(
+        stepModalMode === "create" ? "Etapa criada" : "Etapa atualizada",
+      );
       await loadData();
     } finally {
       setSaving(false);
@@ -556,7 +568,11 @@ export default function WorkflowEditorScreen() {
         await updateStepForm({ ...payload, id: editingForm.id });
       }
       setFormModalOpen(false);
-      showToast(formModalMode === "create" ? "Formulário criado" : "Formulário atualizado");
+      showToast(
+        formModalMode === "create"
+          ? "Formulário criado"
+          : "Formulário atualizado",
+      );
       await loadData();
     } finally {
       setSaving(false);
@@ -651,7 +667,9 @@ export default function WorkflowEditorScreen() {
         await updateStepTaskTemplate({ ...payload, id: editingTask.id });
       }
       setTaskModalOpen(false);
-      showToast(taskModalMode === "create" ? "Tarefa criada" : "Tarefa atualizada");
+      showToast(
+        taskModalMode === "create" ? "Tarefa criada" : "Tarefa atualizada",
+      );
       await loadData();
     } finally {
       setSaving(false);
@@ -741,7 +759,9 @@ export default function WorkflowEditorScreen() {
         await updateDeadlineRule({ ...payload, id: editingDeadline.id });
       }
       setDeadlineModalOpen(false);
-      showToast(deadlineModalMode === "create" ? "Prazo criado" : "Prazo atualizado");
+      showToast(
+        deadlineModalMode === "create" ? "Prazo criado" : "Prazo atualizado",
+      );
       await loadData();
     } finally {
       setSaving(false);
@@ -897,7 +917,9 @@ export default function WorkflowEditorScreen() {
             <Ionicons name="arrow-back" size={22} color={tintColor} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
               <Text
                 style={[s.headerTitle, { color: textColor }]}
                 numberOfLines={1}
@@ -991,38 +1013,73 @@ export default function WorkflowEditorScreen() {
             return (
               <React.Fragment key={step.id}>
                 {/* Connector with transition info */}
-                {idx > 0 && (() => {
-                  const prevStep = sortedSteps[idx - 1];
-                  const directTransition = (data.transitions ?? []).find(
-                    (t) => t.from_step_id === prevStep.id && t.to_step_id === step.id && t.is_active,
-                  );
-                  return (
-                    <View style={s.connector}>
-                      <View
-                        style={[
-                          s.connectorLine,
-                          { backgroundColor: directTransition ? tintColor : borderColor },
-                        ]}
-                      />
-                      {directTransition ? (
-                        <View style={[s.connectorLabel, { backgroundColor: tintColor + "18", borderColor: tintColor + "40" }]}>
-                          <Ionicons name="arrow-down" size={10} color={tintColor} />
-                          <Text style={{ fontSize: 9, color: tintColor, fontWeight: "600" }} numberOfLines={1}>
-                            {directTransition.name || "Transição"}
-                          </Text>
-                        </View>
-                      ) : (
-                        <Ionicons name="chevron-down" size={16} color={borderColor} />
-                      )}
-                      <View
-                        style={[
-                          s.connectorLine,
-                          { backgroundColor: directTransition ? tintColor : borderColor },
-                        ]}
-                      />
-                    </View>
-                  );
-                })()}
+                {idx > 0 &&
+                  (() => {
+                    const prevStep = sortedSteps[idx - 1];
+                    const directTransition = (data.transitions ?? []).find(
+                      (t) =>
+                        t.from_step_id === prevStep.id &&
+                        t.to_step_id === step.id &&
+                        t.is_active,
+                    );
+                    return (
+                      <View style={s.connector}>
+                        <View
+                          style={[
+                            s.connectorLine,
+                            {
+                              backgroundColor: directTransition
+                                ? tintColor
+                                : borderColor,
+                            },
+                          ]}
+                        />
+                        {directTransition ? (
+                          <View
+                            style={[
+                              s.connectorLabel,
+                              {
+                                backgroundColor: tintColor + "18",
+                                borderColor: tintColor + "40",
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="arrow-down"
+                              size={10}
+                              color={tintColor}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 9,
+                                color: tintColor,
+                                fontWeight: "600",
+                              }}
+                              numberOfLines={1}
+                            >
+                              {directTransition.name || "Transição"}
+                            </Text>
+                          </View>
+                        ) : (
+                          <Ionicons
+                            name="chevron-down"
+                            size={16}
+                            color={borderColor}
+                          />
+                        )}
+                        <View
+                          style={[
+                            s.connectorLine,
+                            {
+                              backgroundColor: directTransition
+                                ? tintColor
+                                : borderColor,
+                            },
+                          ]}
+                        />
+                      </View>
+                    );
+                  })()}
 
                 {/* Step card */}
                 <View
@@ -1715,16 +1772,15 @@ export default function WorkflowEditorScreen() {
                   ]}
                 />
 
-                {/* Condition JSON */}
+                {/* Condition */}
                 <FieldLabel
-                  label="Condição (JSON)"
+                  label="Condições da transição"
                   mutedColor={mutedColor}
                   hint="Regras que devem ser atendidas para habilitar a transição"
                 />
-                <JsonEditor
+                <ConditionBuilder
                   value={transitionConditionJson}
                   onChange={setTransitionConditionJson}
-                  placeholder='{"campo": "valor"}'
                   textColor={textColor}
                   mutedColor={mutedColor}
                   borderColor={borderColor}
@@ -1833,14 +1889,13 @@ export default function WorkflowEditorScreen() {
                 />
 
                 <FieldLabel
-                  label="Schema do Formulário (JSON)"
+                  label="Campos do Formulário"
                   mutedColor={mutedColor}
-                  hint="Defina os campos do formulário como JSON"
+                  hint="Defina os campos que o usuário deverá preencher"
                 />
-                <JsonEditor
+                <FormSchemaBuilder
                   value={formSchemaJson}
                   onChange={setFormSchemaJson}
-                  placeholder='{"fields": [{"name": "campo1", "type": "text"}]}'
                   textColor={textColor}
                   mutedColor={mutedColor}
                   borderColor={borderColor}
@@ -1850,14 +1905,13 @@ export default function WorkflowEditorScreen() {
                 />
 
                 <FieldLabel
-                  label="Regras de Validação (JSON)"
+                  label="Regras de Validação"
                   mutedColor={mutedColor}
                   hint="Opcional: regras de validação dos campos"
                 />
-                <JsonEditor
+                <ValidationRulesBuilder
                   value={formValidationJson}
                   onChange={setFormValidationJson}
-                  placeholder='{"rules": []}'
                   textColor={textColor}
                   mutedColor={mutedColor}
                   borderColor={borderColor}
@@ -2174,14 +2228,13 @@ export default function WorkflowEditorScreen() {
                 </View>
 
                 <FieldLabel
-                  label="Regra de Escalação (JSON)"
+                  label="Regra de Escalação"
                   mutedColor={mutedColor}
                   hint="Ações automáticas quando o prazo é superado"
                 />
-                <JsonEditor
+                <EscalationRuleBuilder
                   value={deadlineEscalationJson}
                   onChange={setDeadlineEscalationJson}
-                  placeholder='{"action": "notify_manager"}'
                   textColor={textColor}
                   mutedColor={mutedColor}
                   borderColor={borderColor}
@@ -2216,7 +2269,9 @@ export default function WorkflowEditorScreen() {
       >
         <View style={s.modalOverlay}>
           <View style={[s.templateEditSheet, { backgroundColor: cardBg }]}>
-            <Text style={[s.modalTitle, { color: textColor }]}>Editar Template</Text>
+            <Text style={[s.modalTitle, { color: textColor }]}>
+              Editar Template
+            </Text>
             <Text style={{ color: mutedColor, fontSize: 12, marginBottom: 12 }}>
               Altere o nome do template de workflow
             </Text>
@@ -2231,17 +2286,29 @@ export default function WorkflowEditorScreen() {
               ]}
               autoFocus
             />
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 8,
+                marginTop: 16,
+                justifyContent: "flex-end",
+              }}
+            >
               <TouchableOpacity
                 onPress={() => setTemplateModalOpen(false)}
                 style={[s.cancelBtn, { borderColor }]}
               >
-                <Text style={{ color: textColor, fontWeight: "600" }}>Cancelar</Text>
+                <Text style={{ color: textColor, fontWeight: "600" }}>
+                  Cancelar
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveTemplate}
                 disabled={saving || !templateName.trim()}
-                style={[s.saveBtn, { backgroundColor: saving ? mutedColor : tintColor }]}
+                style={[
+                  s.saveBtn,
+                  { backgroundColor: saving ? mutedColor : tintColor },
+                ]}
               >
                 <Text style={{ color: "#fff", fontWeight: "700" }}>
                   {saving ? "Salvando..." : "Salvar"}
@@ -2257,11 +2324,15 @@ export default function WorkflowEditorScreen() {
         <View
           style={[
             s.toast,
-            { backgroundColor: toast.type === "success" ? "#16a34a" : "#dc2626" },
+            {
+              backgroundColor: toast.type === "success" ? "#16a34a" : "#dc2626",
+            },
           ]}
         >
           <Ionicons
-            name={toast.type === "success" ? "checkmark-circle" : "alert-circle"}
+            name={
+              toast.type === "success" ? "checkmark-circle" : "alert-circle"
+            }
             size={18}
             color="#fff"
           />
@@ -2334,9 +2405,18 @@ function ToggleRow({
       activeOpacity={0.7}
     >
       <View style={{ flex: 1, marginRight: 12 }}>
-        <Text style={[s.toggleLabel, { color: textColor, marginRight: 0 }]}>{label}</Text>
+        <Text style={[s.toggleLabel, { color: textColor, marginRight: 0 }]}>
+          {label}
+        </Text>
         {hint ? (
-          <Text style={{ fontSize: 11, color: mutedColor ?? "#94a3b8", marginTop: 2, lineHeight: 15 }}>
+          <Text
+            style={{
+              fontSize: 11,
+              color: mutedColor ?? "#94a3b8",
+              marginTop: 2,
+              lineHeight: 15,
+            }}
+          >
             {hint}
           </Text>
         ) : null}
