@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import { api, N8N_API_KEY, setAuthToken } from "@/services/api";
+import { api, setAuthToken } from "@/services/api";
 import { autoLinkUserToCompanies } from "@/services/companies";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import {
@@ -622,37 +622,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setTenantLoading(true);
     try {
       const tenantContext = buildTenantContextPayload();
-      const res = await fetch(
-        "https://n8n.sosescritura.com.br/webhook/google_login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Api-Key": N8N_API_KEY,
-          },
-          body: JSON.stringify({
-            id_token: idToken,
-            tenant_slug: tenantContext.tenant_slug,
-            tenant_subdomain: tenantContext.tenant_subdomain,
-            tenant_hint: tenantContext.tenant_hint,
-            app_slug: tenantContext.app_slug,
-            host: tenantContext.host,
-            hostname: tenantContext.hostname,
-            pathname: tenantContext.pathname,
-            partner_id: tenantContext.partner_id,
-            referral_code: tenantContext.referral_code,
-            utm_source: tenantContext.utm_source,
-            utm_campaign: tenantContext.utm_campaign,
-            tenant_context: tenantContext,
-          }),
-        },
-      );
-
-      if (!res.ok) {
-        throw new Error("Erro ao fazer login com Google");
-      }
-
-      const data: LoginResponse | User[] | any = await res.json();
+      const res = await api.post("/auth/google", {
+        id_token: idToken,
+        hostname: tenantContext.hostname ?? undefined,
+        tenant_slug: tenantContext.tenant_slug ?? undefined,
+      });
+      const data: LoginResponse | User[] | any = res.data;
 
       const { userPayload, tokenPayload } = extractAuthPayload(data);
       const loggedUser: User | undefined = userPayload;
@@ -681,6 +656,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return userWithTenant;
     } catch (err) {
       setTenantLoading(false);
+      const axiosErr = err as any;
+      const serverMsg =
+        axiosErr?.response?.data?.error ?? axiosErr?.response?.data?.message;
+      if (serverMsg) {
+        throw new Error(serverMsg);
+      }
       throw err;
     }
   }
