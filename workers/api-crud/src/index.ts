@@ -854,32 +854,30 @@ async function handleVerifyPassword(
 async function resolveUserAuthContext(
   env: Env,
   userId: string,
+  forTenantId?: string,
 ): Promise<{ tenant_id: string; role: string }> {
   const fallback = { tenant_id: "", role: "user" };
 
-  // 1) Get role from users table (always has role column)
-  let userRole = fallback.role;
+  // Resolve tenant + role from user_tenants + roles (tenant-scoped RBAC)
+  // NOTE: We do NOT use users.role (global) anymore — it causes cross-tenant contamination.
+  // The per-tenant role from user_tenants.role_id → roles is the source of truth.
   try {
-    const users = await executeQuery(
-      env,
-      'SELECT "role" FROM "users" WHERE "id" = $1 AND "deleted_at" IS NULL LIMIT 1',
-      [userId],
-    );
-    if (Array.isArray(users) && users.length > 0) {
-      const row = users[0] as { role?: string | null };
-      userRole = String(row.role ?? fallback.role);
+    let rows: unknown[];
+    if (forTenantId) {
+      // Specific tenant — filter by tenant_id
+      rows = await executeQuery(
+        env,
+        'SELECT ut."tenant_id", COALESCE(r."key", r."name", \'user\') AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."tenant_id" = $2 AND ut."deleted_at" IS NULL LIMIT 1',
+        [userId, forTenantId],
+      );
+    } else {
+      // No specific tenant — get the first linked tenant (fallback scenario)
+      rows = await executeQuery(
+        env,
+        'SELECT ut."tenant_id", COALESCE(r."key", r."name", \'user\') AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."deleted_at" IS NULL ORDER BY ut."created_at" ASC LIMIT 1',
+        [userId],
+      );
     }
-  } catch {
-    // ignore
-  }
-
-  // 2) Get tenant_id + role from user_tenants + roles (tenant-scoped RBAC)
-  try {
-    const rows = await executeQuery(
-      env,
-      'SELECT ut."tenant_id", COALESCE(r."key", r."name", $2) AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."deleted_at" IS NULL ORDER BY ut."created_at" ASC LIMIT 1',
-      [userId, userRole],
-    );
 
     if (Array.isArray(rows) && rows.length > 0) {
       const row = rows[0] as {
@@ -888,15 +886,15 @@ async function resolveUserAuthContext(
       };
       return {
         tenant_id: String(row.tenant_id ?? ""),
-        role: String(row.role ?? userRole),
+        role: String(row.role ?? "user"),
       };
     }
   } catch {
     // ignore and fallback below
   }
 
-  // 3) No user_tenants record — return role from users table, empty tenant
-  return { tenant_id: "", role: userRole };
+  // No user_tenants record — return safe default
+  return fallback;
 }
 /* ------------------------------------------------------------------ */
 /*  Route: POST /auth/request-password-reset                           */
@@ -1207,13 +1205,14 @@ async function handleRegister(
 
         if (existingLink.length === 0) {
           // Find role_id for the tenant's default_client_role
+          // IMPORTANT: Filter by tenant_id to avoid cross-tenant role contamination
           const defaultRole = tenant.default_client_role || "client";
           let roleId: string | null = null;
           try {
             const roles = await executeQuery(
               env,
-              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "deleted_at" IS NULL LIMIT 1',
-              [defaultRole],
+              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "tenant_id" = $2 AND "deleted_at" IS NULL LIMIT 1',
+              [defaultRole, tenantId],
             );
             if (roles.length > 0) {
               roleId = (roles[0] as { id: string }).id;
@@ -1233,13 +1232,15 @@ async function handleRegister(
           if (defaultRole) userRole = defaultRole;
         }
 
-        // Persist tenant_id and role on the users table so admin screens
-        // display the correct tenant & role for this user
+        // Persist tenant_id on the users table for convenience (last-used tenant).
+        // NOTE: We intentionally do NOT update users.role globally here.
+        // Per-tenant roles are managed exclusively via user_tenants.role_id → roles.
+        // Writing role globally would contaminate cross-tenant sessions.
         try {
           await executeQuery(
             env,
-            'UPDATE "users" SET "role" = $1, "tenant_id" = $2, "updated_at" = NOW() WHERE "id" = $3',
-            [userRole, tenantId, userId],
+            'UPDATE "users" SET "tenant_id" = $1, "updated_at" = NOW() WHERE "id" = $2',
+            [tenantId, userId],
           );
         } catch {
           /* best-effort sync */
@@ -1353,7 +1354,11 @@ async function handleLogin(
     }
 
     // 3. Resolve tenant from hostname/slug and auto-link
-    let userRole = user.role ?? "user";
+    // IMPORTANT: Do NOT use user.role (global) as the starting value.
+    // The per-tenant role from user_tenants.role_id is the source of truth.
+    // Using user.role would cause cross-tenant role contamination (e.g., user
+    // who is admin on tenant A would appear as admin on tenant B).
+    let userRole = "user";
     let tenantId = "";
 
     try {
@@ -1367,10 +1372,11 @@ async function handleLogin(
         tenantId = tenant.id;
 
         // Check if user_tenants link exists for this tenant
+        // COALESCE fallback is "user" (safe default) — never use the global users.role
         const existingLink = await executeQuery(
           env,
-          'SELECT ut."tenant_id", COALESCE(r."key", r."name", $3) AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."tenant_id" = $2 AND ut."deleted_at" IS NULL LIMIT 1',
-          [user.id, tenantId, userRole],
+          'SELECT ut."tenant_id", COALESCE(r."key", r."name", \'user\') AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."tenant_id" = $2 AND ut."deleted_at" IS NULL LIMIT 1',
+          [user.id, tenantId],
         );
 
         if (existingLink.length > 0) {
@@ -1384,8 +1390,8 @@ async function handleLogin(
           try {
             const roles = await executeQuery(
               env,
-              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "deleted_at" IS NULL LIMIT 1',
-              [defaultRole],
+              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "tenant_id" = $2 AND "deleted_at" IS NULL LIMIT 1',
+              [defaultRole, tenantId],
             );
             if (roles.length > 0) {
               roleId = (roles[0] as { id: string }).id;
@@ -1569,7 +1575,9 @@ async function handleGoogleLogin(
       userEmail = existing.email ?? email;
       userFullname = existing.fullname ?? fullname;
       userPhone = existing.phone;
-      userRole = existing.role ?? "user";
+      // NOTE: Do NOT use existing.role (global) — it causes cross-tenant contamination.
+      // Per-tenant role will be resolved below from user_tenants.role_id → roles.
+      userRole = "user";
 
       if (fullname && fullname !== existing.fullname) {
         try {
@@ -1609,8 +1617,8 @@ async function handleGoogleLogin(
 
         const existingLink = await executeQuery(
           env,
-          'SELECT ut."tenant_id", COALESCE(r."key", r."name", $3) AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."tenant_id" = $2 AND ut."deleted_at" IS NULL LIMIT 1',
-          [userId, tenantId, userRole],
+          'SELECT ut."tenant_id", COALESCE(r."key", r."name", \'user\') AS role FROM "user_tenants" ut LEFT JOIN "roles" r ON r."id" = ut."role_id" WHERE ut."user_id" = $1 AND ut."tenant_id" = $2 AND ut."deleted_at" IS NULL LIMIT 1',
+          [userId, tenantId],
         );
 
         if (existingLink.length > 0) {
@@ -1622,8 +1630,8 @@ async function handleGoogleLogin(
           try {
             const roles = await executeQuery(
               env,
-              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "deleted_at" IS NULL LIMIT 1',
-              [defaultRole],
+              'SELECT "id" FROM "roles" WHERE ("key" = $1 OR "name" = $1) AND "tenant_id" = $2 AND "deleted_at" IS NULL LIMIT 1',
+              [defaultRole, tenantId],
             );
             if (roles.length > 0) {
               roleId = (roles[0] as { id: string }).id;

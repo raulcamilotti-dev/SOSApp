@@ -529,16 +529,10 @@ export async function runOnboarding(
         await assignAdminFullPermission(adminRoleId);
       }
 
-      // Also update users.role to 'admin' so the shortcut in isUserAdmin works
-      try {
-        await api.post(CRUD_ENDPOINT, {
-          action: "update",
-          table: "users",
-          payload: { id: userId, role: "admin" },
-        });
-      } catch {
-        // Non-fatal — permissions chain still works via user_tenants
-      }
+      // NOTE: We intentionally do NOT update users.role here.
+      // The per-tenant role is stored in user_tenants.role_id → roles table.
+      // Writing users.role = "admin" globally would contaminate other tenants
+      // where this user should have a different role (e.g., "cliente").
     }
   } catch {
     // Non-fatal — user still has access
