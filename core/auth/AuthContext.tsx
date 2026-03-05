@@ -58,19 +58,17 @@ const tryAutoLinkCompanies = (userId: string, cpf?: string) => {
 /**
  * Auto-resolve tenant from domain context and link user if applicable.
  * Called after login/register to auto-link users visiting tenant-specific domains.
- * - app.radul.com.br → no auto-link (user creates own tenant via onboarding)
+ * - app.radul.com.br → resolve slug "radul" → auto-link as client of Radul
  * - cartorio.radul.com.br → resolve slug "cartorio" → auto-link as client
  * - app.sosescritura.com.br → resolve custom_domain → auto-link as client
+ * - localhost → no auto-link (dev environment, no tenant context)
  */
 const tryAutoResolveTenant = async (
   userId: string,
   tenantContext: import("./tenant-context").TenantContextPayload,
 ): Promise<string | null> => {
   try {
-    // Skip if this is the platform root (app.radul.com.br)
-    if (tenantContext.is_platform_root) return null;
-
-    // Skip if no hostname context (native app without tenant slug)
+    // Skip if no hostname context AND no tenant slug (native app without context)
     if (!tenantContext.hostname && !tenantContext.tenant_slug) return null;
 
     const result = await resolveTenantFromContext(tenantContext);

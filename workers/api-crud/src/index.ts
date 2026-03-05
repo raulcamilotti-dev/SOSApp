@@ -20,30 +20,30 @@ import bcrypt from "bcryptjs";
 import { generateApiKey } from "./api-key-auth";
 import { executeQuery } from "./db";
 import {
-  handleDelinquencySummary,
-  handleDelinquentCustomers,
-  handleMarkOverdue,
-  handleMonthlyRevenue,
-  handleOverdueEntries,
+    handleDelinquencySummary,
+    handleDelinquentCustomers,
+    handleMarkOverdue,
+    handleMonthlyRevenue,
+    handleOverdueEntries,
 } from "./financial";
 import { signToken, verifyToken, type JwtPayload } from "./jwt";
 import {
-  handleCancelOrder,
-  handleConfirmPayment,
-  handleCreateOrderRecords,
-  handleOrderSummary,
-  handleResolveCustomer,
+    handleCancelOrder,
+    handleConfirmPayment,
+    handleCreateOrderRecords,
+    handleOrderSummary,
+    handleResolveCustomer,
 } from "./marketplace";
 import { handlePublicApiRequest } from "./public-api";
 import { handleClearCart, handleRemoveCartItem } from "./shopping-cart";
 import {
-  buildAggregate,
-  buildBatchCreate,
-  buildCount,
-  buildCreate,
-  buildDelete,
-  buildList,
-  buildUpdate,
+    buildAggregate,
+    buildBatchCreate,
+    buildCount,
+    buildCreate,
+    buildDelete,
+    buildList,
+    buildUpdate,
 } from "./sql-builder";
 import { handleClearPackData } from "./template-packs";
 import type { CrudRequestBody, Env } from "./types";
@@ -1173,11 +1173,27 @@ async function handleRegister(
     // 3. Resolve tenant from hostname/slug
     let tenantId = "";
     try {
-      const tenantResolution = await resolveTenantInternal(
+      let tenantResolution = await resolveTenantInternal(
         env,
         tenantSlug,
         hostname,
       );
+
+      // Platform root fallback: if resolution failed and hostname is a platform root,
+      // derive slug from root domain and try again (e.g., app.radul.com.br → slug "radul")
+      if (!tenantResolution.resolved && !tenantSlug) {
+        const PLATFORM_ROOT_HOSTS = new Set([
+          "app.radul.com.br",
+          "www.radul.com.br",
+          "radul.com.br",
+        ]);
+        const cleanHost = hostname.toLowerCase().trim();
+        if (PLATFORM_ROOT_HOSTS.has(cleanHost)) {
+          const platformSlug = "radul";
+          tenantResolution = await resolveTenantInternal(env, platformSlug);
+        }
+      }
+
       if (tenantResolution.resolved && tenantResolution.tenant) {
         const tenant = tenantResolution.tenant;
         tenantId = tenant.id;
@@ -1215,6 +1231,18 @@ async function handleRegister(
 
           // Update role from tenant context
           if (defaultRole) userRole = defaultRole;
+        }
+
+        // Persist tenant_id and role on the users table so admin screens
+        // display the correct tenant & role for this user
+        try {
+          await executeQuery(
+            env,
+            'UPDATE "users" SET "role" = $1, "tenant_id" = $2, "updated_at" = NOW() WHERE "id" = $3',
+            [userRole, tenantId, userId],
+          );
+        } catch {
+          /* best-effort sync */
         }
       }
     } catch (err) {
@@ -1463,7 +1491,8 @@ async function verifyGoogleIdToken(
 
   const issuer = String(payload.iss ?? "").trim();
   const validIssuer =
-    issuer === "accounts.google.com" || issuer === "https://accounts.google.com";
+    issuer === "accounts.google.com" ||
+    issuer === "https://accounts.google.com";
   if (!validIssuer) {
     throw new Error("Emissor do token Google inválido");
   }

@@ -143,8 +143,16 @@ export function buildTenantContextPayload(): TenantContextPayload {
     hostLower === `www.${rootDomain}` ||
     hostLower === "localhost";
 
+  // For platform root (except localhost), derive the platform tenant slug
+  // from the root domain so users registering on app.radul.com.br get linked
+  // to the Radul tenant. E.g., rootDomain "radul.com.br" → slug "radul".
+  const platformSlug =
+    isPlatformRoot && hostLower !== "localhost"
+      ? rootDomain.split(".")[0] || undefined
+      : undefined;
+
   return {
-    tenant_slug: tenantHint,
+    tenant_slug: tenantHint ?? platformSlug,
     tenant_subdomain: tenantFromHost,
     tenant_hint: tenantHint,
     app_slug: appSlug || undefined,

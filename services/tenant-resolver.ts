@@ -99,8 +99,10 @@ export async function resolveTenantFromContext(
       .trim(),
   );
 
-  // Check if this is the platform root (no tenant to resolve)
-  if (!hostname || PLATFORM_ROOT_HOSTS.has(hostname)) {
+  // Check if this is the platform root with no slug to resolve
+  // If a slug IS available (e.g., "radul" derived from platform root domain),
+  // allow resolution to proceed so users get linked to the correct tenant.
+  if (!hostname || (PLATFORM_ROOT_HOSTS.has(hostname) && !slug)) {
     return {
       resolved: false,
       tenant: null,
