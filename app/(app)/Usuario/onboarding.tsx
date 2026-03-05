@@ -2,18 +2,18 @@
 /*  Onboarding Wizard                                                  */
 /*                                                                     */
 /*  Self-service setup flow for new tenants:                           */
-/*    Step 1 — Company info (name, WhatsApp, CNPJ)                     */
-/*    Step 2 — Choose vertical (template pack)                         */
-/*    Step 3 — Applying configuration (progress)                       */
-/*    Step 4 — Done! Welcome.                                          */
+/*    Step 1 — Company info (name, WhatsApp, CNPJ, branding)           */
+/*    Step 2 — Applying configuration (progress)                       */
+/*    Step 3 — Done! Welcome.                                          */
+/*                                                                     */
+/*  Template packs are NOT selected here. The tenant starts as an      */
+/*  empty shell. Users go to Marketplace later to install packs.       */
 /* ------------------------------------------------------------------ */
 
 import { useAuth } from "@/core/auth/AuthContext";
-import type { PackSummary } from "@/data/template-packs";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
     generateSlug,
-    getAvailableVerticalsAsync,
     runOnboarding,
     type OnboardingCompanyData,
 } from "@/services/onboarding";
@@ -38,17 +38,7 @@ import {
 /*  Constants                                                          */
 /* ================================================================== */
 
-const VERTICAL_ICONS: Record<string, string> = {
-  cartorio: "🏛️",
-  generico: "🔧",
-  advocacia: "⚖️",
-  contabilidade: "📊",
-  imobiliaria: "🏠",
-  petshop: "🐾",
-  clinica: "🩺",
-};
-
-const STEP_LABELS = ["Sua Empresa", "Sua Vertical", "Configurando", "Pronto!"];
+const STEP_LABELS = ["Sua Empresa", "Configurando", "Pronto!"];
 
 const COLOR_PRESETS = [
   { hex: "#2563eb", label: "Azul" },
@@ -101,36 +91,12 @@ export default function OnboardingScreen() {
   const [customHex, setCustomHex] = useState("");
   const [slugValue, setSlugValue] = useState("");
 
-  // Step 2: Vertical
-  const [selectedPack, setSelectedPack] = useState<string | null>(null);
-  const [packs, setPacks] = useState<PackSummary[]>([]);
-  const [packsLoading, setPacksLoading] = useState(true);
-
-  // Load packs from marketplace + built-in (async)
-  useEffect(() => {
-    let cancelled = false;
-    setPacksLoading(true);
-    getAvailableVerticalsAsync()
-      .then((list) => {
-        if (!cancelled) setPacks(list);
-      })
-      .catch(() => {
-        // Fallback already handled inside getAvailableVerticalsAsync
-      })
-      .finally(() => {
-        if (!cancelled) setPacksLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Step 3: Progress
+  // Step 1: Progress
   const [progressLabel, setProgressLabel] = useState("");
   const progressAnim = useRef(new Animated.Value(0)).current;
   const [progressValue, setProgressValue] = useState(0);
 
-  // Step 4: Done
+  // Step 2: Done
   const [result, setResult] = useState<{
     success: boolean;
     tenantId: string;
@@ -188,7 +154,7 @@ export default function OnboardingScreen() {
   /* ---- Run onboarding ---- */
   const handleApply = useCallback(async () => {
     if (!user?.id) return;
-    setStep(2);
+    setStep(1);
     setError("");
     setProgressValue(0);
     setProgressLabel("Iniciando...");
@@ -212,7 +178,7 @@ export default function OnboardingScreen() {
       const onboardingResult = await runOnboarding(
         user.id,
         companyData,
-        selectedPack,
+        null, // No pack — empty shell. Users install packs from Marketplace later.
         (label, progress) => {
           setProgressLabel(label);
           setProgressValue(progress);
@@ -255,12 +221,12 @@ export default function OnboardingScreen() {
         // Non-fatal — DB already has admin role from runOnboarding
       }
 
-      setStep(3);
+      setStep(2);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Erro ao configurar sua empresa.",
       );
-      setStep(1); // go back to vertical selection
+      setStep(0); // go back to company info
     }
   }, [
     user,
@@ -270,7 +236,6 @@ export default function OnboardingScreen() {
     brandName,
     brandColor,
     slugValue,
-    selectedPack,
     progressAnim,
     refreshAvailableTenants,
     selectTenant,
@@ -280,14 +245,8 @@ export default function OnboardingScreen() {
   /* ---- Navigation ---- */
   const handleNext = () => {
     if (step === 0 && isStep1Valid) {
-      setStep(1);
-    } else if (step === 1) {
       handleApply();
     }
-  };
-
-  const handleBack = () => {
-    if (step === 1) setStep(0);
   };
 
   const handleFinish = () => {
@@ -692,146 +651,9 @@ export default function OnboardingScreen() {
   );
 
   /* ================================================================ */
-  /*  STEP 2 — Sua Vertical                                           */
+  /*  STEP 2 — Configurando                                           */
   /* ================================================================ */
-  const renderStep2 = () => (
-    <View style={{ gap: 20 }}>
-      <View style={{ alignItems: "center", marginBottom: 8 }}>
-        <View
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 32,
-            backgroundColor: `${primaryColor}15`,
-            justifyContent: "center",
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
-          <Ionicons name="grid-outline" size={32} color={primaryColor} />
-        </View>
-        <Text
-          style={{
-            fontSize: 22,
-            fontWeight: "700",
-            color: textColor,
-            textAlign: "center",
-          }}
-        >
-          Escolha seu setor
-        </Text>
-        <Text
-          style={{
-            fontSize: 14,
-            color: mutedColor,
-            textAlign: "center",
-            marginTop: 4,
-          }}
-        >
-          Vamos pré-configurar workflows, formulários e categorias do seu setor.
-          Você pode personalizar tudo depois.
-        </Text>
-      </View>
-
-      {/* Pack cards */}
-      {packsLoading ? (
-        <View style={{ alignItems: "center", paddingVertical: 32 }}>
-          <ActivityIndicator size="large" color={primaryColor} />
-          <Text style={{ fontSize: 14, color: mutedColor, marginTop: 12 }}>
-            Carregando opções...
-          </Text>
-        </View>
-      ) : (
-        <View style={{ gap: 12 }}>
-          {packs.map((pack: PackSummary) => {
-            const isSelected = selectedPack === pack.key;
-            const icon = pack.icon || VERTICAL_ICONS[pack.key] || "📋";
-
-            return (
-              <Pressable
-                key={pack.key}
-                onPress={() => setSelectedPack(pack.key)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 14,
-                  padding: 16,
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  borderColor: isSelected ? primaryColor : borderColor,
-                  backgroundColor: isSelected ? `${primaryColor}08` : cardBg,
-                }}
-              >
-                <Text style={{ fontSize: 32 }}>{icon}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "700",
-                      color: textColor,
-                    }}
-                  >
-                    {pack.name}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      color: mutedColor,
-                      marginTop: 2,
-                    }}
-                  >
-                    {pack.description}
-                  </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      gap: 12,
-                      marginTop: 6,
-                    }}
-                  >
-                    <Text style={{ fontSize: 11, color: mutedColor }}>
-                      {pack.serviceTypeCount} tipos de serviço
-                    </Text>
-                    <Text style={{ fontSize: 11, color: mutedColor }}>
-                      {pack.workflowCount} workflows
-                    </Text>
-                    <Text style={{ fontSize: 11, color: mutedColor }}>
-                      {pack.modules.length} módulos
-                    </Text>
-                  </View>
-                </View>
-                {isSelected && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={24}
-                    color={primaryColor}
-                  />
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-
-      {/* Skip option */}
-      <Pressable
-        onPress={() => {
-          setSelectedPack(null);
-          handleApply();
-        }}
-        style={{ alignItems: "center", padding: 12 }}
-      >
-        <Text style={{ fontSize: 14, color: mutedColor }}>
-          Pular — vou configurar manualmente depois
-        </Text>
-      </Pressable>
-    </View>
-  );
-
-  /* ================================================================ */
-  /*  STEP 3 — Configurando                                           */
-  /* ================================================================ */
-  const renderStep3Applying = () => (
+  const renderStepApplying = () => (
     <View style={{ gap: 24, alignItems: "center", paddingVertical: 40 }}>
       <View
         style={{
@@ -895,9 +717,9 @@ export default function OnboardingScreen() {
   );
 
   /* ================================================================ */
-  /*  STEP 4 — Pronto!                                                */
+  /*  STEP 3 — Pronto!                                                */
   /* ================================================================ */
-  const renderStep4Done = () => (
+  const renderStepDone = () => (
     <View style={{ gap: 24, alignItems: "center", paddingVertical: 40 }}>
       <View
         style={{
@@ -936,10 +758,8 @@ export default function OnboardingScreen() {
         <Text style={{ fontWeight: "700", color: textColor }}>
           {companyName}
         </Text>{" "}
-        foi criada com sucesso.
-        {result?.packApplied
-          ? " As configurações do seu setor já foram aplicadas."
-          : ""}
+        foi criada com sucesso. Visite o Marketplace para instalar pacotes de
+        configuração do seu setor.
       </Text>
 
       {result?.errors && result.errors.length > 0 && (
@@ -983,11 +803,9 @@ export default function OnboardingScreen() {
       case 0:
         return renderStep1();
       case 1:
-        return renderStep2();
+        return renderStepApplying();
       case 2:
-        return renderStep3Applying();
-      case 3:
-        return renderStep4Done();
+        return renderStepDone();
       default:
         return null;
     }
@@ -1103,8 +921,8 @@ export default function OnboardingScreen() {
               </View>
             ) : null}
 
-            {/* Navigation buttons (steps 0-1 only) */}
-            {step <= 1 && (
+            {/* Navigation buttons (step 0 only) */}
+            {step === 0 && (
               <View
                 style={{
                   flexDirection: "row",
@@ -1113,29 +931,7 @@ export default function OnboardingScreen() {
                   gap: 12,
                 }}
               >
-                {step > 0 ? (
-                  <Pressable
-                    onPress={handleBack}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 14,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 15,
-                        fontWeight: "600",
-                        color: textColor,
-                      }}
-                    >
-                      ← Voltar
-                    </Text>
-                  </Pressable>
-                ) : isAdditionalTenant ? (
+                {isAdditionalTenant ? (
                   <Pressable
                     onPress={handleCancel}
                     style={{
@@ -1163,15 +959,16 @@ export default function OnboardingScreen() {
 
                 <Pressable
                   onPress={handleNext}
-                  disabled={step === 0 && !isStep1Valid}
+                  disabled={!isStep1Valid}
                   style={{
                     flex: 1,
                     paddingVertical: 14,
                     borderRadius: 12,
-                    backgroundColor:
-                      step === 0 && !isStep1Valid ? borderColor : primaryColor,
+                    backgroundColor: !isStep1Valid
+                      ? borderColor
+                      : primaryColor,
                     alignItems: "center",
-                    opacity: step === 0 && !isStep1Valid ? 0.5 : 1,
+                    opacity: !isStep1Valid ? 0.5 : 1,
                   }}
                 >
                   <Text
@@ -1181,7 +978,7 @@ export default function OnboardingScreen() {
                       color: "#fff",
                     }}
                   >
-                    {step === 0 ? "Continuar →" : "Configurar →"}
+                    Continuar →
                   </Text>
                 </Pressable>
               </View>
