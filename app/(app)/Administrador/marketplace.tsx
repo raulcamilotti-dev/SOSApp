@@ -2080,9 +2080,9 @@ export default function MarketplaceScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Header */}
               <View style={{ alignItems: "center", marginBottom: 20 }}>
-                <ThemedText style={{ fontSize: 32, marginBottom: 8 }}>
-                  {purchasingPack?.icon || "💳"}
-                </ThemedText>
+                <View style={{ marginBottom: 8 }}>
+                  {renderPackIcon(purchasingPack?.icon, 32)}
+                </View>
                 <ThemedText
                   style={{
                     fontSize: 18,

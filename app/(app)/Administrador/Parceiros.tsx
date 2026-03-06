@@ -4,6 +4,7 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
+import { ensureInternalPartnerReady } from "@/services/internal-partner";
 
 import {
   buildSearchParams,
@@ -40,6 +41,14 @@ const formatDate = (value: unknown) => {
 };
 
 const listRows = async (tenantId?: string | null): Promise<Row[]> => {
+  if (tenantId) {
+    try {
+      await ensureInternalPartnerReady(tenantId);
+    } catch {
+      // non-blocking: continue loading with existing data
+    }
+  }
+
   const tenantFilters = tenantId
     ? buildSearchParams([{ field: "tenant_id", value: tenantId }])
     : {};

@@ -12,6 +12,7 @@
 
 import { api } from "./api";
 import { buildSearchParams, CRUD_ENDPOINT, normalizeCrudList } from "./crud";
+import { ensureInternalPartnerReady } from "./internal-partner";
 import { listPartnerServices, type PartnerService } from "./partner-services";
 
 /* ═══════════════════════════════════════════════════════
@@ -378,6 +379,12 @@ export async function getSchedulingOptionsForServices(
   }[],
 ): Promise<ServiceSchedulingOptions[]> {
   if (!tenantId || serviceItems.length === 0) return [];
+
+  try {
+    await ensureInternalPartnerReady(tenantId);
+  } catch {
+    // non-blocking: fallback to current data if auto-provision fails
+  }
 
   // Deduplicate service IDs (multiple cart items could be the same service)
   const uniqueServiceIds = [...new Set(serviceItems.map((s) => s.service_id))];

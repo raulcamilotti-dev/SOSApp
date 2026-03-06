@@ -1,4 +1,3 @@
-import { styles } from "@/app/theme/styles";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
@@ -94,6 +93,7 @@ export default function RolePermissionsMatrixScreen() {
   const cardColor = useThemeColor({}, "card");
   const tintColor = useThemeColor({}, "tint");
   const inputBackground = useThemeColor({}, "input");
+  const backgroundColor = useThemeColor({}, "background");
 
   const loadData = useCallback(async () => {
     try {
@@ -286,18 +286,24 @@ export default function RolePermissionsMatrixScreen() {
       ]}
     >
       <ScrollView
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 16, backgroundColor }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <ThemedView style={styles.processCard}>
-          <ThemedText style={[styles.processTitle, { color: textColor }]}>
+        <ThemedView
+          style={{
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor,
+            backgroundColor: cardColor,
+            padding: 16,
+          }}
+        >
+          <ThemedText style={{ fontSize: 24, fontWeight: "700", color: textColor }}>
             Matriz de permissoes por role
           </ThemedText>
-          <ThemedText
-            style={[styles.processSubtitle, { color: mutedTextColor }]}
-          >
+          <ThemedText style={{ fontSize: 14, color: mutedTextColor, marginTop: 4 }}>
             Defina rapidamente quais permissoes cada role pode acessar.
           </ThemedText>
 
@@ -348,13 +354,21 @@ export default function RolePermissionsMatrixScreen() {
 
         {loading ? (
           <ThemedView
-            style={[
-              styles.container,
-              { justifyContent: "center", alignItems: "center" },
-            ]}
+            style={{
+              minHeight: 220,
+              justifyContent: "center",
+              alignItems: "center",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor,
+              backgroundColor: cardColor,
+              marginTop: 12,
+            }}
           >
-            <ActivityIndicator size="large" />
-            <ThemedText style={{ marginTop: 12 }}>Carregando...</ThemedText>
+            <ActivityIndicator size="large" color={tintColor} />
+            <ThemedText style={{ marginTop: 12, color: mutedTextColor }}>
+              Carregando...
+            </ThemedText>
           </ThemedView>
         ) : null}
 
@@ -425,7 +439,7 @@ export default function RolePermissionsMatrixScreen() {
                         borderColor: assigned ? tintColor : borderColor,
                         backgroundColor: assigned
                           ? `${tintColor}22`
-                          : cardColor,
+                          : inputBackground,
                         opacity: pending ? 0.6 : 1,
                       }}
                     >

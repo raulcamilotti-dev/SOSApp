@@ -467,9 +467,27 @@ async function handleDnsCreateSubdomain(
   body: Record<string, unknown>,
   env: Env,
 ): Promise<Response> {
-  const slug = (body.slug as string | undefined)?.trim();
+  const rawRecordName = String(body.record_name ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/\.$/, "");
+  const rawSlug = String(body.slug ?? "")
+    .toLowerCase()
+    .trim();
+
+  let slug = rawSlug;
+  if (rawRecordName) {
+    if (rawRecordName === DNS_ZONE_DOMAIN) {
+      return errorResponse(400, "Root domain is not allowed");
+    }
+    if (!rawRecordName.endsWith(`.${DNS_ZONE_DOMAIN}`)) {
+      return errorResponse(400, "record_name must belong to zone domain");
+    }
+    slug = rawRecordName.slice(0, -`.${DNS_ZONE_DOMAIN}`.length);
+  }
+
   if (!slug) {
-    return errorResponse(400, "slug is required");
+    return errorResponse(400, "slug or record_name is required");
   }
 
   // Validate slug format (URL-safe, lowercase, no dots)
@@ -552,7 +570,7 @@ async function handleDnsCreateSubdomain(
       },
       body: JSON.stringify({
         type: "A",
-        name: slug, // Cloudflare auto-appends the zone domain
+        name: recordName,
         content: DNS_TARGET_IP,
         ttl: 1, // 1 = automatic
         proxied: true,

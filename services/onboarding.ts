@@ -404,7 +404,7 @@ export async function runOnboarding(
   if (slug) {
     onProgress?.("Configurando subdomínio...", 0.15);
     try {
-      await createSubdomainDNS(slug);
+      await createSubdomainDNS(`${slug}.radul.com.br`);
     } catch (dnsErr) {
       console.warn(
         "[onboarding] DNS subdomain creation failed (non-blocking):",

@@ -13,6 +13,21 @@
 import { api, getApiErrorMessage } from "@/services/api";
 
 const DNS_ENDPOINT = "/dns/create-subdomain";
+const DNS_ZONE_DOMAIN = "radul.com.br";
+
+const normalizeRecordName = (value: string): string => {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/, "");
+  if (!normalized) return "";
+
+  if (normalized.endsWith(`.${DNS_ZONE_DOMAIN}`)) {
+    return normalized;
+  }
+
+  return `${normalized}.${DNS_ZONE_DOMAIN}`;
+};
 
 export interface DnsCreateResult {
   success: boolean;
@@ -38,8 +53,16 @@ export async function createSubdomainDNS(
     return { success: false, message: "Slug vazio" };
   }
 
+  const recordName = normalizeRecordName(trimmed);
+  if (!recordName) {
+    return { success: false, message: "Subdomínio inválido" };
+  }
+
   try {
-    const res = await api.post(DNS_ENDPOINT, { slug: trimmed });
+    const res = await api.post(DNS_ENDPOINT, {
+      slug: trimmed,
+      record_name: recordName,
+    });
     const data = res.data as DnsCreateResult;
     return {
       success: data?.success ?? false,

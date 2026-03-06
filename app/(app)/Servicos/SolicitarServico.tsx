@@ -5,6 +5,7 @@ import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import { ensureInternalPartnerReady } from "@/services/internal-partner";
 import { notifyAppointmentScheduled } from "@/services/notification-events";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -323,6 +324,12 @@ export default function SolicitarServicoScreen() {
       setLoading(true);
       setError(null);
       clearErrorDiagnostic();
+
+      try {
+        await ensureInternalPartnerReady(tenantId);
+      } catch {
+        // non-blocking: keep loading even if auto-provision fails
+      }
 
       const [
         servicesRes,

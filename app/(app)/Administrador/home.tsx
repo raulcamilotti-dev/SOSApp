@@ -10,13 +10,13 @@ import { usePermissions } from "@/core/auth/usePermissions";
 import { useGuidedTour } from "@/core/context/GuidedTourContext";
 import { getAdminPageModule } from "@/core/modules/module-config";
 import { useTenantModules } from "@/core/modules/ModulesContext";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    Appearance,
     Platform,
     Pressable,
     ScrollView,
@@ -65,7 +65,8 @@ export default function AdminHomeScreen() {
   const cardColor = useThemeColor({}, "card");
   const borderColor = useThemeColor({}, "border");
   const tintColor = useThemeColor({}, "tint");
-  const isDark = Appearance.getColorScheme() === "dark";
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   // State
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);

@@ -1,4 +1,3 @@
-import { styles } from "@/app/theme/styles";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { JsonEditor } from "@/components/ui/JsonEditor";
@@ -1112,6 +1111,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
 
   const textColor = useThemeColor({}, "text");
   const mutedTextColor = useThemeColor({}, "muted");
+  const backgroundColor = useThemeColor({}, "background");
   const borderColor = useThemeColor({}, "border");
   const cardColor = useThemeColor({}, "card");
   const tintColor = useThemeColor({}, "tint");
@@ -2853,13 +2853,18 @@ export function CrudScreen<T extends Record<string, unknown>>({
   if (loading) {
     return (
       <ThemedView
-        style={[
-          styles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
+        style={{
+          flex: 1,
+          backgroundColor,
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: responsiveSpacing.screenPadding,
+        }}
       >
-        <ActivityIndicator size="large" />
-        <ThemedText style={{ marginTop: 12 }}>Carregando...</ThemedText>
+        <ActivityIndicator size="large" color={tintColor} />
+        <ThemedText style={{ marginTop: 12, color: mutedTextColor }}>
+          Carregando...
+        </ThemedText>
       </ThemedView>
     );
   }
