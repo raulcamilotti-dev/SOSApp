@@ -179,6 +179,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           table: "user_tenants",
           ...buildSearchParams([
             { field: "user_id", value: String(baseUser.id) },
+            { field: "is_active", value: "true", operator: "equal" },
+            { field: "deleted_at", value: "", operator: "is_null" },
           ]),
         });
 

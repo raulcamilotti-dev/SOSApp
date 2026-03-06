@@ -90,6 +90,8 @@ export type CrudFieldConfig<T> = {
   referenceIdField?: string;
   referenceSearchField?: string;
   resolveReferenceLabelInList?: boolean;
+  /** Disable automatic tenant scoping for this reference field. */
+  referenceDisableTenantScope?: boolean;
   referenceFilter?: (
     item: Record<string, unknown>,
     state: Record<string, string>,
@@ -1280,9 +1282,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
           search_operator1: "equal",
         };
 
-        const tenantFilter = await getReferenceTenantFilter(
-          field.referenceTable,
-        );
+        const tenantFilter = field.referenceDisableTenantScope
+          ? null
+          : await getReferenceTenantFilter(field.referenceTable);
         if (tenantFilter) {
           requestPayload.search_field2 = tenantFilter.field;
           requestPayload.search_value2 = tenantFilter.value;
@@ -1338,6 +1340,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
           table: string;
           idField: string;
           labelField?: string;
+          disableTenantScope?: boolean;
           ids: Set<string>;
         }
       >();
@@ -1354,6 +1357,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
               table,
               idField,
               labelField: field.referenceLabelField,
+              disableTenantScope: field.referenceDisableTenantScope === true,
               ids: new Set(),
             });
           }
@@ -1387,7 +1391,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
           .filter((group) => group.ids.size > 0)
           .map(async (group) => {
             try {
-              const tenantFilter = await getReferenceTenantFilter(group.table);
+              const tenantFilter = group.disableTenantScope
+                ? null
+                : await getReferenceTenantFilter(group.table);
               const idsArray = Array.from(group.ids);
               // Chunk large ID lists (max 50 per request to avoid overly long queries)
               const CHUNK_SIZE = 50;
@@ -1772,9 +1778,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
           nextFilterIndex += 1;
         }
 
-        const tenantFilter = await getReferenceTenantFilter(
-          field.referenceTable,
-        );
+        const tenantFilter = field.referenceDisableTenantScope
+          ? null
+          : await getReferenceTenantFilter(field.referenceTable);
         if (tenantFilter) {
           requestPayload[`search_field${nextFilterIndex}`] = tenantFilter.field;
           requestPayload[`search_value${nextFilterIndex}`] = tenantFilter.value;
@@ -2494,9 +2500,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
           search_operator1: "equal",
         };
 
-        const tenantFilter = await getReferenceTenantFilter(
-          field.referenceTable,
-        );
+        const tenantFilter = field.referenceDisableTenantScope
+          ? null
+          : await getReferenceTenantFilter(field.referenceTable);
         if (tenantFilter) {
           requestPayload.search_field2 = tenantFilter.field;
           requestPayload.search_value2 = tenantFilter.value;

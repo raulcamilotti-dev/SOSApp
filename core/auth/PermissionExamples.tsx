@@ -31,10 +31,10 @@ export function ProtectedScreenExample() {
 export function MultiplePermissionsOrExample() {
   return (
     <ProtectedRoute
-      requiredPermission={[PERMISSIONS.ADMIN_FULL, PERMISSIONS.USER_WRITE]}
+      requiredPermission={[PERMISSIONS.ADMIN_FULL, PERMISSIONS.USER_EDIT]}
     >
       <ThemedView style={{ padding: 16 }}>
-        <ThemedText>Visível para quem tem ADMIN_FULL OU USER_WRITE</ThemedText>
+        <ThemedText>Visível para quem tem ADMIN_FULL OU USER_EDIT</ThemedText>
       </ThemedView>
     </ProtectedRoute>
   );
@@ -46,11 +46,11 @@ export function MultiplePermissionsOrExample() {
 export function MultiplePermissionsAndExample() {
   return (
     <ProtectedRoute
-      requiredPermission={[PERMISSIONS.USER_WRITE, PERMISSIONS.USER_READ]}
+      requiredPermission={[PERMISSIONS.USER_EDIT, PERMISSIONS.USER_VIEW]}
       requireAll
     >
       <ThemedView style={{ padding: 16 }}>
-        <ThemedText>Visível para quem tem USER_WRITE E USER_READ</ThemedText>
+        <ThemedText>Visível para quem tem USER_EDIT E USER_VIEW</ThemedText>
       </ThemedView>
     </ProtectedRoute>
   );
@@ -60,7 +60,7 @@ export function MultiplePermissionsAndExample() {
  * Exemplo 4: Mostrar/esconder botões condicionalmente
  */
 export function ConditionalButtonExample() {
-  const canEdit = useHasPermission(PERMISSIONS.USER_WRITE);
+  const canEdit = useHasPermission(PERMISSIONS.USER_EDIT);
   const canDelete = useHasPermission(PERMISSIONS.USER_DELETE);
   const tintColor = useThemeColor({}, "tint");
 
@@ -179,7 +179,7 @@ export function CustomFallbackExample() {
  * Exemplo 7: Uso em lista (mostrar ações baseado em permissões)
  */
 export function ListItemWithPermissionsExample() {
-  const canEdit = useHasPermission(PERMISSIONS.USER_WRITE);
+  const canEdit = useHasPermission(PERMISSIONS.USER_EDIT);
   const canDelete = useHasPermission(PERMISSIONS.USER_DELETE);
   const textColor = useThemeColor({}, "text");
   const mutedTextColor = useThemeColor({}, "muted");

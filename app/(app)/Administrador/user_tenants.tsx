@@ -157,6 +157,7 @@ export default function UserTenantsScreen() {
       referenceLabelField: "name",
       referenceSearchField: "name",
       referenceIdField: "id",
+      referenceDisableTenantScope: true,
       referenceFilter: (item, state) => {
         const selectedTenantId = String(
           tenantId ?? state.tenant_id ?? "",
@@ -192,6 +193,7 @@ export default function UserTenantsScreen() {
       referenceLabelField: "display_name",
       referenceSearchField: "display_name",
       referenceIdField: "id",
+      referenceDisableTenantScope: true,
       referenceFilter: (item, state) => {
         const selectedTenantId = String(
           tenantId ?? state.tenant_id ?? "",

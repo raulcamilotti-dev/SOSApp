@@ -284,7 +284,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Catálogo de serviços e produtos oferecidos",
     icon: "construct-outline",
     route: "/Administrador/services",
-    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_VIEW],
   },
   {
     id: "composicoes",
@@ -294,7 +294,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Combos e kits de produtos/serviços",
     icon: "layers-outline",
     route: "/Administrador/Composicoes",
-    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_VIEW],
   },
   {
     id: "ncm_codes",
@@ -304,7 +304,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Nomenclatura Comum do Mercosul para emissão de notas fiscais",
     icon: "barcode-outline",
     route: "/Administrador/ncm-codes",
-    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_VIEW],
   },
   {
     id: "regras_desconto",
@@ -314,7 +314,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Limites de desconto por papel",
     icon: "pricetag-outline",
     route: "/Administrador/RegrasDesconto",
-    requiredAnyPermissions: [PERMISSIONS.SALE_WRITE],
+    requiredAnyPermissions: [PERMISSIONS.SALE_CREATE, PERMISSIONS.SALE_EDIT],
   },
   {
     id: "pdv",
@@ -334,7 +334,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Comandas abertas — adicione itens e feche depois no caixa",
     icon: "clipboard-outline",
     route: "/Servicos/PreVenda",
-    requiredAnyPermissions: [PERMISSIONS.PRESALE_READ],
+    requiredAnyPermissions: [PERMISSIONS.PRESALE_VIEW],
   },
   {
     id: "vendas",
@@ -344,7 +344,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de todas as vendas (produtos e serviços)",
     icon: "receipt-outline",
     route: "/Administrador/Vendas",
-    requiredAnyPermissions: [PERMISSIONS.SALE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SALE_VIEW],
   },
   // DEPRECATED: MinhasVendas agora é um filtro em Administrador/Vendas
   // {
@@ -355,7 +355,7 @@ export const ADMIN_PAGES: AdminPage[] = [
   //   description: "Histórico das suas vendas realizadas",
   //   icon: "receipt-outline",
   //   route: "/Servicos/MinhasVendas",
-  //   requiredAnyPermissions: [PERMISSIONS.SALE_READ],
+  //   requiredAnyPermissions: [PERMISSIONS.SALE_VIEW],
   // },
   {
     id: "estoque",
@@ -365,7 +365,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Posição de estoque dos produtos",
     icon: "cube-outline",
     route: "/Administrador/Estoque",
-    requiredAnyPermissions: [PERMISSIONS.STOCK_READ],
+    requiredAnyPermissions: [PERMISSIONS.STOCK_VIEW],
   },
   {
     id: "movimentacoes_estoque",
@@ -375,7 +375,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Histórico de entradas e saídas do estoque",
     icon: "swap-horizontal-outline",
     route: "/Administrador/MovimentacoesEstoque",
-    requiredAnyPermissions: [PERMISSIONS.STOCK_READ],
+    requiredAnyPermissions: [PERMISSIONS.STOCK_VIEW],
   },
   {
     id: "fornecedores",
@@ -385,7 +385,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Cadastro de fornecedores",
     icon: "business-outline",
     route: "/Administrador/Fornecedores",
-    requiredAnyPermissions: [PERMISSIONS.SUPPLIER_READ],
+    requiredAnyPermissions: [PERMISSIONS.SUPPLIER_VIEW],
   },
   {
     id: "solicitacoes_compras",
@@ -395,7 +395,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Requisicoes internas para aprovacao e compra",
     icon: "clipboard-outline",
     route: "/Administrador/SolicitacoesCompras",
-    requiredAnyPermissions: [PERMISSIONS.PURCHASE_WRITE],
+    requiredAnyPermissions: [PERMISSIONS.PURCHASE_CREATE, PERMISSIONS.PURCHASE_EDIT],
   },
   {
     id: "compras",
@@ -405,7 +405,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Pedidos de compra e recebimento de mercadorias",
     icon: "cart-outline",
     route: "/Administrador/Compras",
-    requiredAnyPermissions: [PERMISSIONS.PURCHASE_READ],
+    requiredAnyPermissions: [PERMISSIONS.PURCHASE_VIEW],
   },
   {
     id: "lotes",
@@ -415,7 +415,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Rastreamento de lotes, validades e FEFO",
     icon: "layers-outline",
     route: "/Administrador/Lotes",
-    requiredAnyPermissions: [PERMISSIONS.STOCK_READ],
+    requiredAnyPermissions: [PERMISSIONS.STOCK_VIEW],
   },
   {
     id: "tabelas_preco",
@@ -425,7 +425,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Tabelas de preço diferenciado por cliente",
     icon: "pricetags-outline",
     route: "/Administrador/TabelasPreco",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "separacao",
@@ -435,7 +435,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Kanban de separação de pedidos (pending → ready)",
     icon: "git-branch-outline",
     route: "/Administrador/Separacao",
-    requiredAnyPermissions: [PERMISSIONS.SALE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SALE_VIEW],
   },
   {
     id: "agendamentos_pendentes",
@@ -446,7 +446,7 @@ export const ADMIN_PAGES: AdminPage[] = [
       "Kanban de serviços vendidos aguardando agendamento e execução",
     icon: "calendar-outline",
     route: "/Administrador/AgendamentosPendentes",
-    requiredAnyPermissions: [PERMISSIONS.SALE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SALE_VIEW],
   },
   {
     id: "marketplace_config",
@@ -456,7 +456,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Configurar marketplace, PIX, frete e catálogo público",
     icon: "storefront-outline",
     route: "/Administrador/marketplace-config",
-    requiredAnyPermissions: [PERMISSIONS.SALE_WRITE],
+    requiredAnyPermissions: [PERMISSIONS.SALE_CREATE, PERMISSIONS.SALE_EDIT],
   },
   {
     id: "service_categories",
@@ -466,7 +466,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de categorias de serviços e produtos",
     icon: "albums-outline",
     route: "/Administrador/ServiceCategories",
-    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_VIEW],
   },
   {
     id: "service_types",
@@ -476,7 +476,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Tipos de serviços dentro das categorias",
     icon: "list-outline",
     route: "/Administrador/ServiceTypes",
-    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_VIEW],
   },
   {
     id: "agenda",
@@ -487,8 +487,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "calendar",
     route: "/Administrador/admin-calendar",
     requiredAnyPermissions: [
-      PERMISSIONS.TASK_READ,
-      PERMISSIONS.APPOINTMENT_READ,
+      PERMISSIONS.TASK_VIEW,
+      PERMISSIONS.APPOINTMENT_VIEW,
     ],
   },
   {
@@ -499,7 +499,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de reviews de serviços e produtos",
     icon: "star-outline",
     route: "/Administrador/AvaliacoesServico",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "customers",
@@ -509,7 +509,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de clientes e imóveis vinculados",
     icon: "people-outline",
     route: "/Administrador/customers",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "companies",
@@ -520,8 +520,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "business-outline",
     route: "/Administrador/companies",
     requiredAnyPermissions: [
-      PERMISSIONS.COMPANY_READ,
-      PERMISSIONS.CUSTOMER_READ,
+      PERMISSIONS.COMPANY_VIEW,
+      PERMISSIONS.CUSTOMER_VIEW,
     ],
   },
   {
@@ -533,8 +533,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "chatbubbles-outline",
     route: "/Administrador/atendimento-operador",
     requiredAnyPermissions: [
-      PERMISSIONS.ATENDIMENTO_READ,
-      PERMISSIONS.ATENDIMENTO_WRITE,
+      PERMISSIONS.ATENDIMENTO_VIEW,
+      PERMISSIONS.ATENDIMENTO_CREATE, PERMISSIONS.ATENDIMENTO_EDIT,
     ],
   },
   {
@@ -547,7 +547,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/DashboardAtendimento",
     requiredAnyPermissions: [
       PERMISSIONS.ATENDIMENTO_DASHBOARD,
-      PERMISSIONS.ATENDIMENTO_READ,
+      PERMISSIONS.ATENDIMENTO_VIEW,
     ],
   },
   {
@@ -559,8 +559,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "search-outline",
     route: "/Administrador/cnpj-consulta",
     requiredAnyPermissions: [
-      PERMISSIONS.CUSTOMER_READ,
-      PERMISSIONS.COMPANY_READ,
+      PERMISSIONS.CUSTOMER_VIEW,
+      PERMISSIONS.COMPANY_VIEW,
     ],
   },
   {
@@ -573,8 +573,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/company-members",
     hidden: true,
     requiredAnyPermissions: [
-      PERMISSIONS.COMPANY_READ,
-      PERMISSIONS.COMPANY_WRITE,
+      PERMISSIONS.COMPANY_VIEW,
+      PERMISSIONS.COMPANY_CREATE, PERMISSIONS.COMPANY_EDIT,
     ],
   },
   {
@@ -586,7 +586,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "reader-outline",
     route: "/Administrador/customer-contracts",
     hidden: true,
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "customer_payments",
@@ -598,8 +598,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/customer-payments",
     hidden: true,
     requiredAnyPermissions: [
-      PERMISSIONS.CUSTOMER_READ,
-      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.CUSTOMER_VIEW,
+      PERMISSIONS.FINANCIAL_VIEW,
     ],
   },
   {
@@ -611,7 +611,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "briefcase-outline",
     route: "/Administrador/customer-processes",
     hidden: true,
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "customer_properties",
@@ -622,7 +622,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "home-outline",
     route: "/Administrador/customer-properties",
     hidden: true,
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "customer_quotes",
@@ -633,7 +633,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "document-text-outline",
     route: "/Administrador/customer-quotes",
     hidden: true,
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "customer_sales",
@@ -644,7 +644,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "receipt-outline",
     route: "/Administrador/customer-sales",
     hidden: true,
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ, PERMISSIONS.SALE_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW, PERMISSIONS.SALE_VIEW],
   },
   {
     id: "parceiros",
@@ -655,8 +655,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "people-outline",
     route: "/Administrador/Parceiros",
     requiredAnyPermissions: [
-      PERMISSIONS.PARTNER_READ,
-      PERMISSIONS.PARTNER_WRITE,
+      PERMISSIONS.PARTNER_VIEW,
+      PERMISSIONS.PARTNER_CREATE, PERMISSIONS.PARTNER_EDIT,
     ],
   },
   {
@@ -668,8 +668,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "wallet-outline",
     route: "/Administrador/GanhosParceiros",
     requiredAnyPermissions: [
-      PERMISSIONS.PARTNER_READ,
-      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.PARTNER_VIEW,
+      PERMISSIONS.FINANCIAL_VIEW,
     ],
   },
   {
@@ -680,7 +680,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Agendamentos atribuídos a você como parceiro",
     icon: "hammer-outline",
     route: "/Servicos/MeusTrabalhos",
-    requiredAnyPermissions: [PERMISSIONS.PARTNER_READ],
+    requiredAnyPermissions: [PERMISSIONS.PARTNER_VIEW],
   },
   {
     id: "channel_partners",
@@ -692,8 +692,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/channel-partners",
     superAdminOnly: true,
     requiredAnyPermissions: [
-      PERMISSIONS.PARTNER_READ,
-      PERMISSIONS.PARTNER_WRITE,
+      PERMISSIONS.PARTNER_VIEW,
+      PERMISSIONS.PARTNER_CREATE, PERMISSIONS.PARTNER_EDIT,
     ],
   },
   {
@@ -706,8 +706,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/channel-partner-dashboard",
     superAdminOnly: true,
     requiredAnyPermissions: [
-      PERMISSIONS.PARTNER_READ,
-      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.PARTNER_VIEW,
+      PERMISSIONS.FINANCIAL_VIEW,
     ],
   },
   {
@@ -719,8 +719,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "calendar-outline",
     route: "/Administrador/DisponibilidadeParceiro",
     requiredAnyPermissions: [
-      PERMISSIONS.PARTNER_READ,
-      PERMISSIONS.PARTNER_WRITE,
+      PERMISSIONS.PARTNER_VIEW,
+      PERMISSIONS.PARTNER_CREATE, PERMISSIONS.PARTNER_EDIT,
     ],
   },
   {
@@ -732,8 +732,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "sunny-outline",
     route: "/Administrador/FolgasParceiro",
     requiredAnyPermissions: [
-      PERMISSIONS.PARTNER_READ,
-      PERMISSIONS.PARTNER_WRITE,
+      PERMISSIONS.PARTNER_VIEW,
+      PERMISSIONS.PARTNER_CREATE, PERMISSIONS.PARTNER_EDIT,
     ],
   },
   {
@@ -745,8 +745,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "construct-outline",
     route: "/Administrador/ExecucoesServico",
     requiredAnyPermissions: [
-      PERMISSIONS.PARTNER_READ,
-      PERMISSIONS.SERVICE_READ,
+      PERMISSIONS.PARTNER_VIEW,
+      PERMISSIONS.SERVICE_VIEW,
     ],
   },
   {
@@ -757,7 +757,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Resumo das avaliações e ratings de parceiros",
     icon: "star-outline",
     route: "/Administrador/ResumoAvaliacaoParceiro",
-    requiredAnyPermissions: [PERMISSIONS.PARTNER_READ],
+    requiredAnyPermissions: [PERMISSIONS.PARTNER_VIEW],
   },
   {
     id: "logs_avaliacoes",
@@ -767,7 +767,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Histórico detalhado de avaliações de serviço",
     icon: "chatbox-ellipses-outline",
     route: "/Administrador/LogsAvaliacoes",
-    requiredAnyPermissions: [PERMISSIONS.PARTNER_READ],
+    requiredAnyPermissions: [PERMISSIONS.PARTNER_VIEW],
   },
   {
     id: "logs_agendamentos",
@@ -777,7 +777,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Histórico de agendamentos e alterações de horário",
     icon: "time-outline",
     route: "/Administrador/LogsAgendamentos",
-    requiredAnyPermissions: [PERMISSIONS.PARTNER_READ],
+    requiredAnyPermissions: [PERMISSIONS.PARTNER_VIEW],
   },
   {
     id: "servicos_parceiro",
@@ -787,7 +787,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Serviços atribuídos e executados por cada parceiro",
     icon: "briefcase-outline",
     route: "/Administrador/ServicosParceiro",
-    requiredAnyPermissions: [PERMISSIONS.PARTNER_READ],
+    requiredAnyPermissions: [PERMISSIONS.PARTNER_VIEW],
   },
 
   // ---- Financeiro ----
@@ -800,8 +800,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "wallet-outline",
     route: "/Administrador/recebimentos-config",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -814,7 +814,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/DashboardFinanceiro",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_DASHBOARD,
-      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.FINANCIAL_VIEW,
     ],
   },
   {
@@ -827,7 +827,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/DRE",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_DASHBOARD,
-      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.FINANCIAL_VIEW,
     ],
   },
   {
@@ -839,8 +839,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "trending-up-outline",
     route: "/Administrador/ContasAReceber",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -852,8 +852,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "trending-down-outline",
     route: "/Administrador/ContasAPagar",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -865,8 +865,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "receipt-outline",
     route: "/Administrador/Faturas",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -878,8 +878,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "card-outline",
     route: "/Administrador/Pagamentos",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -891,8 +891,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "warning-outline",
     route: "/Administrador/Inadimplentes",
     requiredAnyPermissions: [
-      PERMISSIONS.DELINQUENCY_READ,
-      PERMISSIONS.DELINQUENCY_WRITE,
+      PERMISSIONS.DELINQUENCY_VIEW,
+      PERMISSIONS.DELINQUENCY_CREATE, PERMISSIONS.DELINQUENCY_EDIT,
     ],
   },
   {
@@ -905,8 +905,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "git-compare-outline",
     route: "/Administrador/ConciliadorBancario",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -919,7 +919,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "cloud-download-outline",
     route: "/Administrador/FechamentoContabil",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.FINANCIAL_VIEW,
       PERMISSIONS.FINANCIAL_DASHBOARD,
     ],
   },
@@ -932,8 +932,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "business-outline",
     route: "/Administrador/bancos",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -945,8 +945,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "card-outline",
     route: "/Administrador/contas-bancarias",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -958,8 +958,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "list-outline",
     route: "/Administrador/extrato-bancario",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -971,8 +971,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "albums-outline",
     route: "/Administrador/plano-contas",
     requiredAnyPermissions: [
-      PERMISSIONS.FINANCIAL_READ,
-      PERMISSIONS.FINANCIAL_WRITE,
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -983,7 +983,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Clientes e imóveis vinculados",
     icon: "people-outline",
     route: "/Administrador/gestao-de-usuarios",
-    requiredAnyPermissions: [PERMISSIONS.USER_READ, PERMISSIONS.USER_MANAGE],
+    requiredAnyPermissions: [PERMISSIONS.USER_VIEW, PERMISSIONS.USER_MANAGE],
   },
   {
     id: "processos",
@@ -1112,7 +1112,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de templates de workflow",
     icon: "git-branch-outline",
     route: "/Administrador/workflow_templates",
-    requiredAnyPermissions: [PERMISSIONS.WORKFLOW_READ],
+    requiredAnyPermissions: [PERMISSIONS.WORKFLOW_VIEW],
   },
   {
     id: "workflow_editor",
@@ -1123,8 +1123,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "git-network-outline",
     route: "/Administrador/workflow-editor",
     requiredAnyPermissions: [
-      PERMISSIONS.WORKFLOW_READ,
-      PERMISSIONS.WORKFLOW_WRITE,
+      PERMISSIONS.WORKFLOW_VIEW,
+      PERMISSIONS.WORKFLOW_CREATE, PERMISSIONS.WORKFLOW_EDIT,
     ],
     hidden: true,
   },
@@ -1136,7 +1136,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de etapas do workflow (lista)",
     icon: "list-outline",
     route: "/Administrador/workflow_steps",
-    requiredAnyPermissions: [PERMISSIONS.WORKFLOW_READ],
+    requiredAnyPermissions: [PERMISSIONS.WORKFLOW_VIEW],
     hidden: true,
   },
   {
@@ -1148,8 +1148,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "git-merge-outline",
     route: "/Administrador/ServicosWorkflow",
     requiredAnyPermissions: [
-      PERMISSIONS.SERVICE_READ,
-      PERMISSIONS.WORKFLOW_READ,
+      PERMISSIONS.SERVICE_VIEW,
+      PERMISSIONS.WORKFLOW_VIEW,
     ],
   },
   {
@@ -1160,7 +1160,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de processos, tarefas, avanço de etapas e lançamentos",
     icon: "grid-outline",
     route: "/Administrador/kanban-processos",
-    requiredAnyPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.WORKFLOW_READ],
+    requiredAnyPermissions: [PERMISSIONS.TASK_VIEW, PERMISSIONS.WORKFLOW_VIEW],
   },
 
   /* ─── Administrativo ─── */
@@ -1173,7 +1173,7 @@ export const ADMIN_PAGES: AdminPage[] = [
       "Processos internos sem vínculo obrigatório com cliente (compras, RH, manutenção)",
     icon: "briefcase-outline",
     route: "/Administrador/kanban-administrativo",
-    requiredAnyPermissions: [PERMISSIONS.TASK_READ, PERMISSIONS.WORKFLOW_READ],
+    requiredAnyPermissions: [PERMISSIONS.TASK_VIEW, PERMISSIONS.WORKFLOW_VIEW],
   },
 
   {
@@ -1203,7 +1203,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Documentação consolidada para envio ao cartório",
     icon: "receipt-outline",
     route: "/Administrador/onr-protocolos",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_VIEW],
   },
   {
     id: "onr_certidoes",
@@ -1213,7 +1213,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Documentos finais e certidões emitidas pelo cartório",
     icon: "ribbon-outline",
     route: "/Administrador/onr-certidoes",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_VIEW],
   },
   {
     id: "cartorios",
@@ -1223,7 +1223,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Cadastro de cartórios e serventias",
     icon: "storefront-outline",
     route: "/Administrador/cartorios",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_VIEW],
   },
   {
     id: "document_signatures",
@@ -1233,7 +1233,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de assinaturas via Documenso",
     icon: "document-text-outline",
     route: "/Administrador/document-signatures",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_VIEW],
   },
   {
     id: "ocr_config",
@@ -1243,7 +1243,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Regras de análise automática de documentos",
     icon: "scan-outline",
     route: "/Administrador/ocr-config",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_VIEW],
   },
   {
     id: "ocr_results",
@@ -1253,7 +1253,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Textos e dados extraídos de documentos",
     icon: "eye-outline",
     route: "/Administrador/ocr-results",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_VIEW],
   },
   {
     id: "document_templates",
@@ -1263,7 +1263,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Criar e gerenciar modelos de documentos com variáveis",
     icon: "document-outline",
     route: "/Administrador/document-templates",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_VIEW],
   },
   {
     id: "generated_documents",
@@ -1273,7 +1273,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Ver, editar rascunhos e gerenciar documentos gerados",
     icon: "library-outline",
     route: "/Administrador/generated-documents",
-    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.DOCUMENT_VIEW],
   },
   {
     id: "document_generator",
@@ -1284,8 +1284,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "print-outline",
     route: "/Administrador/document-generator",
     requiredAnyPermissions: [
-      PERMISSIONS.DOCUMENT_READ,
-      PERMISSIONS.DOCUMENT_WRITE,
+      PERMISSIONS.DOCUMENT_VIEW,
+      PERMISSIONS.DOCUMENT_CREATE, PERMISSIONS.DOCUMENT_EDIT,
     ],
   },
   {
@@ -1297,8 +1297,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "create-outline",
     route: "/Administrador/template-editor",
     requiredAnyPermissions: [
-      PERMISSIONS.DOCUMENT_READ,
-      PERMISSIONS.DOCUMENT_WRITE,
+      PERMISSIONS.DOCUMENT_VIEW,
+      PERMISSIONS.DOCUMENT_CREATE, PERMISSIONS.DOCUMENT_EDIT,
     ],
   },
 
@@ -1311,7 +1311,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Kanban do funil de vendas com etapas do pipeline",
     icon: "funnel-outline",
     route: "/Administrador/crm-kanban",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "crm_lead_detail",
@@ -1331,7 +1331,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Lista completa de leads com busca e filtros",
     icon: "people-circle-outline",
     route: "/Administrador/crm-leads",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "campaigns",
@@ -1341,7 +1341,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gestão de campanhas de marketing e divulgação",
     icon: "megaphone-outline",
     route: "/Administrador/campaigns",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "campaign_dashboard",
@@ -1351,7 +1351,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Funil de marketing, ROI e desempenho por canal",
     icon: "bar-chart-outline",
     route: "/Administrador/campaign-dashboard",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "campaign_items",
@@ -1361,7 +1361,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Posts, blogs, anúncios e conteúdos das campanhas",
     icon: "documents-outline",
     route: "/Administrador/campaign-items",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "lead_forms",
@@ -1371,7 +1371,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Formulários públicos para captar leads automaticamente",
     icon: "document-text-outline",
     route: "/Administrador/lead-forms",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "content_pages",
@@ -1381,7 +1381,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Blog público, landing pages e páginas institucionais",
     icon: "newspaper-outline",
     route: "/Administrador/content-pages",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
   {
     id: "perfil_marketing",
@@ -1391,7 +1391,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Configure o perfil da marca para gerar conteúdo com IA",
     icon: "color-palette-outline",
     route: "/Administrador/perfil-marketing",
-    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_VIEW],
   },
 
   // ---- Orçamentos ----
@@ -1403,7 +1403,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Modelos reutilizáveis para criar orçamentos rapidamente",
     icon: "copy-outline",
     route: "/Administrador/quote-templates",
-    requiredAnyPermissions: [PERMISSIONS.FINANCIAL_READ],
+    requiredAnyPermissions: [PERMISSIONS.FINANCIAL_VIEW],
   },
   {
     id: "quotes",
@@ -1413,7 +1413,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Gerencie orçamentos enviados e acompanhe aprovações",
     icon: "document-text-outline",
     route: "/Administrador/orcamentos",
-    requiredAnyPermissions: [PERMISSIONS.FINANCIAL_READ],
+    requiredAnyPermissions: [PERMISSIONS.FINANCIAL_VIEW],
   },
 
   // ---- Contratos ----
@@ -1426,8 +1426,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "reader-outline",
     route: "/Administrador/contracts",
     requiredAnyPermissions: [
-      PERMISSIONS.CUSTOMER_READ,
-      PERMISSIONS.FINANCIAL_READ,
+      PERMISSIONS.CUSTOMER_VIEW,
+      PERMISSIONS.FINANCIAL_VIEW,
     ],
   },
   {
@@ -1451,7 +1451,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "calendar-outline",
     route: "/Administrador/Agenda",
     hidden: true,
-    requiredAnyPermissions: [PERMISSIONS.APPOINTMENT_READ],
+    requiredAnyPermissions: [PERMISSIONS.APPOINTMENT_VIEW],
   },
   {
     id: "split_servicos",
@@ -1461,7 +1461,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Configuração de regras de divisão de serviços",
     icon: "git-branch-outline",
     route: "/Administrador/split-servicos",
-    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_VIEW],
   },
   {
     id: "solicitacao_compras",
@@ -1472,6 +1472,6 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "clipboard-outline",
     route: "/Administrador/SolicitacaoCompras",
     hidden: true,
-    requiredAnyPermissions: [PERMISSIONS.PURCHASE_WRITE],
+    requiredAnyPermissions: [PERMISSIONS.PURCHASE_CREATE, PERMISSIONS.PURCHASE_EDIT],
   },
 ];
