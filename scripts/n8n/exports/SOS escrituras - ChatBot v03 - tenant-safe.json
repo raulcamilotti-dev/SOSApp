@@ -1,0 +1,3777 @@
+{
+  "name": "SOS escrituras - ChatBot v03",
+  "nodes": [
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3872,
+        784
+      ],
+      "id": "50ce22a4-0e59-4df5-b15f-bbc961388b8e",
+      "name": "Wait1",
+      "webhookId": "bb9e4ab8-3f8c-4ff4-9601-ce696bdb4ec5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pega todos os items que chegaram no Code node\nconst items = $input.all();\n\n// Saiu sÃ³ 1 item do AI Agent\nconst output = items[0].json.output;\n\n// Quebra pelo \\n\\n\nconst splitOutput = output.split('\\n\\n');\n\n// Retorna um item para cada parte\nreturn splitOutput.map(part => ({\n  json: { output: part.trim() }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        784
+      ],
+      "id": "42d4c069-a724-4d07-983e-b28e091c4d77",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3424,
+        784
+      ],
+      "id": "31cf63e6-294e-449b-8e43-ff65422c68a0",
+      "name": "Loop Over Items2"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "sosescritura@gmail.com",
+          "mode": "list",
+          "cachedResultName": "sosescritura@gmail.com"
+        },
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', ``, 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', ``, 'string') }}",
+        "useDefaultReminders": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Use_Default_Reminders', ``, 'boolean') }}",
+        "additionalFields": {
+          "attendees": [
+            "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('attendees0_Attendees', ``, 'string') }}",
+            "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('attendees1_Attendees', ``, 'string') }}"
+          ],
+          "description": "SessÃ£o com o especialista Roberto Goldman",
+          "guestsCanInviteOthers": true,
+          "guestsCanSeeOtherGuests": true,
+          "summary": "={{ $json.Summary || \"SOS Escritura â€” Videochamada de avaliaÃ§Ã£o (30min)\" }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        2096,
+        1008
+      ],
+      "id": "f47e4305-3f7d-451b-b9f8-dea0a7946ab5",
+      "name": "Calendario",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('Google Drive1').item.json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        48,
+        1264
+      ],
+      "id": "1792f226-2929-4990-99a5-0e295b4c895b",
+      "name": "Google Drive2",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "621503847712817",
+        "recipientPhoneNumber": "={{ $('Postgres Trigger2').item.json.payload.whatsapp_number }}",
+        "messageType": "document",
+        "mediaPath": "useMedian8n",
+        "mediaPropertyName": "=data",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        272,
+        1264
+      ],
+      "id": "4d85aab6-a7f1-4613-8fb6-8bf132e38ddd",
+      "name": "WhatsApp Business Cloud4",
+      "webhookId": "040b0169-6f01-47b8-b93b-a214b08cf075",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "tableName": {
+          "__rl": true,
+          "value": "properties_preview",
+          "mode": "list",
+          "cachedResultName": "properties_preview"
+        },
+        "additionalFields": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTrigger",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        1264
+      ],
+      "id": "6a8afc82-3d8a-452d-95b3-1674b1172cc8",
+      "name": "Postgres Trigger2",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "properties_preview",
+          "mode": "list",
+          "cachedResultName": "properties_preview"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "postal_code": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('postal_code', ``, 'string') }}",
+            "property_value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('property_value', ``, 'string') }}",
+            "created_at": "={{ $now }}",
+            "updated_at": "={{ $now }}",
+            "has_registry": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('has_registry', ``, 'string') }}",
+            "has_contract": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('has_contract', ``, 'string') }}",
+            "part_of_larger_area": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('part_of_larger_area', ``, 'string') }}",
+            "larger_area_registry": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('larger_area_registry', ``, 'string') }}",
+            "city_rural": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('city_rural', ``, 'string') }}",
+            "whatsapp_number": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('whatsapp_number', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "cpf",
+              "displayName": "cpf",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "number",
+              "displayName": "number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "postal_code",
+              "displayName": "postal_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "complement",
+              "displayName": "complement",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "property_value",
+              "displayName": "property_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "city",
+              "displayName": "city",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "link_pagamento",
+              "displayName": "link_pagamento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "id_pagamento",
+              "displayName": "id_pagamento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "indicacao",
+              "displayName": "indicacao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "link_pagamento_status",
+              "displayName": "link_pagamento_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "has_registry",
+              "displayName": "has_registry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "has_contract",
+              "displayName": "has_contract",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "part_of_larger_area",
+              "displayName": "part_of_larger_area",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "owner_relative",
+              "displayName": "owner_relative",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "larger_area_registry",
+              "displayName": "larger_area_registry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "city_rural",
+              "displayName": "city_rural",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "whatsapp_number",
+              "displayName": "whatsapp_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        2224,
+        1008
+      ],
+      "id": "809250ef-042a-4449-829f-5fc866863310",
+      "name": "Preview",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "sosescritura@gmail.com",
+        "subject": "=OpÃ§Ã£o enviada para o cliente.",
+        "message": "=Segue o link do cliente que recebeu uma prÃ©via\nhttps://docs.google.com/document/d/{{ $('Google Drive1').item.json.id }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -176,
+        1264
+      ],
+      "id": "97794c0b-32f2-44bd-bead-46442862f463",
+      "name": "Gmail2",
+      "webhookId": "e6b88dd7-8fe4-47d6-b6c2-72c52c8710ba",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ $('Google Drive1').item.json.id }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "replaceAll",
+              "text": "{{Dados}}",
+              "replaceText": "={{ $fromAI('actionFields0_New_Text', ``, 'string') }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{solucoes_viaveis}}",
+              "replaceText": "={{ $fromAI('actionFields1_New_Text', ``, 'string') }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{detalhe_solucoes}}",
+              "replaceText": "={{ $fromAI('actionFields2_New_Text', ``, 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocsTool",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        1472
+      ],
+      "id": "f5778e3f-fd55-4d5c-a32c-dd0286886256",
+      "name": "opcoesviaveis1",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "1KKlhI66SVRrnH0E9bvTIe_Ar8-9W8MMw-S8lCKuz9Sw",
+          "mode": "list",
+          "cachedResultName": "DiagnÃ³stico de RegularizaÃ§Ã£o do ImÃ³vel",
+          "cachedResultUrl": "https://docs.google.com/document/d/1KKlhI66SVRrnH0E9bvTIe_Ar8-9W8MMw-S8lCKuz9Sw/edit?usp=drivesdk"
+        },
+        "name": "={{ $json.payload.whatsapp_number }}",
+        "sameFolder": false,
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1iZmJdtp0i2H6SJVSs4KO7qE6plqmsR97",
+          "mode": "list",
+          "cachedResultName": "Clientes",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1iZmJdtp0i2H6SJVSs4KO7qE6plqmsR97"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -752,
+        1264
+      ],
+      "id": "3862e988-d07a-41c3-b289-feddf3bebbdf",
+      "name": "Google Drive1",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Com base nas informaÃ§Ãµes a seguir do interessado e do imÃ³vel, execute as seguintes tarefas:\n\n1. Gere uma **descriÃ§Ã£o clara e objetiva** contendo os dados do interessado e do imÃ³vel. Essa descriÃ§Ã£o substituirÃ¡ o marcador `{{Dados}}` no documento.\n2. Liste em **bullet points** os nomes das **soluÃ§Ãµes jurÃ­dicas viÃ¡veis** para regularizaÃ§Ã£o (ex: \"ðŸ“Œ UsucapiÃ£o extrajudicial\"). Isso serÃ¡ inserido em `{{solucoes_viaveis}}`.\n3. Detalhe cada soluÃ§Ã£o proposta tecnicamente, explicando os requisitos, contextos de uso e processos envolvidos, substituindo o campo `{{detalhe_solucoes}}`.\n\nUtilize linguagem profissional, clara, com foco em regularizaÃ§Ã£o fundiÃ¡ria no Brasil. Utilize apenas os dados fornecidos â€” sem inferÃªncias.\n\n---\n\n**Dados do interessado:**\nSem dados.\n\n**Dados do imÃ³vel:**\n- CEP: {{ $('Postgres Trigger2').item.json.payload.postal_code }}\n- Valor estimado: {{ $('Postgres Trigger2').item.json.payload.property_value }}\n- Contrato de compra e venda: {{ $('Postgres Trigger2').item.json.payload.has_contract }}\n- Possui matrÃ­cula: {{ $('Postgres Trigger2').item.json.payload.has_registry }}\n- Parte de Ã¡rea maior: {{ $('Postgres Trigger2').item.json.payload.larger_area_registry }}\n- Parente do proprietÃ¡rio: {{ $('Postgres Trigger2').item.json.payload.owner_relative }}\n- LocalizaÃ§Ã£o (urbana/rural): {{ $('Postgres Trigger2').item.json.payload.city_rural }}\n\n---\n\nAgora gere:\n\n**{{Dados}}**  \n> Um parÃ¡grafo objetivo com os dados do interessado e do imÃ³vel.\n\n**{{solucoes_viaveis}}**  \n> Liste todas as possÃ­veis opÃ§Ãµes de regularizaÃ§Ã£o para este imÃ³vel. Exemplo:  \n> - ðŸ“Œ UsucapiÃ£o extrajudicial  \n> - ðŸ“Œ Abertura de matrÃ­cula\nDeixe claro tambÃ©m a importÃ¢ncia de saber todos os caminhos para tomar a decisÃ£o correta e que deve continuar a conversa com a Ana para falar com um especialista para definiÃ§Ã£o.\n\n\n**{{detalhe_solucoes}}**  \n> Texto explicativo separado para a soluÃ§Ã£o enviada, explicando o que Ã© necessÃ¡rio para esse caso que foi apresentado\n",
+        "options": {
+          "systemMessage": "=VocÃª Ã© um especialista em regularizaÃ§Ã£o de imÃ³veis no Brasil, representando a SOS Escritura. Sua funÃ§Ã£o Ã©:\n\n1. Avaliar os dados do imÃ³vel e do interessado fornecidos.\n2. Gerar trÃªs seÃ§Ãµes que serÃ£o automaticamente substituÃ­das em um documento do Google Docs:\n   - `{{Dados}}`: resumo claro com os dados do interessado e do imÃ³vel.\n   - `{{solucoes_viaveis}}`: bullet points com os nomes das soluÃ§Ãµes jurÃ­dicas adequadas nÃ£o se limite a uma quantidade, coloque todas as possÃ­veis.\n   - `{{detalhe_solucoes}}`: detalhamento tÃ©cnico de cada soluÃ§Ã£o, com linguagem acessÃ­vel e objetiva, contendo minimamente: O que Ã© e quando usar, Tipos (principais modalidades), Documentos necessÃ¡rios, Prazos mÃ©dios, Etapas do processo, Dificuldades comuns.\n\n---\n\nâš™ï¸ Regras obrigatÃ³rias:\n\n<Regra>Organize os conteÃºdos nesta ordem: 1Âº `{{Dados}}`, 2Âº `{{solucoes_viaveis}}`, 3Âº `{{detalhe_solucoes}}`.</Regra>\n<Regra>SÃ³ use as informaÃ§Ãµes fornecidas. NÃ£o invente dados nem preencha campos com suposiÃ§Ãµes.</Regra>\n<Regra>Os itens de `{{solucoes_viaveis}}` devem ser uma lista clara em bullet points com emojis ðŸ“Œ, como \"ðŸ“Œ UsucapiÃ£o extrajudicial\".</Regra>\n<Regra>O texto de `{{detalhe_solucoes}}` deve ser bem estruturado, com subtÃ­tulos e linguagem clara, explicando cada soluÃ§Ã£o da lista.</Regra>\n<Regra>VocÃª deve sempre utilizar a ferramenta `opcoesviaveis` para atualizar o Google Docs correspondente ao campo `documentId`.</Regra>\n<Regra>Consulte `busca_documentos` para embasamento tÃ©cnico adicional se necessÃ¡rio.</Regra>\n<Regra>VocÃª pode usar a internet para complementar, mas nunca contradiga os dados fornecidos.</Regra>\n\n---\n\nðŸ“Œ Ferramentas disponÃ­veis:\n<Ferramenta>busca_documentos</Ferramenta>  \n<Ferramenta>opcoesviaveis</Ferramenta>\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -528,
+        1264
+      ],
+      "id": "c1b57cc3-f1c3-4817-85b2-ef961dfea11d",
+      "name": "AI Agent2"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      message: {\n        type: \"human\",\n        content: $json.messages[0].text?.body || $('Postgres Trigger1').first().json.payload.message,\n        additional_kwargs: {},\n        response_metadata: {}\n      },\n      session_id: $json.contacts[0].wa_id,\n      update_message: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        448
+      ],
+      "id": "fa390317-ce5f-4195-a017-ddb907d58b7f",
+      "name": "Code3"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_chat_histories",
+          "mode": "list",
+          "cachedResultName": "n8n_chat_histories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $('Postgres Trigger1').item.json.payload.session_id }}",
+            "message": "={{ $json.message }}",
+            "update_message": "={{ $('Postgres Trigger1').item.json.payload.created_at }}",
+            "tenant_id": "={{ $(\"Postgres Trigger1\").item.json.payload.tenant_id || $(\"Seleciona Tenant\").item.json.id || null }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "update_message",
+              "displayName": "update_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tenant_id",
+              "displayName": "tenant_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -304,
+        448
+      ],
+      "id": "eac3d073-1b6e-4df7-b723-a73e159f901e",
+      "name": "Postgres11",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE controle_atendimento\nSET ativo = true,\n    updated_at = NOW()\nWHERE ativo = false\n  AND tenant_id = '{{ $(\"Seleciona Tenant\").item.json.id }}'::uuid\n  AND session_id <> '553291657201';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -752,
+        224
+      ],
+      "id": "1c12391c-f1de-4c2d-9b98-5a60c5b64c69",
+      "name": "Postgres10",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -976,
+        224
+      ],
+      "id": "aa8686ae-5ad7-4864-a57a-16a4c1a3e26d",
+      "name": "Schedule Trigger2"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "621503847712817",
+        "recipientPhoneNumber": "={{ $json.payload.session_id }}",
+        "textBody": "=Atendente: {{ $json.payload.message }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        448
+      ],
+      "id": "6b5709ad-e9c3-40a0-9d91-9724806083a0",
+      "name": "WhatsApp Business Cloud3",
+      "webhookId": "99a7ffcd-45ec-4aa8-8a28-fce3c1f4de7a",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "tableName": {
+          "__rl": true,
+          "value": "buffer_mensagens_manuais",
+          "mode": "list",
+          "cachedResultName": "buffer_mensagens_manuais"
+        },
+        "additionalFields": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTrigger",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        448
+      ],
+      "id": "534f5d41-2d70-4a1d-becd-e04443e52c72",
+      "name": "Postgres Trigger1",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "621503847712817",
+        "recipientPhoneNumber": "=+55{{ $('pegadadosusuario').item.json.phone }}",
+        "textBody": "=Prontinho! Aqui estÃ¡ o seu link de pagamento: {{ $('HTTP Request3').item.json.invoiceUrl }}  Assim que for confirmado, um de nossos consultores entrarÃ¡ em contato com vocÃª em atÃ© 1 dia Ãºtil. Qualquer dÃºvida, estou Ã  disposiÃ§Ã£o ðŸ˜Š",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        592,
+        0
+      ],
+      "id": "855b30e0-accc-41fe-bb42-bb8db17133ce",
+      "name": "WhatsApp Business Cloud2",
+      "webhookId": "45970337-043a-426d-80c9-7275794d1ced",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "customers",
+          "mode": "list",
+          "cachedResultName": "customers"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "cpf",
+              "value": "={{ $json.cpf }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        144,
+        -192
+      ],
+      "id": "ef891505-e471-4ab9-a14a-3d560c734ede",
+      "name": "Postgres9",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "621503847712817",
+        "recipientPhoneNumber": "=+55{{ $json.phone }}",
+        "textBody": "=Prontinho! Aqui estÃ¡ o seu link de pagamento: {{ $('HTTP Request1').item.json.invoiceUrl }}  Assim que for confirmado, um de nossos consultores entrarÃ¡ em contato com vocÃª em atÃ© 1 dia Ãºtil. Qualquer dÃºvida, estou Ã  disposiÃ§Ã£o ðŸ˜Š",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        368,
+        -192
+      ],
+      "id": "5315a93c-efc7-4f6c-b916-109ee7f56f92",
+      "name": "WhatsApp Business Cloud",
+      "webhookId": "baa48b5d-60c4-4e5a-ba22-ce3f687c9848",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Busca no banco de dados se o cliente jÃ¡ foi atendido pelo bot na tabela n8n_chat_histories",
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "name"
+        },
+        "table": {
+          "__rl": true,
+          "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Table', ``, 'string') }}",
+          "mode": "name"
+        },
+        "returnAll": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Return_All', ``, 'boolean') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        2352,
+        1008
+      ],
+      "id": "c3a6e75a-3b5b-4274-8adf-6e4f741c8880",
+      "name": "busca_conversa",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Pega o link de pagamento",
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "properties",
+          "mode": "list",
+          "cachedResultName": "properties"
+        },
+        "limit": 1,
+        "sort": {
+          "values": [
+            {
+              "column": "updated_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        2480,
+        1008
+      ],
+      "id": "68de56b0-a626-400b-91c5-c6c6bd8db393",
+      "name": "Pega_link",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "properties",
+          "mode": "list",
+          "cachedResultName": "properties"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Postgres Trigger').item.json.payload.id }}",
+            "link_pagamento": "={{ $json.invoiceUrl }}",
+            "id_pagamento": "={{ $json.id }}",
+            "link_pagamento_status": false
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "cpf",
+              "displayName": "cpf",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "number",
+              "displayName": "number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "postal_code",
+              "displayName": "postal_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "complement",
+              "displayName": "complement",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "property_value",
+              "displayName": "property_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "city",
+              "displayName": "city",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "link_pagamento",
+              "displayName": "link_pagamento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "id_pagamento",
+              "displayName": "id_pagamento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "indicacao",
+              "displayName": "indicacao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "link_pagamento_status",
+              "displayName": "link_pagamento_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "has_registry",
+              "displayName": "has_registry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "has_contract",
+              "displayName": "has_contract",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "part_of_larger_area",
+              "displayName": "part_of_larger_area",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "owner_relative",
+              "displayName": "owner_relative",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "larger_area_registry",
+              "displayName": "larger_area_registry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "city_rural",
+              "displayName": "city_rural",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        368,
+        0
+      ],
+      "id": "fa20d77d-7bb4-483d-b227-0853b4f52642",
+      "name": "Postgres1",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.asaas.com/v3/customers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "access_token",
+              "value": "$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjViZWNmMDM3LWNlZGQtNDQzYy05Y2M3LWQ5OGVhYzYyMTNiNjo6JGFhY2hfZTkwZWZmNjQtY2FhZi00ZmNkLThmOTAtZDFiNTA5NjE5ZGY2"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.name }}"
+            },
+            {
+              "name": "cpfCnpj",
+              "value": "={{ $json.cpf }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "mobilePhone",
+              "value": "={{ $json.phone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        0
+      ],
+      "id": "0e2ab57d-2c47-4012-8226-9b31c137e5fa",
+      "name": "cadastraclienteasaas"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.asaas.com/v3/payments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "access_token",
+              "value": "$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjViZWNmMDM3LWNlZGQtNDQzYy05Y2M3LWQ5OGVhYzYyMTNiNjo6JGFhY2hfZTkwZWZmNjQtY2FhZi00ZmNkLThmOTAtZDFiNTA5NjE5ZGY2"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "customer",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "value",
+              "value": "149,90"
+            },
+            {
+              "name": "cpfCnpj",
+              "value": "={{ $json.cpfCnpj }}"
+            },
+            {
+              "name": "billingType",
+              "value": "PIX"
+            },
+            {
+              "name": "dueDate",
+              "value": "={{ $now.plus(7 , 'days') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        144,
+        0
+      ],
+      "id": "c6f29bf0-b2a7-4276-af13-3caa27505261",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "customers",
+          "mode": "list",
+          "cachedResultName": "customers"
+        },
+        "returnAll": true,
+        "where": {
+          "values": [
+            {
+              "column": "cpf",
+              "value": "={{ $('Postgres Trigger').item.json.payload.cpf }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -304,
+        0
+      ],
+      "id": "9043c6db-d8b6-4beb-bfa0-24866b3fd6c3",
+      "name": "pegadadosusuario",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "properties",
+          "mode": "list",
+          "cachedResultName": "properties"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Postgres Trigger').item.json.payload.id }}",
+            "link_pagamento": "={{ $json.invoiceUrl }}",
+            "link_pagamento_status": false,
+            "id_pagamento": "={{ $json.id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "cpf",
+              "displayName": "cpf",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "number",
+              "displayName": "number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "postal_code",
+              "displayName": "postal_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "complement",
+              "displayName": "complement",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "property_value",
+              "displayName": "property_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "city",
+              "displayName": "city",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "link_pagamento",
+              "displayName": "link_pagamento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "id_pagamento",
+              "displayName": "id_pagamento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "indicacao",
+              "displayName": "indicacao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "link_pagamento_status",
+              "displayName": "link_pagamento_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "has_registry",
+              "displayName": "has_registry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "has_contract",
+              "displayName": "has_contract",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "part_of_larger_area",
+              "displayName": "part_of_larger_area",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "owner_relative",
+              "displayName": "owner_relative",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "larger_area_registry",
+              "displayName": "larger_area_registry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "city_rural",
+              "displayName": "city_rural",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -80,
+        -192
+      ],
+      "id": "46ca8960-cc91-4473-ad08-e4a2e6a332a2",
+      "name": "Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "tableName": {
+          "__rl": true,
+          "value": "properties",
+          "mode": "list",
+          "cachedResultName": "properties"
+        },
+        "additionalFields": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTrigger",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        -96
+      ],
+      "id": "c3bf3c8a-817d-472f-b9e9-7a20c7f0273f",
+      "name": "Postgres Trigger",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.asaas.com/v3/payments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "access_token",
+              "value": "$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjViZWNmMDM3LWNlZGQtNDQzYy05Y2M3LWQ5OGVhYzYyMTNiNjo6JGFhY2hfZTkwZWZmNjQtY2FhZi00ZmNkLThmOTAtZDFiNTA5NjE5ZGY2"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "customer",
+              "value": "={{ $json.data[0].id }}"
+            },
+            {
+              "name": "value",
+              "value": "149,90"
+            },
+            {
+              "name": "cpfCnpj",
+              "value": "={{ $json.data[0].cpfCnpj }}"
+            },
+            {
+              "name": "billingType",
+              "value": "UNDEFINED"
+            },
+            {
+              "name": "dueDate",
+              "value": "={{ $now.plus(7 , 'days') }}"
+            },
+            {
+              "name": "billingType",
+              "value": "PIX"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -304,
+        -192
+      ],
+      "id": "49023521-2e67-409b-a0c2-490382ef6202",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9479a3ee-10b8-46c8-984a-aaa03ba5f8eb",
+              "leftValue": "={{ $json.totalCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -528,
+        -96
+      ],
+      "id": "48a9a339-28f9-461a-95d1-877b4bd33484",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.asaas.com/v3/customers?cpfCnpj={{ $json.payload.cpf }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "access_token",
+              "value": "$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjViZWNmMDM3LWNlZGQtNDQzYy05Y2M3LWQ5OGVhYzYyMTNiNjo6JGFhY2hfZTkwZWZmNjQtY2FhZi00ZmNkLThmOTAtZDFiNTA5NjE5ZGY2"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -752,
+        -96
+      ],
+      "id": "5a531832-0724-4b6f-bf6a-bd7fa39cfb5d",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Salva os dados do imÃ³vel na tabela properties.",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "properties",
+          "mode": "list",
+          "cachedResultName": "properties"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "property_value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('property_value', ``, 'number') }}",
+            "has_registry": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('has_registry', ``, 'string') }}",
+            "part_of_larger_area": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('part_of_larger_area', ``, 'string') }}",
+            "has_contract": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('has_contract', ``, 'string') }}",
+            "postal_code": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('postal_code', ``, 'string') }}",
+            "cpf": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('cpf', ``, 'string') }}",
+            "created_at": "={{ $now }}",
+            "larger_area_registry": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('larger_area_registry', ``, 'string') }}",
+            "city_rural": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('city_rural', ``, 'string') }}",
+            "updated_at": "={{ $now }}",
+            "tenant_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('tenant_id', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "cpf",
+              "displayName": "cpf",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "address",
+              "displayName": "address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "number",
+              "displayName": "number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "postal_code",
+              "displayName": "postal_code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "complement",
+              "displayName": "complement",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "property_value",
+              "displayName": "property_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "city",
+              "displayName": "city",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "state",
+              "displayName": "state",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "link_pagamento",
+              "displayName": "link_pagamento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "id_pagamento",
+              "displayName": "id_pagamento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "indicacao",
+              "displayName": "indicacao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "link_pagamento_status",
+              "displayName": "link_pagamento_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "has_registry",
+              "displayName": "has_registry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "has_contract",
+              "displayName": "has_contract",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "part_of_larger_area",
+              "displayName": "part_of_larger_area",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "owner_relative",
+              "displayName": "owner_relative",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "larger_area_registry",
+              "displayName": "larger_area_registry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "city_rural",
+              "displayName": "city_rural",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tenant_id",
+              "displayName": "tenant_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "deleted_at",
+              "displayName": "deleted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "template_id",
+              "displayName": "template_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "current_step_id",
+              "displayName": "current_step_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "process_started_at",
+              "displayName": "process_started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "process_finished_at",
+              "displayName": "process_finished_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "process_status",
+              "displayName": "process_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        2608,
+        1008
+      ],
+      "id": "c42af390-e943-40d4-a661-f1fe951db153",
+      "name": "salva_imovel",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Consulta o cep informado pelo cliente",
+        "url": "=https://brasilapi.com.br/api/cep/v1/{{ $fromAI('URL', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        2736,
+        1008
+      ],
+      "id": "df467c37-10b5-491e-b90a-cd8d0320c6a2",
+      "name": "consulta_cep"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Salva os dados de nome, cpf, email e telefone do cliente interessado no banco postgres.",
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "customers",
+          "mode": "list",
+          "cachedResultName": "customers"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('name', ``, 'string') }}",
+            "phone": "={{ $('Organiza Contato e Canal').item.json.telefone }}",
+            "created_at": "={{ $now }}",
+            "updated_at": "={{ $now }}",
+            "email": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('email', ``, 'string') }}",
+            "cpf": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('cpf', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "phone"
+          ],
+          "schema": [
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "cpf",
+              "displayName": "cpf",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        2864,
+        1008
+      ],
+      "id": "b6466300-08ba-48c8-9eba-a68ec3d0e33b",
+      "name": "cadastra_cliente",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "customers",
+          "mode": "name"
+        },
+        "returnAll": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Return_All', ``, 'boolean') }}",
+        "where": {
+          "values": [
+            {
+              "column": "phone",
+              "value": "={{ $('Organiza Contato e Canal').item.json.telefone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        2992,
+        1008
+      ],
+      "id": "335519b4-a221-4a81-9cee-f39cf80f7aaa",
+      "name": "busca_cliente",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('WhatsApp Trigger').item.json.contacts[0].wa_id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1968,
+        1008
+      ],
+      "id": "e0b5cd39-5ef2-40f8-a9d5-3399679c0d35",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "621503847712817",
+        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        3648,
+        704
+      ],
+      "id": "195eb27e-aeca-439d-bd70-58ebcea80ad2",
+      "name": "WhatsApp Business Cloud1",
+      "webhookId": "54c88f64-db3b-49bb-8a91-23d78113ecfa",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1840,
+        1008
+      ],
+      "id": "4dfc5836-5187-4464-af04-3bebfad292e1",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {
+          "messageStatusUpdates": []
+        }
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        976
+      ],
+      "id": "5ed1b209-a1d4-4b8f-908f-1c6732a6aac8",
+      "name": "WhatsApp Trigger",
+      "webhookId": "7b7c6bce-7cb7-4257-a7fb-a770280e103b",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('WhatsApp Trigger').item.json.messages[0].text.body }}",
+        "options": {
+          "systemMessage": "={{ $('Build System Message').item.json.finalSystemMessage }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.8,
+      "position": [
+        2352,
+        784
+      ],
+      "id": "88b73efd-fa4f-427e-9763-a6eb9d09672a",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "customers",
+          "mode": "list",
+          "cachedResultName": "customers"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "phone",
+              "value": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}"
+            }
+          ]
+        },
+        "combineConditions": "OR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -464,
+        976
+      ],
+      "id": "08ea6472-cd50-4262-a4ee-7655b03f7c3c",
+      "name": "Seleciona Customer",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "customers",
+          "mode": "list",
+          "cachedResultName": "customers"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}",
+            "name": "={{ $('WhatsApp Trigger').item.json.contacts[0].profile.name }}",
+            "created_at": "={{ $now }}",
+            "updated_at": "={{ $now }}"
+          },
+          "matchingColumns": [
+            "phone"
+          ],
+          "schema": [
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "cpf",
+              "displayName": "cpf",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        80,
+        800
+      ],
+      "id": "c64bc10d-abfc-4591-a2f2-da2571ff68fb",
+      "name": "Atualiza Customer",
+      "executeOnce": false,
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b303a43f-684e-455a-9163-cba700a695ba",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "7b42c31a-81a0-41fa-b89c-8a3085a2423c",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -176,
+        976
+      ],
+      "id": "1426a549-d9a1-401c-b282-7705991a6a0a",
+      "name": "Verificar se Customer existe",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "customer_classifications",
+          "mode": "list",
+          "cachedResultName": "customer_classifications"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "created_at": "={{ $now }}",
+            "source": "={{ $('Seleciona Tenant').item.json.config.knowledge_base_id }}",
+            "classification_value": "={{ $('Seleciona Tenant').item.json.company_name }}",
+            "classification_type": "={{ $('Seleciona Tenant').item.json.config.specialty }}",
+            "session_id": "={{ $('WhatsApp Trigger').item.json.contacts[0].wa_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "classification_type",
+              "displayName": "classification_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "classification_value",
+              "displayName": "classification_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        896
+      ],
+      "id": "4ebc7421-a4ad-452c-888d-312bf8c96b75",
+      "name": "Classifica Customer",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tenants",
+          "mode": "list",
+          "cachedResultName": "tenants"
+        },
+        "limit": 1,
+        "where": {
+          "values": [
+            {
+              "column": "whatsapp_number",
+              "value": "={{ $json.metadata.display_phone_number }}"
+            }
+          ]
+        },
+        "combineConditions": "OR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -752,
+        976
+      ],
+      "id": "fecb7e5d-afec-41f3-b99b-2006334fef9a",
+      "name": "Seleciona Tenant",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "controle_atendimento",
+          "mode": "list",
+          "cachedResultName": "controle_atendimento"
+        },
+        "returnAll": true,
+        "where": {
+          "values": [
+            {
+              "column": "session_id",
+              "value": "={{ $('WhatsApp Trigger').item.json.contacts[0].wa_id }}"
+            },
+            {
+              "column": "tenant_id",
+              "value": "={{ $('Seleciona Tenant').item.json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        976
+      ],
+      "id": "5eacf4b1-70a4-4a80-9722-cfbb744bc520",
+      "name": "Controle de atendimento ativo",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "agents",
+          "mode": "list",
+          "cachedResultName": "agents"
+        },
+        "returnAll": true,
+        "where": {
+          "values": [
+            {
+              "column": "tenant_id",
+              "value": "={{ $('Seleciona Tenant').item.json.id }}"
+            },
+            {
+              "column": "deleted_at",
+              "condition": "IS NULL"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1168,
+        784
+      ],
+      "id": "769d25cc-e12f-4058-af3d-1dfbbdcebb3f",
+      "name": "SelecionaAgent",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "240d9819-e427-41f1-9e2c-e3ba388a642f",
+              "leftValue": "={{ $json.ativo }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        944,
+        976
+      ],
+      "id": "0fe90f6d-6ace-40c6-a2cf-845116912a2d",
+      "name": "Controle atendimento ativo"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "621503847712817",
+        "recipientPhoneNumber": "={{ $('Organiza Contato e Canal').item.json.telefone }}",
+        "textBody": "={{ $('Organiza Contato e Canal').item.json.mensagem }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        1616,
+        976
+      ],
+      "id": "e2d688bd-cbde-4225-84b3-1cfdf0045eb4",
+      "name": "WhatsApp Business Cloud5",
+      "webhookId": "54c88f64-db3b-49bb-8a91-23d78113ecfa",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_chat_histories",
+          "mode": "list",
+          "cachedResultName": "n8n_chat_histories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $('Organiza Contato e Canal').item.json.session_id }}",
+            "update_message": "={{ $now }}",
+            "message": "={{\nJSON.stringify({\n  type: \"ai\",\n  content: $('Organiza Contato e Canal').item.json.mensagem + \"\\n\\n\",\n  additional_kwargs: {},\n  response_metadata: {}\n})\n}}\n",
+            "tenant_id": "={{ $(\"Organiza Contato e Canal\").item.json.tenant_id || $(\"Seleciona Tenant\").item.json.id || null }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "update_message",
+              "displayName": "update_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        976
+      ],
+      "id": "351fa444-f504-4724-a222-290ea7adde91",
+      "name": "Insert rows in a table1",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "99254254-65d4-454f-acd4-52905fa21811",
+              "leftValue": "={{ $('Organiza Contato e Canal').item.json.source }}",
+              "rightValue": "=whatsapp",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1168,
+        1072
+      ],
+      "id": "f93c1e5a-ebca-429f-995c-c61f5efad836",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "n8n_chat_histories",
+          "mode": "list",
+          "cachedResultName": "n8n_chat_histories"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $('Organiza Contato e Canal').item.json.telefone }}",
+            "update_message": "={{ $now }}",
+            "message": "={{\nJSON.stringify({\n  type: \"human\",\n  content: $('Organiza Contato e Canal').item.json.mensagem + \"\\n\\n\",\n  additional_kwargs: {},\n  response_metadata: {}\n})\n}}\n",
+            "tenant_id": "={{ $(\"Organiza Contato e Canal\").item.json.tenant_id || $(\"Seleciona Tenant\").item.json.id || null }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "synced",
+              "displayName": "synced",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "update_message",
+              "displayName": "update_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        1168
+      ],
+      "id": "d6d7ad36-2703-4da7-ae73-31d2aad5ea1c",
+      "name": "Insert rows in a table2",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH agent_data AS (\n  SELECT id AS agent_id, tenant_id\n  FROM agents\n  WHERE tenant_id = '{{ $('Seleciona Tenant').item.json.id }}'::uuid\n    AND COALESCE(is_default, true) = true\n    AND COALESCE(is_active, true) = true\n    AND deleted_at IS NULL\n  ORDER BY updated_at DESC NULLS LAST\n  LIMIT 1\n),\nplaybook_data AS (\n  SELECT p.id AS playbook_id, p.name, p.description, p.channel,\n         p.inherit_system_prompt, p.behavior_source, p.state_machine_mode\n  FROM agent_playbooks p, agent_data a\n  WHERE p.agent_id = a.agent_id\n    AND p.channel = 'whatsapp'\n    AND p.is_active = true\n    AND p.deleted_at IS NULL\n  LIMIT 1\n),\nrules AS (\n  SELECT COALESCE(json_agg(json_build_object(\n    'rule_type', r.rule_type,\n    'title', r.title,\n    'instruction', r.instruction,\n    'severity', r.severity,\n    'rule_order', r.rule_order\n  ) ORDER BY r.rule_order ASC), '[]'::json) AS rules_json\n  FROM agent_playbook_rules r, playbook_data p\n  WHERE r.playbook_id = p.playbook_id\n    AND r.is_active = true\n    AND r.deleted_at IS NULL\n),\ntables_data AS (\n  SELECT COALESCE(json_agg(json_build_object(\n    'table_name', t.table_name,\n    'access_mode', t.access_mode,\n    'is_required', t.is_required,\n    'purpose', t.purpose\n  )), '[]'::json) AS tables_json\n  FROM agent_playbook_tables t, playbook_data p\n  WHERE t.playbook_id = p.playbook_id\n    AND t.is_active = true\n    AND t.deleted_at IS NULL\n),\nstates AS (\n  SELECT COALESCE(json_agg(json_build_object(\n    'state_key', s.state_key,\n    'state_label', s.state_label,\n    'is_initial', s.is_initial,\n    'is_terminal', s.is_terminal\n  ) ORDER BY s.state_key ASC), '[]'::json) AS states_json\n  FROM agent_states s, agent_data a\n  WHERE s.agent_id = a.agent_id\n    AND s.deleted_at IS NULL\n),\nhandoff AS (\n  SELECT COALESCE(json_agg(json_build_object(\n    'trigger_type', h.trigger_type,\n    'from_channel', h.from_channel,\n    'to_channel', h.to_channel,\n    'pause_bot_while_operator', h.pause_bot_while_operator,\n    'operator_can_return_to_bot', h.operator_can_return_to_bot,\n    'return_to_state_key', h.return_to_state_key\n  ) ORDER BY h.created_at ASC), '[]'::json) AS handoff_json\n  FROM agent_handoff_policies h, agent_data a\n  WHERE h.agent_id = a.agent_id\n    AND h.is_active = true\n    AND h.deleted_at IS NULL\n)\nSELECT\n  COALESCE(p.name, 'default') AS playbook_name,\n  COALESCE(p.description, '') AS playbook_description,\n  COALESCE(p.channel, 'whatsapp') AS playbook_channel,\n  COALESCE(p.behavior_source, 'playbook') AS behavior_source,\n  r.rules_json AS rules,\n  td.tables_json AS tables,\n  s.states_json AS states,\n  h.handoff_json AS handoff\nFROM playbook_data p\nCROSS JOIN rules r\nCROSS JOIN tables_data td\nCROSS JOIN states s\nCROSS JOIN handoff h;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1392,
+        784
+      ],
+      "id": "30057ace-dc80-4bfc-9f78-af7be4e72f56",
+      "name": "Load Governance",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================\n// Build System Message\n// Mode: Run Once for Each Item\n// =============================\n\n// SelecionaAgent\nconst agentNode = $('SelecionaAgent').first()?.json || {};\nconst systemPrompt = (agentNode.system_prompt || '').trim();\n\n// Governance (vem do item atual)\nconst gov = $json || {};\n\n// Canal\nconst channel = 'whatsapp';\n\n// FunÃ§Ã£o segura para JSON\nfunction safeParse(value) {\n  if (!value) return [];\n  if (typeof value === 'string') {\n    try {\n      return JSON.parse(value);\n    } catch {\n      return [];\n    }\n  }\n  return value;\n}\n\n// =============================\n// Build governance compact text\n// =============================\n\nconst parts = [];\n\n// PLAYBOOK\nif (gov.playbook_name && gov.playbook_name !== 'default') {\n  parts.push(\n    'PLAYBOOK: ' +\n      gov.playbook_name +\n      ' (canal: ' +\n      (gov.playbook_channel || channel) +\n      ')'\n  );\n\n  if (gov.playbook_description)\n    parts.push(gov.playbook_description);\n\n  if (gov.behavior_source)\n    parts.push('Modo: ' + gov.behavior_source);\n\n  parts.push('');\n}\n\n// RULES\nconst rules = safeParse(gov.rules);\nif (Array.isArray(rules) && rules.length) {\n  parts.push('=== REGRAS ===');\n  rules.forEach((r, i) => {\n    parts.push(\n      (r.rule_order || i + 1) +\n        '. [' +\n        (r.rule_type || 'policy') +\n        '] ' +\n        (r.instruction || r.title || '')\n    );\n  });\n  parts.push('');\n}\n\n// TABLES\nconst tables = safeParse(gov.tables);\nif (Array.isArray(tables) && tables.length) {\n  parts.push('=== TABELAS AUTORIZADAS ===');\n  tables.forEach(t => {\n    parts.push(\n      '- ' +\n        t.table_name +\n        ' (' +\n        (t.access_mode || 'read') +\n        '): ' +\n        (t.purpose || '')\n    );\n  });\n  parts.push('');\n}\n\n// STATES\nconst states = safeParse(gov.states);\nif (Array.isArray(states) && states.length) {\n  parts.push('=== ESTADOS DA CONVERSA ===');\n  states.forEach(s => {\n    const label = s.state_label || s.state_key || '';\n    const markers = [];\n    if (s.is_initial) markers.push('INICIAL');\n    if (s.is_terminal) markers.push('TERMINAL');\n\n    parts.push(\n      '- ' +\n        label +\n        (markers.length ? ' [' + markers.join(', ') + ']' : '')\n    );\n  });\n  parts.push('');\n}\n\n// HANDOFF\nconst handoff = safeParse(gov.handoff);\nif (Array.isArray(handoff) && handoff.length) {\n  parts.push('=== HANDOFF (encaminhamento humano) ===');\n  handoff.forEach(h => {\n    parts.push(\n      '- ' +\n        (h.from_channel || '?') +\n        ' â†’ ' +\n        (h.to_channel || '?') +\n        ' (trigger: ' +\n        (h.trigger_type || 'manual') +\n        ')'\n    );\n\n    if (h.pause_bot_while_operator)\n      parts.push('  Bot pausa enquanto operador atende');\n\n    if (h.operator_can_return_to_bot)\n      parts.push('  Operador pode devolver ao bot');\n  });\n  parts.push('');\n}\n\n// Junta governanÃ§a\nconst governanceCompact = parts.join('\\n');\n\n// =============================\n// Final system message\n// =============================\n\nconst finalParts = [];\n\nif (systemPrompt) finalParts.push(systemPrompt);\n\nif (governanceCompact) {\n  finalParts.push(\n    '\\n\\n--- REGRAS DO PLAYBOOK (canal: ' +\n      channel +\n      ') ---\\n' +\n      governanceCompact\n  );\n}\n\nconst finalSystemMessage =\n  finalParts.join('') ||\n  'Responda em portuguÃªs brasileiro. Seja educado e profissional.';\n\nreturn {\n  json: {\n    finalSystemMessage\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1616,
+        784
+      ],
+      "id": "4610504e-a5ec-443c-89b5-5150833b7315",
+      "name": "Build System Message"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "query",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        3120,
+        1008
+      ],
+      "id": "f6e9339c-4452-42ba-be00-95f2f121e785",
+      "name": "Consulta read_only",
+      "credentials": {
+        "postgres": {
+          "id": "__RECONNECT__",
+          "name": "__RECONNECT__"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Postgres Trigger1": [
+      {
+        "json": {
+          "length": 227,
+          "processId": 8639,
+          "channel": "n8n_channel_5612e15c_7f98_42b8_a72e_0e6025f28ad0",
+          "payload": {
+            "id": "a7bb3e2e-f432-49b8-b75f-8eabaf5ac0cc",
+            "session_id": "554199112641",
+            "message": "sim, vamos",
+            "created_at": "2026-02-22T13:51:56.928482",
+            "synced": false,
+            "type": "manual"
+          },
+          "name": "notification"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "WhatsApp Trigger": [
+      {
+        "json": {
+          "messaging_product": "whatsapp",
+          "metadata": {
+            "display_phone_number": "554192135184",
+            "phone_number_id": "621503847712817"
+          },
+          "contacts": [
+            {
+              "profile": {
+                "name": "Raul Camilotti ∴"
+              },
+              "wa_id": "554199112641"
+            }
+          ],
+          "messages": [
+            {
+              "from": "554199112641",
+              "id": "wamid.HBgMNTU0MTk5MTEyNjQxFQIAEhgWM0VCMDJFNEFGOTVBNUM1MzRDMzlDRQA=",
+              "timestamp": "1772672314",
+              "text": {
+                "body": "oi"
+              },
+              "type": "text"
+            }
+          ],
+          "field": "messages"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items2": {
+      "main": [
+        [],
+        [
+          {
+            "node": "WhatsApp Business Cloud1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive2": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Business Cloud4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Trigger2": {
+      "main": [
+        [
+          {
+            "node": "Google Drive1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail2": {
+      "main": [
+        [
+          {
+            "node": "Google Drive2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "opcoesviaveis1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent2": {
+      "main": [
+        [
+          {
+            "node": "Gmail2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code3": {
+      "main": [
+        [
+          {
+            "node": "Postgres11",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger2": {
+      "main": [
+        [
+          {
+            "node": "Postgres10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Business Cloud3": {
+      "main": [
+        [
+          {
+            "node": "Code3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Trigger1": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Business Cloud3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres9": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Business Cloud",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres1": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Business Cloud2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cadastraclienteasaas": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Postgres1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "pegadadosusuario": {
+      "main": [
+        [
+          {
+            "node": "cadastraclienteasaas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres": {
+      "main": [
+        [
+          {
+            "node": "Postgres9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "pegadadosusuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Seleciona Tenant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendario": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preview": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "busca_conversa": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pega_link": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "salva_imovel": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consulta_cep": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cadastra_cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "busca_cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seleciona Customer": {
+      "main": [
+        [
+          {
+            "node": "Verificar se Customer existe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualiza Customer": {
+      "main": [
+        [
+          {
+            "node": "Classifica Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar se Customer existe": {
+      "main": [
+        [
+          {
+            "node": "Atualiza Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Controle de atendimento ativo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classifica Customer": {
+      "main": [
+        [
+          {
+            "node": "Controle de atendimento ativo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seleciona Tenant": {
+      "main": [
+        [
+          {
+            "node": "Seleciona Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Controle de atendimento ativo": {
+      "main": [
+        [
+          {
+            "node": "Controle atendimento ativo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SelecionaAgent": {
+      "main": [
+        [
+          {
+            "node": "Load Governance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Controle atendimento ativo": {
+      "main": [
+        [
+          {
+            "node": "SelecionaAgent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table1": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Business Cloud5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert rows in a table2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Governance": {
+      "main": [
+        [
+          {
+            "node": "Build System Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build System Message": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Business Cloud1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consulta read_only": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0c6a52d0-1486-4c11-afb9-536b9a2f86c9",
+  "meta": {
+    "instanceId": "9c26cbc5515dd6fecda99aa713cb808530b93ecc09f927587152bdc3328eabf6"
+  },
+  "id": "Le5Gbfg3ycmXoYDN",
+  "tags": []
+}

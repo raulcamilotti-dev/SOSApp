@@ -61,8 +61,9 @@ export default function ModulosScreen() {
   const enabledSet = new Set<ModuleKey>(
     rows.filter((r) => r.enabled).map((r) => r.module_key as ModuleKey),
   );
-  // Core is always enabled
+  // Core and Marketplace are always enabled
   enabledSet.add(MODULE_KEYS.CORE);
+  enabledSet.add(MODULE_KEYS.MARKETPLACE);
 
   const loadModules = useCallback(async () => {
     if (!tenantId) return;

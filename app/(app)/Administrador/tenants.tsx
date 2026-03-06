@@ -7,10 +7,10 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import { CRUD_ENDPOINT } from "@/services/crud";
 import {
-    createTenant,
-    listTenants as listTenantsService,
-    updateTenant,
-    type Tenant,
+  createTenant,
+  listTenants as listTenantsService,
+  updateTenant,
+  type Tenant,
 } from "@/services/tenants";
 import { useRouter } from "expo-router";
 import { TouchableOpacity, View } from "react-native";
@@ -186,22 +186,28 @@ export default function TenantsScreen() {
         updateItem={updateTenant}
         deleteItem={deleteTenant}
         getId={(tenant) => tenant.id}
-        getTitle={(tenant) => tenant.company_name || "Tenant"}
+        getTitle={(tenant) => {
+          const name = tenant.company_name || "Tenant";
+          return tenant.is_sandbox ? `🧪 ${name}` : name;
+        }}
         getDetails={(tenant) => [
+          ...(tenant.is_sandbox
+            ? [{ label: "Modo", value: "🧪 Sandbox (Builder)" }]
+            : []),
           { label: "WhatsApp", value: tenant.whatsapp_number || "-" },
           { label: "Plano", value: tenant.plan || "-" },
           { label: "Status", value: tenant.status || "-" },
           {
             label: "Usuários",
-            value: String((tenant as any).users_count ?? 0),
+            value: String(tenant.users_count ?? 0),
           },
           {
             label: "Vínculos usuário-tenant",
-            value: String((tenant as any).user_tenants_count ?? 0),
+            value: String(tenant.user_tenants_count ?? 0),
           },
           {
             label: "Roles",
-            value: String((tenant as any).roles_count ?? 0),
+            value: String(tenant.roles_count ?? 0),
           },
           {
             label: "Template Workflow",
@@ -232,7 +238,7 @@ export default function TenantsScreen() {
                 <ThemedText
                   style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
                 >
-                  Usuários ({Number((tenant as any).users_count ?? 0)})
+                  Usuários ({Number(tenant.users_count ?? 0)})
                 </ThemedText>
               </TouchableOpacity>
 
@@ -254,7 +260,7 @@ export default function TenantsScreen() {
                 <ThemedText
                   style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
                 >
-                  Vínculos ({Number((tenant as any).user_tenants_count ?? 0)})
+                  Vínculos ({Number(tenant.user_tenants_count ?? 0)})
                 </ThemedText>
               </TouchableOpacity>
 
@@ -276,7 +282,7 @@ export default function TenantsScreen() {
                 <ThemedText
                   style={{ color: tintColor, fontWeight: "700", fontSize: 12 }}
                 >
-                  Roles ({Number((tenant as any).roles_count ?? 0)})
+                  Roles ({Number(tenant.roles_count ?? 0)})
                 </ThemedText>
               </TouchableOpacity>
             </View>

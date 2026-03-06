@@ -16,34 +16,35 @@ import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import type { CrudFilter } from "@/services/crud";
 import {
-  buildSearchParams,
-  CRUD_ENDPOINT,
-  normalizeCrudList,
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    normalizeCrudList,
 } from "@/services/crud";
 import {
-  listPurchaseRequestItems,
-  listPurchaseRequests,
-  updatePurchaseRequest,
-  type PurchaseRequest,
-  type PurchaseRequestItem,
+    listPurchaseRequestItems,
+    listPurchaseRequests,
+    updatePurchaseRequest,
+    type PurchaseRequest,
+    type PurchaseRequestItem,
 } from "@/services/purchase-requests";
 import {
-  cancelPurchaseOrder,
-  createPurchaseOrder,
-  markAsOrdered,
-  receivePurchaseOrder,
+    cancelPurchaseOrder,
+    createPurchaseOrder,
+    markAsOrdered,
+    receivePurchaseOrder,
 } from "@/services/purchases";
+import { shouldTrackBatch } from "@/services/stock-batches";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Platform,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Modal,
+    Platform,
+    ScrollView,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 type Row = Record<string, unknown>;
@@ -63,6 +64,15 @@ interface ReceiveRowUI {
   ordered: number;
   received: number;
   input: string;
+  serviceId: string | null;
+  trackBatch: boolean;
+  batches: ReceiveBatchUI[];
+}
+
+interface ReceiveBatchUI {
+  batchNumber: string;
+  expiryDate: string;
+  quantity: string;
 }
 
 interface ProductOption {
@@ -164,9 +174,7 @@ export default function ComprasScreen() {
   const [showProductPicker, setShowProductPicker] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [installments, setInstallments] = useState("1");
-  const [filterPaymentMethod, setFilterPaymentMethod] = useState<string | null>(
-    null,
-  );
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [selectedBankAccountId, setSelectedBankAccountId] = useState("");
   const [selectedChartAccountId, setSelectedChartAccountId] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -447,16 +455,13 @@ export default function ComprasScreen() {
       });
       return normalizeCrudList<Row>(res.data).filter((r) => {
         if (r.deleted_at) return false;
-        if (
-          filterPaymentMethod &&
-          String(r.payment_method ?? "") !== filterPaymentMethod
-        )
+        if (filterStatus && String(r.status ?? "draft") !== filterStatus)
           return false;
         return true;
       });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, reloadKey, filterPaymentMethod]);
+  }, [tenantId, reloadKey, filterStatus]);
 
   const createItemDummy = useMemo(() => async () => ({ ok: true }), []);
 
@@ -506,20 +511,52 @@ export default function ComprasScreen() {
         ]),
       });
       const items = normalizeCrudList<Row>(res.data);
+
+      // Detect which products track batches (deduplicate lookups)
+      const serviceIds = [
+        ...new Set(
+          items.map((it) => String(it.service_id ?? "")).filter(Boolean),
+        ),
+      ];
+      const batchMap = new Map<string, boolean>();
+      await Promise.all(
+        serviceIds.map(async (sid) => {
+          try {
+            batchMap.set(sid, await shouldTrackBatch(sid));
+          } catch {
+            batchMap.set(sid, false);
+          }
+        }),
+      );
+
       setReceivingItems(
-        items.map((it) => ({
-          id: String(it.id),
-          description: String(it.description ?? it.service_id ?? "-"),
-          ordered: Number(it.quantity_ordered ?? 0),
-          received: Number(it.quantity_received ?? 0),
-          input: String(
-            Math.max(
-              0,
-              Number(it.quantity_ordered ?? 0) -
-                Number(it.quantity_received ?? 0),
-            ),
-          ),
-        })),
+        items.map((it) => {
+          const remaining = Math.max(
+            0,
+            Number(it.quantity_ordered ?? 0) -
+              Number(it.quantity_received ?? 0),
+          );
+          const sid = String(it.service_id ?? "");
+          const tracksBatch = batchMap.get(sid) ?? false;
+          return {
+            id: String(it.id),
+            description: String(it.description ?? it.service_id ?? "-"),
+            ordered: Number(it.quantity_ordered ?? 0),
+            received: Number(it.quantity_received ?? 0),
+            input: tracksBatch ? "0" : String(remaining),
+            serviceId: sid || null,
+            trackBatch: tracksBatch,
+            batches: tracksBatch
+              ? [
+                  {
+                    batchNumber: "",
+                    expiryDate: "",
+                    quantity: String(remaining),
+                  },
+                ]
+              : [],
+          };
+        }),
       );
       setReceivingOrder(order);
       setReceiveModalVisible(true);
@@ -531,15 +568,58 @@ export default function ComprasScreen() {
   const confirmReceive = useCallback(async () => {
     if (!receivingOrder || submitting) return;
     const items = receivingItems
-      .filter((it) => parseFloat(it.input) > 0)
-      .map((it) => ({
-        itemId: it.id,
-        quantityReceived: parseFloat(it.input),
-      }));
+      .map((it) => {
+        if (it.trackBatch && it.batches.length > 0) {
+          // Sum batch quantities
+          const validBatches = it.batches
+            .filter((b) => parseFloat(b.quantity) > 0 && b.batchNumber.trim())
+            .map((b) => ({
+              batch_number: b.batchNumber.trim(),
+              quantity: parseFloat(b.quantity),
+              expiry_date: b.expiryDate || undefined,
+            }));
+          const totalQty = validBatches.reduce((s, b) => s + b.quantity, 0);
+          if (totalQty <= 0) return null;
+          return {
+            itemId: it.id,
+            quantityReceived: totalQty,
+            batches: validBatches,
+          };
+        }
+        // Non-batch item
+        const qty = parseFloat(it.input);
+        if (qty <= 0) return null;
+        return { itemId: it.id, quantityReceived: qty };
+      })
+      .filter(Boolean) as {
+      itemId: string;
+      quantityReceived: number;
+      batches?: {
+        batch_number: string;
+        quantity: number;
+        expiry_date?: string;
+      }[];
+    }[];
+
     if (!items.length) {
       Alert.alert("Aviso", "Informe ao menos 1 item.");
       return;
     }
+
+    // Validate batch-tracked items have batch numbers
+    for (const it of receivingItems) {
+      if (!it.trackBatch) continue;
+      for (const b of it.batches) {
+        if (parseFloat(b.quantity) > 0 && !b.batchNumber.trim()) {
+          Alert.alert(
+            "Aviso",
+            `Informe o número do lote para "${it.description}".`,
+          );
+          return;
+        }
+      }
+    }
+
     setSubmitting(true);
     try {
       await receivePurchaseOrder(
@@ -1914,41 +1994,205 @@ export default function ComprasScreen() {
                 >
                   <ThemedText style={{ fontWeight: "600", marginBottom: 4 }}>
                     {it.description}
+                    {it.trackBatch && (
+                      <ThemedText style={{ fontSize: 11, color: tintColor }}>
+                        {" "}
+                        (lote)
+                      </ThemedText>
+                    )}
                   </ThemedText>
                   <ThemedText style={{ fontSize: 12, color: mutedColor }}>
                     Pedido: {it.ordered} | Recebido: {it.received} | Faltam:{" "}
                     {remaining}
                   </ThemedText>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                      marginTop: 6,
-                    }}
-                  >
-                    <ThemedText style={{ fontSize: 13 }}>Receber:</ThemedText>
-                    <TextInput
-                      value={it.input}
-                      onChangeText={(text) => {
-                        const copy = [...receivingItems];
-                        copy[idx] = { ...copy[idx], input: text };
-                        setReceivingItems(copy);
-                      }}
-                      keyboardType="numeric"
+
+                  {it.trackBatch ? (
+                    /* ── Batch-tracked: multiple batch rows ── */
+                    <View style={{ marginTop: 8 }}>
+                      {it.batches.map((b, bIdx) => (
+                        <View
+                          key={`batch-${idx}-${bIdx}`}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            marginBottom: 6,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <TextInput
+                            value={b.batchNumber}
+                            onChangeText={(text) => {
+                              const copy = [...receivingItems];
+                              const batches = [...copy[idx].batches];
+                              batches[bIdx] = {
+                                ...batches[bIdx],
+                                batchNumber: text,
+                              };
+                              copy[idx] = { ...copy[idx], batches };
+                              setReceivingItems(copy);
+                            }}
+                            placeholder="Lote"
+                            placeholderTextColor={mutedColor}
+                            style={{
+                              borderWidth: 1,
+                              borderColor,
+                              borderRadius: 8,
+                              paddingHorizontal: 8,
+                              paddingVertical: Platform.OS === "web" ? 5 : 7,
+                              flex: 1,
+                              minWidth: 80,
+                              fontSize: 13,
+                              color: textColor,
+                            }}
+                          />
+                          <TextInput
+                            value={b.expiryDate}
+                            onChangeText={(text) => {
+                              const copy = [...receivingItems];
+                              const batches = [...copy[idx].batches];
+                              batches[bIdx] = {
+                                ...batches[bIdx],
+                                expiryDate: text,
+                              };
+                              copy[idx] = { ...copy[idx], batches };
+                              setReceivingItems(copy);
+                            }}
+                            placeholder="Validade (AAAA-MM-DD)"
+                            placeholderTextColor={mutedColor}
+                            style={{
+                              borderWidth: 1,
+                              borderColor,
+                              borderRadius: 8,
+                              paddingHorizontal: 8,
+                              paddingVertical: Platform.OS === "web" ? 5 : 7,
+                              flex: 1,
+                              minWidth: 120,
+                              fontSize: 13,
+                              color: textColor,
+                            }}
+                          />
+                          <TextInput
+                            value={b.quantity}
+                            onChangeText={(text) => {
+                              const copy = [...receivingItems];
+                              const batches = [...copy[idx].batches];
+                              batches[bIdx] = {
+                                ...batches[bIdx],
+                                quantity: text,
+                              };
+                              copy[idx] = { ...copy[idx], batches };
+                              setReceivingItems(copy);
+                            }}
+                            keyboardType="numeric"
+                            placeholder="Qtd"
+                            placeholderTextColor={mutedColor}
+                            style={{
+                              borderWidth: 1,
+                              borderColor,
+                              borderRadius: 8,
+                              paddingHorizontal: 8,
+                              paddingVertical: Platform.OS === "web" ? 5 : 7,
+                              width: 60,
+                              fontSize: 13,
+                              color: textColor,
+                              textAlign: "center",
+                            }}
+                          />
+                          {it.batches.length > 1 && (
+                            <TouchableOpacity
+                              onPress={() => {
+                                const copy = [...receivingItems];
+                                const batches = copy[idx].batches.filter(
+                                  (_, i) => i !== bIdx,
+                                );
+                                copy[idx] = { ...copy[idx], batches };
+                                setReceivingItems(copy);
+                              }}
+                              style={{ padding: 4 }}
+                            >
+                              <ThemedText
+                                style={{
+                                  color: "#ef4444",
+                                  fontSize: 16,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                ✕
+                              </ThemedText>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                      <TouchableOpacity
+                        onPress={() => {
+                          const copy = [...receivingItems];
+                          copy[idx] = {
+                            ...copy[idx],
+                            batches: [
+                              ...copy[idx].batches,
+                              {
+                                batchNumber: "",
+                                expiryDate: "",
+                                quantity: "0",
+                              },
+                            ],
+                          };
+                          setReceivingItems(copy);
+                        }}
+                        style={{
+                          alignSelf: "flex-start",
+                          paddingVertical: 4,
+                          paddingHorizontal: 10,
+                          borderRadius: 6,
+                          backgroundColor: tintColor + "18",
+                          marginTop: 2,
+                        }}
+                      >
+                        <ThemedText
+                          style={{
+                            color: tintColor,
+                            fontSize: 12,
+                            fontWeight: "600",
+                          }}
+                        >
+                          + Adicionar Lote
+                        </ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    /* ── Non-batch: simple quantity input ── */
+                    <View
                       style={{
-                        borderWidth: 1,
-                        borderColor,
-                        borderRadius: 8,
-                        paddingHorizontal: 10,
-                        paddingVertical: Platform.OS === "web" ? 6 : 8,
-                        width: 80,
-                        fontSize: 14,
-                        color: textColor,
-                        textAlign: "center",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        marginTop: 6,
                       }}
-                    />
-                  </View>
+                    >
+                      <ThemedText style={{ fontSize: 13 }}>Receber:</ThemedText>
+                      <TextInput
+                        value={it.input}
+                        onChangeText={(text) => {
+                          const copy = [...receivingItems];
+                          copy[idx] = { ...copy[idx], input: text };
+                          setReceivingItems(copy);
+                        }}
+                        keyboardType="numeric"
+                        style={{
+                          borderWidth: 1,
+                          borderColor,
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: Platform.OS === "web" ? 6 : 8,
+                          width: 80,
+                          fontSize: 14,
+                          color: textColor,
+                          textAlign: "center",
+                        }}
+                      />
+                    </View>
+                  )}
                 </View>
               );
             })}
@@ -2138,7 +2382,7 @@ export default function ComprasScreen() {
             <View style={{ flexDirection: "row", gap: 6 }}>
               <TouchableOpacity
                 onPress={() => {
-                  setFilterPaymentMethod(null);
+                  setFilterStatus(null);
                   reload();
                 }}
                 style={{
@@ -2146,8 +2390,8 @@ export default function ComprasScreen() {
                   paddingVertical: 5,
                   borderRadius: 999,
                   borderWidth: 1.5,
-                  borderColor: !filterPaymentMethod ? tintColor : borderColor,
-                  backgroundColor: !filterPaymentMethod
+                  borderColor: !filterStatus ? tintColor : borderColor,
+                  backgroundColor: !filterStatus
                     ? `${tintColor}18`
                     : "transparent",
                 }}
@@ -2155,20 +2399,21 @@ export default function ComprasScreen() {
                 <ThemedText
                   style={{
                     fontSize: 12,
-                    fontWeight: !filterPaymentMethod ? "700" : "500",
-                    color: !filterPaymentMethod ? tintColor : textColor,
+                    fontWeight: !filterStatus ? "700" : "500",
+                    color: !filterStatus ? tintColor : textColor,
                   }}
                 >
                   Todos
                 </ThemedText>
               </TouchableOpacity>
-              {PAYMENT_METHODS.map((pm) => {
-                const active = filterPaymentMethod === pm.key;
+              {Object.entries(STATUS_LABELS).map(([key, label]) => {
+                const active = filterStatus === key;
+                const chipColor = STATUS_COLORS[key] ?? tintColor;
                 return (
                   <TouchableOpacity
-                    key={pm.key}
+                    key={key}
                     onPress={() => {
-                      setFilterPaymentMethod(active ? null : pm.key);
+                      setFilterStatus(active ? null : key);
                       reload();
                     }}
                     style={{
@@ -2179,25 +2424,28 @@ export default function ComprasScreen() {
                       paddingVertical: 5,
                       borderRadius: 999,
                       borderWidth: 1.5,
-                      borderColor: active ? tintColor : borderColor,
+                      borderColor: active ? chipColor : borderColor,
                       backgroundColor: active
-                        ? `${tintColor}18`
+                        ? `${chipColor}18`
                         : "transparent",
                     }}
                   >
-                    <Ionicons
-                      name={pm.icon as any}
-                      size={13}
-                      color={active ? tintColor : mutedColor}
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: chipColor,
+                      }}
                     />
                     <ThemedText
                       style={{
                         fontSize: 12,
                         fontWeight: active ? "700" : "500",
-                        color: active ? tintColor : textColor,
+                        color: active ? chipColor : textColor,
                       }}
                     >
-                      {pm.label}
+                      {label}
                     </ThemedText>
                   </TouchableOpacity>
                 );

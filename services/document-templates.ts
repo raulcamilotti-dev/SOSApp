@@ -96,6 +96,7 @@ export interface DocumentTemplate {
 export interface GeneratedDocument {
   id: string;
   tenant_id?: string;
+  folder_id?: string | null;
   template_id: string;
   property_id?: string;
   name: string;
@@ -104,6 +105,17 @@ export interface GeneratedDocument {
   pdf_url?: string;
   pdf_base64?: string;
   status: "draft" | "generated" | "sent" | "signed";
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+}
+
+export interface DocumentFolder {
+  id: string;
+  tenant_id?: string;
+  name: string;
+  color?: string | null;
   created_by?: string;
   created_at?: string;
   updated_at?: string;
@@ -473,6 +485,53 @@ export async function listGeneratedDocuments(
   return normalizeList<GeneratedDocument>(res.data).filter(
     (d) => !d.deleted_at,
   );
+}
+
+export async function listDocumentFolders(
+  tenantId?: string,
+): Promise<DocumentFolder[]> {
+  const filters = tenantId
+    ? buildSearchParams([{ field: "tenant_id", value: tenantId }], {
+        sortColumn: "name ASC",
+      })
+    : { sort_column: "name ASC" };
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "document_folders",
+    ...filters,
+  });
+  return normalizeList<DocumentFolder>(res.data).filter((f) => !f.deleted_at);
+}
+
+export async function createDocumentFolder(
+  payload: Partial<DocumentFolder>,
+): Promise<unknown> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "create",
+    table: "document_folders",
+    payload,
+  });
+  return res.data;
+}
+
+export async function updateDocumentFolder(
+  payload: Partial<DocumentFolder> & { id: string },
+): Promise<unknown> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "update",
+    table: "document_folders",
+    payload,
+  });
+  return res.data;
+}
+
+export async function deleteDocumentFolder(id: string): Promise<unknown> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "delete",
+    table: "document_folders",
+    payload: { id },
+  });
+  return res.data;
 }
 
 export async function deleteGeneratedDocument(id: string): Promise<unknown> {

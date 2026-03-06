@@ -33,6 +33,12 @@ import {
   createServiceOrderContext,
 } from "./service-orders";
 import { recordStockMovement } from "./stock";
+import {
+  allocateFEFO,
+  applyBatchAllocations,
+  reverseBatchAllocations,
+  shouldTrackBatch,
+} from "./stock-batches";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -695,15 +701,71 @@ export async function createSale(
 
     // 7. Stock deduction for products
     if (!fi.isCompositionParent && fi.itemKind === "product" && fi.trackStock) {
-      await recordStockMovement({
-        tenantId,
-        serviceId: fi.serviceId,
-        movementType: "sale",
-        quantity: -fi.quantity,
-        saleId: sale.id,
-        saleItemId: saleItem.id,
-        userId: soldByUserId,
-      });
+      // Check if this product uses batch tracking (FEFO)
+      let useBatch = false;
+      try {
+        useBatch = await shouldTrackBatch(fi.serviceId);
+      } catch {
+        // best-effort — fall back to non-batch
+      }
+
+      if (useBatch) {
+        // FEFO allocation: oldest expiry first
+        try {
+          const allocations = await allocateFEFO(
+            tenantId,
+            fi.serviceId,
+            fi.quantity,
+          );
+          if (allocations.length > 0) {
+            await applyBatchAllocations(allocations);
+            for (const alloc of allocations) {
+              await recordStockMovement({
+                tenantId,
+                serviceId: fi.serviceId,
+                movementType: "sale",
+                quantity: -alloc.quantity,
+                saleId: sale.id,
+                saleItemId: saleItem.id,
+                batchId: alloc.batchId,
+                userId: soldByUserId,
+              });
+            }
+          } else {
+            // No batches available — fall back to unbatched movement
+            await recordStockMovement({
+              tenantId,
+              serviceId: fi.serviceId,
+              movementType: "sale",
+              quantity: -fi.quantity,
+              saleId: sale.id,
+              saleItemId: saleItem.id,
+              userId: soldByUserId,
+            });
+          }
+        } catch {
+          // FEFO failed — fall back to simple deduction
+          await recordStockMovement({
+            tenantId,
+            serviceId: fi.serviceId,
+            movementType: "sale",
+            quantity: -fi.quantity,
+            saleId: sale.id,
+            saleItemId: saleItem.id,
+            userId: soldByUserId,
+          });
+        }
+      } else {
+        await recordStockMovement({
+          tenantId,
+          serviceId: fi.serviceId,
+          movementType: "sale",
+          quantity: -fi.quantity,
+          saleId: sale.id,
+          saleItemId: saleItem.id,
+          userId: soldByUserId,
+        });
+      }
     }
   }
 
@@ -1262,16 +1324,53 @@ export async function cancelSale(
       });
       const movements = normalizeCrudList<Record<string, unknown>>(mvRes.data);
       if (movements.length > 0) {
-        await recordStockMovement({
-          tenantId: sale.tenant_id,
-          serviceId: item.service_id,
-          movementType: "return",
-          quantity: item.quantity, // positive = returning to stock
-          saleId,
-          saleItemId: item.id,
-          reason: reason ?? "Cancelamento de venda",
-          userId,
-        });
+        // Separate batch vs non-batch movements
+        const batchMovements = movements.filter((m) => m.batch_id);
+        const nonBatchMovements = movements.filter((m) => !m.batch_id);
+
+        // Reverse batch allocations
+        if (batchMovements.length > 0) {
+          const allocations = batchMovements.map((m) => ({
+            batchId: String(m.batch_id),
+            quantity: Math.abs(Number(m.quantity ?? 0)),
+          }));
+          try {
+            await reverseBatchAllocations(allocations);
+          } catch {
+            // best-effort batch reversal
+          }
+          for (const alloc of allocations) {
+            await recordStockMovement({
+              tenantId: sale.tenant_id,
+              serviceId: item.service_id,
+              movementType: "return",
+              quantity: alloc.quantity,
+              saleId,
+              saleItemId: item.id,
+              batchId: alloc.batchId,
+              reason: reason ?? "Cancelamento de venda",
+              userId,
+            });
+          }
+        }
+
+        // Reverse non-batch movements
+        if (nonBatchMovements.length > 0) {
+          const totalQty = nonBatchMovements.reduce(
+            (sum, m) => sum + Math.abs(Number(m.quantity ?? 0)),
+            0,
+          );
+          await recordStockMovement({
+            tenantId: sale.tenant_id,
+            serviceId: item.service_id,
+            movementType: "return",
+            quantity: totalQty,
+            saleId,
+            saleItemId: item.id,
+            reason: reason ?? "Cancelamento de venda",
+            userId,
+          });
+        }
       }
     }
 

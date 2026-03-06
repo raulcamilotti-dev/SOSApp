@@ -132,6 +132,15 @@ export const ADMIN_PAGES: AdminPage[] = [
     requiredAnyPermissions: [PERMISSIONS.TENANT_MANAGE],
   },
   {
+    id: "builder_program",
+    group: "Builder",
+    module: "admin",
+    title: "Programa Builder",
+    description: "Crie ambientes sandbox e publique packs no marketplace",
+    icon: "rocket-outline",
+    route: "/Administrador/builder-program",
+  },
+  {
     id: "builder_dashboard",
     group: "Builder",
     module: "admin",
@@ -288,6 +297,16 @@ export const ADMIN_PAGES: AdminPage[] = [
     requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
   },
   {
+    id: "ncm_codes",
+    group: "Serviços & Produtos",
+    module: "operacao",
+    title: "NCM — Classificação Fiscal",
+    description: "Nomenclatura Comum do Mercosul para emissão de notas fiscais",
+    icon: "barcode-outline",
+    route: "/Administrador/ncm-codes",
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
+  },
+  {
     id: "regras_desconto",
     group: "Vendas & PDV",
     module: "operacao",
@@ -387,6 +406,26 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "cart-outline",
     route: "/Administrador/Compras",
     requiredAnyPermissions: [PERMISSIONS.PURCHASE_READ],
+  },
+  {
+    id: "lotes",
+    group: "Estoque & Compras",
+    module: "operacao",
+    title: "Lotes",
+    description: "Rastreamento de lotes, validades e FEFO",
+    icon: "layers-outline",
+    route: "/Administrador/Lotes",
+    requiredAnyPermissions: [PERMISSIONS.STOCK_READ],
+  },
+  {
+    id: "tabelas_preco",
+    group: "Clientes & Usuários",
+    module: "cliente",
+    title: "Tabelas de Preço",
+    description: "Tabelas de preço diferenciado por cliente",
+    icon: "pricetags-outline",
+    route: "/Administrador/TabelasPreco",
+    requiredAnyPermissions: [PERMISSIONS.CUSTOMER_READ],
   },
   {
     id: "separacao",
@@ -707,7 +746,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/ExecucoesServico",
     requiredAnyPermissions: [
       PERMISSIONS.PARTNER_READ,
-      PERMISSIONS.PROCESS_READ,
+      PERMISSIONS.SERVICE_READ,
     ],
   },
   {
@@ -1392,7 +1431,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     ],
   },
   {
-    id: "contract-detail",
+    id: "contract_detail",
     group: "Contratos",
     module: "operacao",
     title: "Detalhes do Contrato",
@@ -1416,13 +1455,13 @@ export const ADMIN_PAGES: AdminPage[] = [
   },
   {
     id: "split_servicos",
-    group: "Serviços",
+    group: "Serviços & Produtos",
     module: "operacao",
     title: "Regras de Split de Serviços",
     description: "Configuração de regras de divisão de serviços",
     icon: "git-branch-outline",
     route: "/Administrador/split-servicos",
-    requiredAnyPermissions: [PERMISSIONS.SERVICE_TYPE_READ],
+    requiredAnyPermissions: [PERMISSIONS.SERVICE_READ],
   },
   {
     id: "solicitacao_compras",

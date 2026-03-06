@@ -16,6 +16,7 @@
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
     countConversationsToday,
@@ -104,6 +105,7 @@ const getStateColor = (index: number): string =>
 /* ------------------------------------------------------------------ */
 
 export default function DashboardAtendimentoScreen() {
+  const { user } = useAuth();
   const backgroundColor = useThemeColor({}, "background");
   const cardColor = useThemeColor({}, "card");
   const borderColor = useThemeColor({}, "border");
@@ -136,11 +138,15 @@ export default function DashboardAtendimentoScreen() {
 
       const [todayCount, convList, dashAnalytics, msgTypes, peaks] =
         await Promise.all([
-          countConversationsToday().catch(() => 0),
-          listConversations().catch(() => [] as OperatorConversation[]),
-          getDashboardAnalytics().catch(() => null),
-          getMessageTypeBreakdown().catch(() => ({})),
-          getPeakHours().catch(() => []),
+          countConversationsToday(undefined, user?.tenant_id ?? "").catch(
+            () => 0,
+          ),
+          listConversations(undefined, user?.tenant_id ?? "").catch(
+            () => [] as OperatorConversation[],
+          ),
+          getDashboardAnalytics(user?.tenant_id ?? "").catch(() => null),
+          getMessageTypeBreakdown(user?.tenant_id ?? "").catch(() => ({})),
+          getPeakHours(user?.tenant_id ?? "").catch(() => []),
         ]);
 
       setConversationsToday(todayCount);
@@ -151,7 +157,7 @@ export default function DashboardAtendimentoScreen() {
     } catch {
       setError("Erro ao carregar dados de atendimento");
     }
-  }, []);
+  }, [user?.tenant_id]);
 
   useEffect(() => {
     setLoading(true);

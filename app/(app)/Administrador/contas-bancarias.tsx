@@ -208,6 +208,19 @@ const buildFields = (tenantId?: string | null): CrudFieldConfig<Row>[] => [
     type: "boolean",
   },
   {
+    key: "is_primary_gateway",
+    label: "Gateway Principal",
+    type: "boolean",
+    section: "Gateway de Pagamento",
+  },
+  {
+    key: "gateway_config",
+    label: "Configuração do Gateway",
+    type: "json",
+    visibleInList: false,
+    jsonTemplate: { wallet_id: "" },
+  },
+  {
     key: "notes",
     label: "Observações",
     type: "multiline",
@@ -292,34 +305,43 @@ export default function ContasBancariasScreen() {
       deleteItem={deleteRow}
       getId={(item) => String(item.id ?? "")}
       getTitle={(item) => String(item.account_name ?? "Sem nome")}
-      getDetails={(item) => [
-        {
-          label: "Tipo",
-          value:
-            ACCOUNT_TYPE_LABELS[String(item.account_type ?? "")] ??
-            String(item.account_type ?? "-"),
-        },
-        {
-          label: "Agência",
-          value: String(item.agency_number ?? "-"),
-        },
-        {
-          label: "Conta",
-          value: String(item.account_number ?? "-"),
-        },
-        {
-          label: "Saldo Atual",
-          value: formatCurrency(item.current_balance),
-        },
-        {
-          label: "Padrão",
-          value: item.is_default ? "✅ Sim" : "Não",
-        },
-        {
-          label: "Ativa",
-          value: item.is_active === false ? "Inativa" : "Ativa",
-        },
-      ]}
+      getDetails={(item) => {
+        const details = [
+          {
+            label: "Tipo",
+            value:
+              ACCOUNT_TYPE_LABELS[String(item.account_type ?? "")] ??
+              String(item.account_type ?? "-"),
+          },
+          {
+            label: "Agência",
+            value: String(item.agency_number ?? "-"),
+          },
+          {
+            label: "Conta",
+            value: String(item.account_number ?? "-"),
+          },
+          {
+            label: "Saldo Atual",
+            value: formatCurrency(item.current_balance),
+          },
+          {
+            label: "Padrão",
+            value: item.is_default ? "✅ Sim" : "Não",
+          },
+          {
+            label: "Ativa",
+            value: item.is_active === false ? "Inativa" : "Ativa",
+          },
+        ];
+        if (item.is_primary_gateway) {
+          details.push({
+            label: "Gateway",
+            value: "✅ Principal",
+          });
+        }
+        return details;
+      }}
       renderItemActions={(item) => (
         <TouchableOpacity
           onPress={() =>

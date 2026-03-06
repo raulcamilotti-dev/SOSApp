@@ -22,7 +22,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
     Animated,
     Dimensions,
     KeyboardAvoidingView,
@@ -31,7 +30,7 @@ import {
     ScrollView,
     Text,
     TextInput,
-    View,
+    View
 } from "react-native";
 
 /* ================================================================== */
@@ -964,9 +963,7 @@ export default function OnboardingScreen() {
                     flex: 1,
                     paddingVertical: 14,
                     borderRadius: 12,
-                    backgroundColor: !isStep1Valid
-                      ? borderColor
-                      : primaryColor,
+                    backgroundColor: !isStep1Valid ? borderColor : primaryColor,
                     alignItems: "center",
                     opacity: !isStep1Valid ? 0.5 : 1,
                   }}

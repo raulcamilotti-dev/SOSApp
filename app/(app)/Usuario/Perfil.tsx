@@ -12,9 +12,9 @@ import {
 import { ThemedText } from "../../../components/themed-text";
 import { ThemedView } from "../../../components/themed-view";
 import { useAuth } from "../../../core/auth/AuthContext";
+import { useThemePreference } from "../../../hooks/use-color-scheme";
 import { useThemeColor } from "../../../hooks/use-theme-color";
 import Colors from "../../theme/colors";
-import { styles } from "../../theme/styles";
 
 export default function Profile() {
   const {
@@ -28,6 +28,7 @@ export default function Profile() {
   const [switchingTenantId, setSwitchingTenantId] = useState<string | null>(
     null,
   );
+  const { preference, setPreference } = useThemePreference();
   const backgroundColor = useThemeColor({}, "background");
   const tintColor = useThemeColor({}, "tint");
   const mutedTextColor = useThemeColor({}, "muted");
@@ -86,7 +87,17 @@ export default function Profile() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor }}>
-      <ThemedView style={[styles.container]}>
+      <ThemedView
+        style={{
+          flex: 1,
+          alignItems: "stretch",
+          justifyContent: "flex-start",
+          paddingHorizontal: 24,
+          paddingTop: 24,
+          paddingBottom: 0,
+          backgroundColor,
+        }}
+      >
         {/* Header com Avatar */}
         <View
           style={{
@@ -207,6 +218,37 @@ export default function Profile() {
               }
             }}
             color="#16a34a"
+            cardBg={cardBg}
+          />
+
+          <ThemedText
+            type="subtitle"
+            style={{ marginTop: 12, marginBottom: 12 }}
+          >
+            Aparencia
+          </ThemedText>
+          <ThemeChoiceButton
+            icon="phone-portrait-outline"
+            label="Automatico (sistema)"
+            selected={preference === "system"}
+            onPress={() => setPreference("system")}
+            tintColor={tintColor}
+            cardBg={cardBg}
+          />
+          <ThemeChoiceButton
+            icon="sunny-outline"
+            label="Modo claro"
+            selected={preference === "light"}
+            onPress={() => setPreference("light")}
+            tintColor={tintColor}
+            cardBg={cardBg}
+          />
+          <ThemeChoiceButton
+            icon="moon-outline"
+            label="Modo escuro"
+            selected={preference === "dark"}
+            onPress={() => setPreference("dark")}
+            tintColor={tintColor}
             cardBg={cardBg}
           />
 
@@ -339,6 +381,61 @@ function ProfileCard({
         </ThemedText>
       </View>
     </View>
+  );
+}
+
+function ThemeChoiceButton({
+  icon,
+  label,
+  selected,
+  onPress,
+  tintColor,
+  cardBg,
+}: {
+  icon: string;
+  label: string;
+  selected: boolean;
+  onPress: () => Promise<void>;
+  tintColor: string;
+  cardBg: string;
+}) {
+  return (
+    <TouchableOpacity onPress={() => void onPress()}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: cardBg,
+          borderRadius: 12,
+          padding: 14,
+          marginBottom: 10,
+          gap: 12,
+          borderWidth: 1,
+          borderColor: selected ? tintColor : "transparent",
+        }}
+      >
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            backgroundColor: tintColor + "20",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <Ionicons name={icon as any} size={20} color={tintColor} />
+        </View>
+        <ThemedText style={{ flex: 1, fontSize: 14, fontWeight: "600" }}>
+          {label}
+        </ThemedText>
+        <Ionicons
+          name={selected ? "checkmark-circle" : "ellipse-outline"}
+          size={20}
+          color={selected ? tintColor : "#94a3b8"}
+        />
+      </View>
+    </TouchableOpacity>
   );
 }
 

@@ -16,7 +16,11 @@
 
 import { api } from "./api";
 import { formatCnpj, lookupCnpj, validateCnpj } from "./brasil-api";
-import { buildSearchParams } from "./crud";
+import {
+  buildSearchParams,
+  CRUD_ENDPOINT as CRUD,
+  normalizeCrudList,
+} from "./crud";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -114,14 +118,7 @@ export function canUserAccessProperty(
 /*  CRUD Helpers                                                       */
 /* ------------------------------------------------------------------ */
 
-import { CRUD_ENDPOINT as CRUD } from "@/services/crud";
-
-function normalizeCrudResponse<T>(data: unknown): T[] {
-  if (Array.isArray(data)) return data as T[];
-  const obj = data as Record<string, unknown>;
-  const list = obj?.data ?? obj?.value ?? obj?.items ?? [];
-  return Array.isArray(list) ? (list as T[]) : [];
-}
+// normalizeCrudList imported from ./crud above
 
 /* ------------------------------------------------------------------ */
 /*  Company CRUD                                                       */
@@ -135,7 +132,7 @@ export async function listCompanies(tenantId?: string): Promise<Company[]> {
       ? buildSearchParams([{ field: "tenant_id", value: tenantId }])
       : {}),
   });
-  let list = normalizeCrudResponse<Company>(res.data);
+  let list = normalizeCrudList<Company>(res.data);
   if (tenantId) {
     list = list.filter((c) => c.tenant_id === tenantId && !c.deleted_at);
   } else {
@@ -150,7 +147,7 @@ export async function getCompany(id: string): Promise<Company | null> {
     table: "companies",
     ...buildSearchParams([{ field: "id", value: id }]),
   });
-  const list = normalizeCrudResponse<Company>(res.data);
+  const list = normalizeCrudList<Company>(res.data);
   return list.find((c) => c.id === id && !c.deleted_at) ?? null;
 }
 
@@ -264,7 +261,7 @@ export async function listCompanyMembers(
       ? buildSearchParams(filters, { combineType: "AND" })
       : {}),
   });
-  let list = normalizeCrudResponse<CompanyMember>(res.data);
+  let list = normalizeCrudList<CompanyMember>(res.data);
   list = list.filter((m) => !m.deleted_at);
   if (companyId) list = list.filter((m) => m.company_id === companyId);
   if (tenantId) list = list.filter((m) => m.tenant_id === tenantId);
@@ -342,7 +339,7 @@ export async function inviteMemberByCpf(
       table: "users",
       ...buildSearchParams([{ field: "cpf", value: digits }]),
     });
-    const users = normalizeCrudResponse<Record<string, unknown>>(usersRes.data);
+    const users = normalizeCrudList<Record<string, unknown>>(usersRes.data);
     const match = users.find(
       (u) =>
         ((u.cpf as string) ?? "").replace(/\D/g, "") === digits &&

@@ -66,13 +66,20 @@ const deleteRow = async (
   return res.data;
 };
 
+const GATEWAY_PROVIDER_OPTIONS = [
+  { label: "Asaas", value: "asaas" },
+  { label: "Mercado Pago", value: "mercadopago" },
+  { label: "Stripe", value: "stripe" },
+  { label: "PagSeguro", value: "pagseguro" },
+];
+
 const fields: CrudFieldConfig<Row>[] = [
   {
     key: "name",
     label: "Nome do Banco",
     type: "text",
     required: true,
-    placeholder: "Ex: Banco do Brasil, Nubank, Itaú",
+    placeholder: "Ex: Banco do Brasil, Nubank, Itaú, Asaas",
   },
   {
     key: "bank_code",
@@ -94,9 +101,24 @@ const fields: CrudFieldConfig<Row>[] = [
     visibleInList: false,
   },
   {
+    key: "is_payment_gateway",
+    label: "É Gateway de Pagamento",
+    type: "boolean",
+    section: "Gateway de Pagamento",
+  },
+  {
+    key: "gateway_provider",
+    label: "Provedor do Gateway",
+    type: "select",
+    options: GATEWAY_PROVIDER_OPTIONS,
+    showWhen: (state) => state.is_payment_gateway === "true",
+    visibleInList: false,
+  },
+  {
     key: "is_active",
     label: "Ativo",
     type: "boolean",
+    section: "Configurações",
   },
   {
     key: "notes",
@@ -136,20 +158,37 @@ export default function BancosScreen() {
       deleteItem={deleteRow}
       getId={(item) => String(item.id ?? "")}
       getTitle={(item) => String(item.name ?? "Sem nome")}
-      getDetails={(item) => [
-        {
-          label: "Código COMPE",
-          value: String(item.bank_code ?? "-"),
-        },
-        {
-          label: "ISPB",
-          value: String(item.ispb_code ?? "-"),
-        },
-        {
-          label: "Ativo",
-          value: item.is_active === false ? "Inativo" : "Ativo",
-        },
-      ]}
+      getDetails={(item) => {
+        const details = [
+          {
+            label: "Código COMPE",
+            value: String(item.bank_code ?? "-"),
+          },
+          {
+            label: "ISPB",
+            value: String(item.ispb_code ?? "-"),
+          },
+          {
+            label: "Ativo",
+            value: item.is_active === false ? "Inativo" : "Ativo",
+          },
+        ];
+        if (item.is_payment_gateway) {
+          const providerLabels: Record<string, string> = {
+            asaas: "Asaas",
+            mercadopago: "Mercado Pago",
+            stripe: "Stripe",
+            pagseguro: "PagSeguro",
+          };
+          details.push({
+            label: "Gateway",
+            value:
+              providerLabels[String(item.gateway_provider ?? "")] ??
+              String(item.gateway_provider ?? "-"),
+          });
+        }
+        return details;
+      }}
       renderItemActions={(item) => (
         <TouchableOpacity
           onPress={() =>

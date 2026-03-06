@@ -14,6 +14,8 @@
     "sync:n8n:validate": "node scripts/sync-n8n-workflow.js validate",
     "deploy:worker": "cd workers/api-crud && npx wrangler deploy",
     "deploy:worker:tail": "cd workers/api-crud && npx wrangler tail",
+    "deploy:icp-sign": "cd workers/icp-sign && npx wrangler deploy",
+    "deploy:icp-sign:tail": "cd workers/icp-sign && npx wrangler tail",
     "deploy:landing": "npx wrangler pages deploy landing --project-name radul-landing --branch main --commit-dirty=true",
     "test": "jest"
   },

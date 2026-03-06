@@ -67,14 +67,17 @@ export interface RecentTenant {
 export async function fetchSaaSKPIs(): Promise<SaaSKPIs> {
   const sql = `
     SELECT
-      (SELECT COUNT(*) FROM tenants WHERE deleted_at IS NULL) AS total_tenants,
+      (SELECT COUNT(*) FROM tenants WHERE deleted_at IS NULL AND is_sandbox IS NOT TRUE) AS total_tenants,
       (SELECT COUNT(DISTINCT t.id) FROM tenants t
         INNER JOIN user_tenants ut ON ut.tenant_id = t.id
-        WHERE t.deleted_at IS NULL) AS active_tenants,
+        WHERE t.deleted_at IS NULL AND t.is_sandbox IS NOT TRUE) AS active_tenants,
       (SELECT COUNT(*) FROM users WHERE deleted_at IS NULL) AS total_users,
-      (SELECT COUNT(*) FROM service_orders WHERE deleted_at IS NULL) AS total_service_orders,
-      (SELECT COUNT(*) FROM leads WHERE deleted_at IS NULL) AS total_leads,
-      (SELECT COUNT(*) FROM tenant_modules WHERE enabled = true) AS total_modules_active
+      (SELECT COUNT(*) FROM service_orders WHERE deleted_at IS NULL
+        AND tenant_id NOT IN (SELECT id FROM tenants WHERE is_sandbox = true)) AS total_service_orders,
+      (SELECT COUNT(*) FROM leads WHERE deleted_at IS NULL
+        AND tenant_id NOT IN (SELECT id FROM tenants WHERE is_sandbox = true)) AS total_leads,
+      (SELECT COUNT(*) FROM tenant_modules WHERE enabled = true
+        AND tenant_id NOT IN (SELECT id FROM tenants WHERE is_sandbox = true)) AS total_modules_active
   `;
   const res = await api.post(API_DINAMICO, { sql });
   const rows = normalizeCrudList<any>(res.data);
@@ -128,6 +131,7 @@ export async function fetchTenantOverview(): Promise<TenantOverview[]> {
       FROM leads WHERE deleted_at IS NULL GROUP BY tenant_id
     ) l ON l.tenant_id = t.id
     WHERE t.deleted_at IS NULL
+      AND t.is_sandbox IS NOT TRUE
     ORDER BY t.created_at DESC
   `;
   const res = await api.post(API_DINAMICO, { sql });
@@ -142,6 +146,7 @@ export async function fetchModulePopularity(): Promise<ModulePopularity[]> {
     SELECT module_key, COUNT(DISTINCT tenant_id) AS tenant_count
     FROM tenant_modules
     WHERE enabled = true
+      AND tenant_id NOT IN (SELECT id FROM tenants WHERE is_sandbox = true)
     GROUP BY module_key
     ORDER BY tenant_count DESC
   `;
@@ -159,6 +164,7 @@ export async function fetchTenantGrowth(): Promise<TenantGrowth[]> {
       COUNT(*) AS new_tenants
     FROM tenants
     WHERE deleted_at IS NULL
+      AND is_sandbox IS NOT TRUE
       AND created_at >= NOW() - INTERVAL '12 months'
     GROUP BY TO_CHAR(created_at, 'YYYY-MM')
     ORDER BY month ASC
@@ -190,9 +196,10 @@ export async function fetchUserGrowth(): Promise<UserGrowth[]> {
  */
 export async function fetchRecentTenants(limit = 5): Promise<RecentTenant[]> {
   const sql = `
-    SELECT id, company_name, plan, status, config->>'specialty' AS specialty, created_at
+    SELECT id, company_name, plan, status, is_sandbox, config->>'specialty' AS specialty, created_at
     FROM tenants
     WHERE deleted_at IS NULL
+      AND is_sandbox IS NOT TRUE
     ORDER BY created_at DESC
     LIMIT ${limit}
   `;

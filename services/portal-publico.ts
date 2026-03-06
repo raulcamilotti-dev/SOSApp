@@ -43,6 +43,9 @@ export type PortalTimelineEntry = {
   title: string;
   description: string;
   createdAt: string;
+  requiresClientApproval: boolean;
+  approvalStatus: "not_required" | "pending" | "approved" | "rejected";
+  approvedAt: string | null;
 };
 
 export type PortalData = {
@@ -406,6 +409,9 @@ export async function loadPortalData(
     title: string;
     description: string;
     is_client_visible: boolean;
+    requires_client_approval?: boolean;
+    approval_status?: "not_required" | "pending" | "approved" | "rejected";
+    approved_at?: string | null;
     created_at: string;
     deleted_at: string | null;
   }>(
@@ -423,6 +429,11 @@ export async function loadPortalData(
     title: u.title,
     description: u.description ?? "",
     createdAt: u.created_at,
+    requiresClientApproval: Boolean(u.requires_client_approval),
+    approvalStatus:
+      u.approval_status ??
+      (u.requires_client_approval ? "pending" : "not_required"),
+    approvedAt: u.approved_at ?? null,
   }));
 
   return {
@@ -447,6 +458,88 @@ export async function loadPortalData(
       ? String(order.estimated_completion_date)
       : null,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Update approval (public portal)                                    */
+/* ------------------------------------------------------------------ */
+
+export async function approvePortalUpdate(params: {
+  token: string;
+  updateId: string;
+  cpfPrefix?: string;
+}): Promise<{ success: boolean; error?: string; approvedAt?: string }> {
+  const { token, updateId, cpfPrefix } = params;
+
+  const tokenRows = await crudList<{
+    id: string;
+    entity_id: string;
+    is_revoked: boolean;
+    deleted_at: string | null;
+  }>("public_access_tokens", [{ field: "token", value: token }]);
+
+  const tokenRecord = tokenRows.find((r) => !r.deleted_at && !r.is_revoked);
+  if (!tokenRecord) {
+    return { success: false, error: "Token inválido ou revogado." };
+  }
+
+  const orders = await crudList<{ id: string; customer_id: string | null }>(
+    "service_orders",
+    [{ field: "id", value: tokenRecord.entity_id }],
+  );
+  const order = orders[0];
+  if (!order) {
+    return { success: false, error: "Processo não encontrado." };
+  }
+
+  // Enforce CPF check (same policy used by loadPortalData)
+  if (order.customer_id) {
+    const customers = await crudList<{ id: string; cpf: string | null }>(
+      "customers",
+      [{ field: "id", value: order.customer_id }],
+    );
+    const customerCpf = customers[0]?.cpf?.replace(/\D/g, "") ?? "";
+    if (customerCpf.length >= 4) {
+      const expected = customerCpf.substring(0, 4);
+      const provided = (cpfPrefix ?? "").replace(/\D/g, "");
+      if (provided !== expected) {
+        return { success: false, error: "Verificação de CPF inválida." };
+      }
+    }
+  }
+
+  const updates = await crudList<{
+    id: string;
+    service_order_id: string;
+    is_client_visible: boolean;
+    requires_client_approval?: boolean;
+    approval_status?: "not_required" | "pending" | "approved" | "rejected";
+    deleted_at: string | null;
+  }>("process_updates", [{ field: "id", value: updateId }]);
+  const update = updates.find((u) => !u.deleted_at);
+
+  if (!update || String(update.service_order_id) !== String(order.id)) {
+    return { success: false, error: "Atualização inválida para este link." };
+  }
+  if (!update.is_client_visible) {
+    return { success: false, error: "Atualização não disponível no portal." };
+  }
+  if (!update.requires_client_approval) {
+    return { success: true };
+  }
+  if (update.approval_status === "approved") {
+    return { success: true, approvedAt: new Date().toISOString() };
+  }
+
+  const approvedAt = new Date().toISOString();
+  await crudUpdate("process_updates", {
+    id: updateId,
+    approval_status: "approved",
+    approved_at: approvedAt,
+    approved_by: null,
+  });
+
+  return { success: true, approvedAt };
 }
 
 /* ------------------------------------------------------------------ */

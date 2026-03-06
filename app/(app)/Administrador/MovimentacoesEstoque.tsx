@@ -10,9 +10,9 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { api } from "@/services/api";
 import type { CrudFilter } from "@/services/crud";
 import {
-  buildSearchParams,
-  CRUD_ENDPOINT,
-  normalizeCrudList,
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    normalizeCrudList,
 } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
@@ -90,7 +90,6 @@ export default function MovimentacoesEstoqueScreen() {
         table: "stock_movements",
         ...buildSearchParams(filters, {
           sortColumn: "created_at DESC",
-          autoExcludeDeleted: true,
           limit,
           offset,
         }),

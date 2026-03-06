@@ -135,7 +135,8 @@ export function getUpdateActiveClientCountSQL(): string {
         AND deleted_at IS NULL
       GROUP BY tenant_id
     ) sub
-    WHERE t.id = sub.tenant_id;
+    WHERE t.id = sub.tenant_id
+      AND t.is_sandbox IS NOT TRUE;
   `;
 }
 
@@ -235,6 +236,29 @@ export async function getActiveClientSummary(
 export async function processMonthlyTierAdjustment(
   tenantId: string,
 ): Promise<MonthlyTierResult> {
+  // Sandbox tenants are never subject to tier adjustments
+  try {
+    const tenantCheck = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "tenants",
+      ...buildSearchParams([{ field: "id", value: tenantId }]),
+    });
+    const tenantRows = normalizeCrudList<{ is_sandbox?: boolean }>(
+      tenantCheck.data,
+    );
+    if (tenantRows[0]?.is_sandbox) {
+      return {
+        tenantId,
+        previousPlan: "sandbox",
+        newPlan: null,
+        action: "none",
+        activeClients: 0,
+      };
+    }
+  } catch {
+    // Best-effort — proceed with normal flow if check fails
+  }
+
   const summary = await getActiveClientSummary(tenantId);
   if (!summary) {
     return {

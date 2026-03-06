@@ -68,7 +68,10 @@ export default function AtendimentoScreen() {
       if (!sessionPhone) return;
 
       try {
-        const rows = await listConversationMessages(sessionPhone);
+        const rows = await listConversationMessages(
+          sessionPhone,
+          user?.tenant_id ?? "",
+        );
         const recent = rows
           .slice()
           .sort((a, b) => {
@@ -106,7 +109,7 @@ export default function AtendimentoScreen() {
     return () => {
       mounted = false;
     };
-  }, [loggedPhone]);
+  }, [loggedPhone, user?.tenant_id]);
 
   async function handleSend(text: string) {
     if (!text.trim()) return;

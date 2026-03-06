@@ -48,6 +48,10 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "custom_fields",
       "pack_export",
       "api_keys",
+      "auth_codes",
+      "auth_tokens",
+      "user_tenants",
+      "comprar_usuarios",
     ],
   },
   {
@@ -61,6 +65,8 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "marketplace_publish",
       "marketplace_review",
       "builder_dashboard",
+      "builder_program",
+      "template_packs",
     ],
   },
   {
@@ -75,6 +81,8 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "atendimento_operador",
       "dashboard_atendimento",
       "usuarios",
+      "tabelas_preco",
+      "cnpj_consulta",
     ],
   },
   {
@@ -90,6 +98,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "services_crud",
       "service_categories",
       "service_types",
+      "ncm_codes",
       "avaliacoes",
       "quote_templates",
       "quotes",
@@ -126,6 +135,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "fornecedores",
       "solicitacoes_compras",
       "compras",
+      "lotes",
     ],
   },
   {
@@ -185,6 +195,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "onr_protocolos",
       "onr_certidoes",
       "cartorios",
+      "template_editor",
     ],
   },
   {
@@ -199,6 +210,13 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "meus_trabalhos",
       "channel_partners",
       "channel_partner_dashboard",
+      "disponibilidade_parceiro",
+      "folgas_parceiro",
+      "execucoes_servico",
+      "resumo_avaliacao_parceiro",
+      "logs_avaliacoes",
+      "logs_agendamentos",
+      "servicos_parceiro",
     ],
   },
   {
@@ -218,6 +236,8 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "workflow_templates",
       "workflow_editor",
       "workflow_steps",
+      "automations",
+      "servicos_workflow",
     ],
   },
   {

@@ -1,0 +1,33 @@
+# sos-icp-sign — ICP-Brasil PDF Digital Signing Worker
+#
+# Handles:
+#   - Certificate validation (PKCS#12 parsing, ICP-Brasil chain check, CRL revocation)
+#   - PDF signing (PKCS#7/CMS with SHA-256, MP 2.200-2/2001 compliant)
+#   - Signed PDF download from database
+#
+# Legal basis: MP 2.200-2/2001 Art. 10 §1, Lei 14.063/2020, DOC-ICP-04
+
+name = "sos-icp-sign"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set via `wrangler secret put`):
+#   API_KEY          - X-Api-Key for authenticating requests from the app
+#   DOCUMENSO_API_KEY - API key for Documenso (PDF download)
+#   API_CRUD_KEY     - API key for sos-api-crud worker (DB operations)
+
+[vars]
+ENVIRONMENT = "production"
+DOCUMENSO_URL = "https://documenso.sosescritura.com.br"
+API_CRUD_URL = "https://sos-api-crud.raulcamilotti-c44.workers.dev"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true

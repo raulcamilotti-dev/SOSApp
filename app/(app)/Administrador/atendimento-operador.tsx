@@ -252,9 +252,12 @@ export default function AtendimentoOperadorScreen() {
 
       try {
         const includeCount = options?.includeCount ?? true;
-        const conversationRows = await listConversations();
+        const conversationRows = await listConversations(
+          undefined,
+          user?.tenant_id ?? "",
+        );
         const conversationCount = includeCount
-          ? await countConversationsToday()
+          ? await countConversationsToday(undefined, user?.tenant_id ?? "")
           : 0;
 
         const now = new Date();
@@ -293,19 +296,22 @@ export default function AtendimentoOperadorScreen() {
         loadingConversationsRef.current = false;
       }
     },
-    [selectedSessionId],
+    [selectedSessionId, user?.tenant_id],
   );
 
   const loadMessages = useCallback(async (sessionId: string) => {
     if (loadingMessagesRef.current) return;
     loadingMessagesRef.current = true;
     try {
-      const rows = await listConversationMessages(sessionId);
+      const rows = await listConversationMessages(
+        sessionId,
+        user?.tenant_id ?? "",
+      );
       setMessages(rows);
     } finally {
       loadingMessagesRef.current = false;
     }
-  }, []);
+  }, [user?.tenant_id]);
 
   const loadRobotStatus = useCallback(async (sessionId: string) => {
     if (loadingRobotStatusRef.current) return;
@@ -411,6 +417,7 @@ export default function AtendimentoOperadorScreen() {
     selectedSessionId,
     setOutboxAndPersist,
     user?.id,
+    user?.tenant_id,
   ]);
 
   const loadSessionData = useCallback(

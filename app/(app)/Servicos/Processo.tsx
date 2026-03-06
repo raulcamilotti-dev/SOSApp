@@ -4,6 +4,7 @@ import { ThemedView } from "@/components/themed-view";
 import { SignatureRequest } from "@/components/ui/SignatureRequest";
 import { useAuth } from "@/core/auth/AuthContext";
 import { PERMISSIONS } from "@/core/auth/permissions";
+import { isInternalUser } from "@/core/auth/auth.utils";
 import { usePermissions } from "@/core/auth/usePermissions";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
@@ -97,6 +98,10 @@ interface ProcessUpdate {
   updated_at?: string;
   deleted_at?: string | null;
   is_client_visible?: boolean;
+  requires_client_approval?: boolean;
+  approval_status?: "not_required" | "pending" | "approved" | "rejected";
+  approved_by?: string | null;
+  approved_at?: string | null;
   files?: ProcessUpdateFile[];
   process_update_files?: ProcessUpdateFile[];
   attachments?: ProcessUpdateFile[];
@@ -165,6 +170,9 @@ export default function EtapaPropertiesScreen() {
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [updates, setUpdates] = useState<ProcessUpdate[]>([]);
+  const [approvingUpdateId, setApprovingUpdateId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [documentRequests, setDocumentRequests] = useState<
     Map<string, DocumentRequest[]>
@@ -253,6 +261,8 @@ export default function EtapaPropertiesScreen() {
   /* ── ONR protocol state ── */
   const [onrProtocolos, setOnrProtocolos] = useState<any[]>([]);
   const [onrCertidoes, setOnrCertidoes] = useState<any[]>([]);
+
+  const canClientApproveUpdates = !isInternalUser(user);
 
   /* ── Service order segmentation info ── */
   const [orderInfo, setOrderInfo] = useState<{
@@ -1920,6 +1930,47 @@ export default function EtapaPropertiesScreen() {
     fetchServiceOrderInfo,
   ]);
 
+  const handleApproveUpdate = useCallback(
+    async (updateId: string) => {
+      if (!updateId || !user?.id) return;
+      try {
+        setApprovingUpdateId(updateId);
+        const now = new Date().toISOString();
+        await api.post(CRUD_ENDPOINT, {
+          action: "update",
+          table: "process_updates",
+          payload: {
+            id: updateId,
+            approval_status: "approved",
+            approved_by: user.id,
+            approved_at: now,
+          },
+        });
+
+        setUpdates((prev) =>
+          prev.map((u) =>
+            String(u.id) === String(updateId)
+              ? {
+                  ...u,
+                  approval_status: "approved",
+                  approved_by: String(user.id),
+                  approved_at: now,
+                }
+              : u,
+          ),
+        );
+      } catch (err) {
+        Alert.alert(
+          "Erro",
+          getApiErrorMessage(err, "Não foi possível aprovar esta atualização."),
+        );
+      } finally {
+        setApprovingUpdateId(null);
+      }
+    },
+    [user?.id],
+  );
+
   if (loading) {
     return (
       <ThemedView
@@ -2881,6 +2932,87 @@ export default function EtapaPropertiesScreen() {
                   <ThemedText style={{ fontSize: 11, color: mutedTextColor }}>
                     Publicado em {formatDate(update.created_at)}
                   </ThemedText>
+                ) : null}
+                {update.requires_client_approval ? (
+                  <View
+                    style={{
+                      marginTop: 8,
+                      gap: 6,
+                      padding: 8,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor:
+                        update.approval_status === "approved"
+                          ? "#22c55e55"
+                          : "#f59e0b55",
+                      backgroundColor:
+                        update.approval_status === "approved"
+                          ? "#22c55e12"
+                          : "#f59e0b12",
+                    }}
+                  >
+                    <ThemedText
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "700",
+                        color:
+                          update.approval_status === "approved"
+                            ? "#22c55e"
+                            : "#f59e0b",
+                      }}
+                    >
+                      {update.approval_status === "approved"
+                        ? "Atualização autorizada pelo cliente"
+                        : "Atualização aguardando sua autorização"}
+                    </ThemedText>
+                    {update.approval_status === "approved" && update.approved_at ? (
+                      <ThemedText style={{ fontSize: 10, color: mutedTextColor }}>
+                        Aprovado em {formatDate(update.approved_at)}
+                      </ThemedText>
+                    ) : null}
+                    {canClientApproveUpdates &&
+                    update.approval_status !== "approved" ? (
+                      <TouchableOpacity
+                        onPress={() => handleApproveUpdate(String(update.id))}
+                        disabled={approvingUpdateId === String(update.id)}
+                        style={{
+                          alignSelf: "flex-start",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          borderRadius: 7,
+                          backgroundColor:
+                            approvingUpdateId === String(update.id)
+                              ? "#64748b66"
+                              : tintColor,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        {approvingUpdateId === String(update.id) ? (
+                          <ActivityIndicator size={12} color="#fff" />
+                        ) : (
+                          <Ionicons
+                            name="checkmark-circle-outline"
+                            size={13}
+                            color="#fff"
+                          />
+                        )}
+                        <ThemedText
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "700",
+                            color: "#fff",
+                          }}
+                        >
+                          {approvingUpdateId === String(update.id)
+                            ? "Aprovando..."
+                            : "Aprovar andamento"}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
                 ) : null}
 
                 {(() => {

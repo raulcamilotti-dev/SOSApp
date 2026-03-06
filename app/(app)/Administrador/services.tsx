@@ -418,6 +418,116 @@ export default function ServicesScreen() {
       section: "Dimensões de Envio",
     },
 
+    // ═══ Seção: Fiscal / Tributação (produto) ═══
+    {
+      key: "ncm_id",
+      label: "NCM",
+      type: "reference",
+      referenceTable: "ncm_codes",
+      referenceLabelField: "description",
+      referenceSearchField: "description",
+      referenceIdField: "id",
+      referenceLabelFormatter: (item, _default) => {
+        const code = String(item.code ?? "");
+        const desc = String(item.description ?? "");
+        const short = desc.length > 40 ? desc.slice(0, 40) + "…" : desc;
+        return code ? `${code} — ${short}` : short;
+      },
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "origem",
+      label: "Origem da Mercadoria",
+      type: "select",
+      options: [
+        { label: "0 - Nacional", value: "0" },
+        { label: "1 - Estrangeira (importação direta)", value: "1" },
+        { label: "2 - Estrangeira (adquirida no mercado interno)", value: "2" },
+        { label: "3 - Nacional (conteúdo import. > 40%)", value: "3" },
+        { label: "5 - Nacional (conteúdo import. ≤ 40%)", value: "5" },
+        { label: "6 - Estrangeira (import. direta, sem similar)", value: "6" },
+        { label: "7 - Estrangeira (merc. interno, sem similar)", value: "7" },
+        { label: "8 - Nacional (conteúdo import. > 70%)", value: "8" },
+      ],
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "cfop_padrao",
+      label: "CFOP Padrão",
+      placeholder: "Ex: 5102",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "cst_icms",
+      label: "CST ICMS",
+      placeholder: "Ex: 00",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "csosn",
+      label: "CSOSN (Simples Nacional)",
+      placeholder: "Ex: 102",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "cst_pis",
+      label: "CST PIS",
+      placeholder: "Ex: 01",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "cst_cofins",
+      label: "CST COFINS",
+      placeholder: "Ex: 01",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "aliq_icms",
+      label: "Alíquota ICMS (%)",
+      type: "number",
+      placeholder: "0.00",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "aliq_pis",
+      label: "Alíquota PIS (%)",
+      type: "number",
+      placeholder: "0.0000",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "aliq_cofins",
+      label: "Alíquota COFINS (%)",
+      type: "number",
+      placeholder: "0.0000",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "aliq_ipi",
+      label: "Alíquota IPI (%)",
+      type: "number",
+      placeholder: "0.00",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+    {
+      key: "fiscal_unit",
+      label: "Unidade Fiscal",
+      placeholder: "UN, KG, CX, PCT...",
+      showWhen: (s) => s.item_kind === "product",
+      section: "Fiscal / Tributação",
+    },
+
     // ═══ Seção: Composição ═══
     {
       key: "is_composition",

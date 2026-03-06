@@ -94,6 +94,20 @@ export interface KanbanScreenRef {
   reload: () => void;
 }
 
+/** Default palette for column color picker */
+export const DEFAULT_COLUMN_COLORS = [
+  "#3b82f6",
+  "#8b5cf6",
+  "#f59e0b",
+  "#10b981",
+  "#ef4444",
+  "#6366f1",
+  "#0ea5e9",
+  "#ec4899",
+  "#14b8a6",
+  "#f97316",
+];
+
 /** Props for KanbanScreen<T> */
 export interface KanbanScreenProps<T> {
   /* ── Identity ── */
@@ -165,6 +179,31 @@ export interface KanbanScreenProps<T> {
   /* ── Extra ── */
   /** Render extra modals after the board (tasks modal, create lead, etc.) */
   renderExtraModals?: () => ReactNode;
+
+  /* ── Column editing (opt-in, Trello-like) ── */
+  /** Enable inline column editing UI (add, rename, reorder, color) */
+  editable?: boolean;
+  /** Called to add a new column. KanbanScreen auto-reloads after. */
+  onAddColumn?: (column: {
+    label: string;
+    color: string;
+    order: number;
+  }) => Promise<void>;
+  /** Called to rename a column. KanbanScreen auto-reloads after. */
+  onRenameColumn?: (columnId: string, newLabel: string) => Promise<void>;
+  /** Called to swap a column with its neighbor. KanbanScreen auto-reloads after. */
+  onReorderColumn?: (
+    columnId: string,
+    direction: "left" | "right",
+  ) => Promise<void>;
+  /** Called to change column color. KanbanScreen auto-reloads after. */
+  onChangeColumnColor?: (columnId: string, newColor: string) => Promise<void>;
+  /** Preset color palette for column color picker (default: DEFAULT_COLUMN_COLORS) */
+  columnColors?: string[];
+  /** Label for the advanced settings button (e.g. "Configurações avançadas") */
+  advancedSettingsLabel?: string;
+  /** Navigate to advanced workflow editor */
+  onAdvancedSettings?: () => void;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -220,7 +259,18 @@ function KanbanScreenInner<T>(
     loadingText,
     renderExtraModals,
     title,
+    // Editable props
+    editable,
+    onAddColumn,
+    onRenameColumn,
+    onReorderColumn,
+    onChangeColumnColor,
+    columnColors,
+    advancedSettingsLabel,
+    onAdvancedSettings,
   } = props;
+
+  const editColors = columnColors ?? DEFAULT_COLUMN_COLORS;
 
   /* ── State ── */
   const [columns, setColumns] = useState<KanbanColumnDef[]>([]);
@@ -234,6 +284,23 @@ function KanbanScreenInner<T>(
   const [selectedItem, setSelectedItem] = useState<T | null>(null);
   const [moving, setMoving] = useState(false);
   const [loadingActionKey, setLoadingActionKey] = useState<string | null>(null);
+
+  // Column editing state
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [editingColumnLabel, setEditingColumnLabel] = useState("");
+  const [colorPickerColumnId, setColorPickerColumnId] = useState<string | null>(
+    null,
+  );
+  const [addColumnModalVisible, setAddColumnModalVisible] = useState(false);
+  const [newColumnLabel, setNewColumnLabel] = useState("");
+  const [newColumnColor, setNewColumnColor] = useState(
+    DEFAULT_COLUMN_COLORS[0],
+  );
+  const [columnSaving, setColumnSaving] = useState(false);
+
+  // Drag-and-drop (web only)
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
 
   // Horizontal scroll
   const kanbanScrollRef = useRef<ScrollView>(null);
@@ -350,6 +417,140 @@ function KanbanScreenInner<T>(
     [selectedItem, propOnMoveItem, loadData],
   );
 
+  /* ── Column editing handlers ── */
+
+  const startRenameColumn = useCallback(
+    (columnId: string, currentLabel: string) => {
+      setEditingColumnId(columnId);
+      setEditingColumnLabel(currentLabel);
+    },
+    [],
+  );
+
+  const commitRenameColumn = useCallback(async () => {
+    if (!editingColumnId || !onRenameColumn) return;
+    const trimmed = editingColumnLabel.trim();
+    if (!trimmed) {
+      setEditingColumnId(null);
+      return;
+    }
+    setColumnSaving(true);
+    try {
+      await onRenameColumn(editingColumnId, trimmed);
+      setEditingColumnId(null);
+      loadData();
+    } catch {
+      Alert.alert("Erro", "Falha ao renomear coluna");
+    } finally {
+      setColumnSaving(false);
+    }
+  }, [editingColumnId, editingColumnLabel, onRenameColumn, loadData]);
+
+  const handleReorderColumn = useCallback(
+    async (columnId: string, direction: "left" | "right") => {
+      if (!onReorderColumn) return;
+      setColumnSaving(true);
+      try {
+        await onReorderColumn(columnId, direction);
+        loadData();
+      } catch {
+        Alert.alert("Erro", "Falha ao reordenar coluna");
+      } finally {
+        setColumnSaving(false);
+      }
+    },
+    [onReorderColumn, loadData],
+  );
+
+  const openColorPicker = useCallback((columnId: string) => {
+    setColorPickerColumnId(columnId);
+  }, []);
+
+  const handleColorChange = useCallback(
+    async (color: string) => {
+      if (!colorPickerColumnId || !onChangeColumnColor) return;
+      setColumnSaving(true);
+      try {
+        await onChangeColumnColor(colorPickerColumnId, color);
+        setColorPickerColumnId(null);
+        loadData();
+      } catch {
+        Alert.alert("Erro", "Falha ao alterar cor");
+      } finally {
+        setColumnSaving(false);
+      }
+    },
+    [colorPickerColumnId, onChangeColumnColor, loadData],
+  );
+
+  const openAddColumnModal = useCallback(() => {
+    setNewColumnLabel("");
+    setNewColumnColor(editColors[0]);
+    setAddColumnModalVisible(true);
+  }, [editColors]);
+
+  const handleAddColumn = useCallback(async () => {
+    if (!onAddColumn) return;
+    const trimmed = newColumnLabel.trim();
+    if (!trimmed) return;
+    setColumnSaving(true);
+    try {
+      const maxOrder =
+        columns.length > 0 ? Math.max(...columns.map((c) => c.order)) : 0;
+      await onAddColumn({
+        label: trimmed,
+        color: newColumnColor,
+        order: maxOrder + 1,
+      });
+      setAddColumnModalVisible(false);
+      loadData();
+    } catch {
+      Alert.alert("Erro", "Falha ao criar coluna");
+    } finally {
+      setColumnSaving(false);
+    }
+  }, [onAddColumn, newColumnLabel, newColumnColor, columns, loadData]);
+
+  /* ── Web drag-and-drop handlers ── */
+
+  const handleDragStart = useCallback((itemId: string) => {
+    setDraggedItemId(itemId);
+  }, []);
+
+  const handleDragOver = useCallback((columnId: string) => {
+    setDragOverColumnId(columnId);
+  }, []);
+
+  const handleDrop = useCallback(
+    async (toColumnId: string) => {
+      if (!draggedItemId || !propOnMoveItem) {
+        setDraggedItemId(null);
+        setDragOverColumnId(null);
+        return;
+      }
+      const item = items.find((i) => getId(i) === draggedItemId);
+      if (!item || getColumnId(item) === toColumnId) {
+        setDraggedItemId(null);
+        setDragOverColumnId(null);
+        return;
+      }
+      setDraggedItemId(null);
+      setDragOverColumnId(null);
+      try {
+        await propOnMoveItem(item, toColumnId);
+        loadData();
+      } catch {
+        Alert.alert("Erro", "Falha ao mover item");
+      }
+    },
+    [draggedItemId, propOnMoveItem, items, getId, getColumnId, loadData],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedItemId(null);
+    setDragOverColumnId(null);
+  }, []);
+
   /* ── Default card renderer ── */
 
   const renderDefaultCard = (item: T, columnId: string) => {
@@ -436,7 +637,11 @@ function KanbanScreenInner<T>(
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <>
-                      <Ionicons name={action.icon as any} size={12} color="#fff" />
+                      <Ionicons
+                        name={action.icon as any}
+                        size={12}
+                        color="#fff"
+                      />
                       <Text style={s.actionBtnText}>{action.label}</Text>
                     </>
                   )}
@@ -462,6 +667,30 @@ function KanbanScreenInner<T>(
     return renderDefaultCard(item, columnId);
   };
 
+  /* ── Card rendering with drag-and-drop (web) ── */
+
+  const renderCardWithDrag = (item: T, columnId: string) => {
+    const cardNode = renderCardItem(item, columnId);
+    if (Platform.OS !== "web" || !propOnMoveItem) return cardNode;
+
+    const itemId = getId(item);
+    const isDragging = draggedItemId === itemId;
+
+    return (
+      <View
+        key={itemId}
+        {...({
+          draggable: true,
+          onDragStart: () => handleDragStart(itemId),
+          onDragEnd: handleDragEnd,
+        } as any)}
+        style={{ opacity: isDragging ? 0.4 : 1, cursor: "grab" } as any}
+      >
+        {cardNode}
+      </View>
+    );
+  };
+
   /* ── Column rendering ── */
 
   const renderColumn = ({
@@ -471,16 +700,96 @@ function KanbanScreenInner<T>(
     column: KanbanColumnDef;
     items: T[];
   }) => {
+    const colIndex = columns.findIndex((c) => c.id === column.id);
+    const isFirst = colIndex === 0;
+    const isLast = colIndex === columns.length - 1;
+    const isEditing = editingColumnId === column.id;
+    const isDragOver = dragOverColumnId === column.id;
+
+    const columnHeader = (
+      <View style={[s.columnHeader, { backgroundColor: column.color }]}>
+        {/* Editable header */}
+        {editable && isEditing && onRenameColumn ? (
+          <TextInput
+            value={editingColumnLabel}
+            onChangeText={setEditingColumnLabel}
+            onBlur={commitRenameColumn}
+            onSubmitEditing={commitRenameColumn}
+            autoFocus
+            style={[s.columnTitle, s.columnTitleInput]}
+            selectTextOnFocus
+          />
+        ) : (
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+            }}
+            onPress={
+              editable && onRenameColumn
+                ? () => startRenameColumn(column.id, column.label)
+                : undefined
+            }
+            disabled={!editable || !onRenameColumn}
+            activeOpacity={editable ? 0.7 : 1}
+          >
+            {/* Color dot (tap to change) */}
+            {editable && onChangeColumnColor && (
+              <TouchableOpacity
+                onPress={() => openColorPicker(column.id)}
+                style={s.colorDot}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <View
+                  style={[
+                    s.colorDotInner,
+                    {
+                      backgroundColor: "#fff",
+                      borderColor: "rgba(255,255,255,0.6)",
+                    },
+                  ]}
+                />
+              </TouchableOpacity>
+            )}
+            <Text style={s.columnTitle} numberOfLines={2}>
+              {column.label}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Reorder arrows */}
+        {editable && onReorderColumn && !isEditing && (
+          <View style={{ flexDirection: "row", gap: 2, marginRight: 4 }}>
+            <TouchableOpacity
+              onPress={() => handleReorderColumn(column.id, "left")}
+              disabled={isFirst || columnSaving}
+              style={{ opacity: isFirst ? 0.3 : 1, padding: 2 }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="chevron-back" size={14} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => handleReorderColumn(column.id, "right")}
+              disabled={isLast || columnSaving}
+              style={{ opacity: isLast ? 0.3 : 1, padding: 2 }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="chevron-forward" size={14} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={s.columnBadge}>
+          <Text style={s.columnBadgeText}>{colItems.length}</Text>
+        </View>
+      </View>
+    );
+
     const content = (
       <>
-        <View style={[s.columnHeader, { backgroundColor: column.color }]}>
-          <Text style={s.columnTitle} numberOfLines={2}>
-            {column.label}
-          </Text>
-          <View style={s.columnBadge}>
-            <Text style={s.columnBadgeText}>{colItems.length}</Text>
-          </View>
-        </View>
+        {columnHeader}
         <View style={[s.columnContent, { backgroundColor: bg }]}>
           {colItems.length === 0 ? (
             <View style={s.emptyCol}>
@@ -489,19 +798,41 @@ function KanbanScreenInner<T>(
               </Text>
             </View>
           ) : (
-            colItems.map((item) => renderCardItem(item, column.id))
+            colItems.map((item) => renderCardWithDrag(item, column.id))
           )}
         </View>
       </>
     );
 
+    // Web drag-and-drop column wrapper
+    const webDragProps =
+      Platform.OS === "web" && propOnMoveItem
+        ? {
+            onDragOver: (e: any) => {
+              e.preventDefault();
+              handleDragOver(column.id);
+            },
+            onDragLeave: () => setDragOverColumnId(null),
+            onDrop: (e: any) => {
+              e.preventDefault();
+              handleDrop(column.id);
+            },
+          }
+        : {};
+
     if (Platform.OS === "web") {
       return (
         <View
           key={column.id}
+          {...(webDragProps as any)}
           style={[
             s.column,
-            { borderColor, width: COLUMN_WIDTH, overflow: "auto" as any },
+            {
+              borderColor: isDragOver ? tintColor : borderColor,
+              borderWidth: isDragOver ? 2 : 1,
+              width: COLUMN_WIDTH,
+              overflow: "auto" as any,
+            },
           ]}
         >
           {content}
@@ -571,6 +902,19 @@ function KanbanScreenInner<T>(
               <Text style={s.addBtnText}>{createButtonLabel}</Text>
             </TouchableOpacity>
           )}
+          {editable && onAdvancedSettings && (
+            <TouchableOpacity
+              style={[s.settingsBtn, { borderColor }]}
+              onPress={onAdvancedSettings}
+            >
+              <Ionicons name="settings-outline" size={18} color={mutedColor} />
+              {advancedSettingsLabel ? (
+                <Text style={[s.settingsBtnText, { color: mutedColor }]}>
+                  {advancedSettingsLabel}
+                </Text>
+              ) : null}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Search */}
@@ -625,6 +969,20 @@ function KanbanScreenInner<T>(
           }
         >
           {columnData.map(renderColumn)}
+
+          {/* ── Add column button (Trello-like) ── */}
+          {editable && onAddColumn && (
+            <TouchableOpacity
+              onPress={openAddColumnModal}
+              style={[s.addColumnBtn, { borderColor, backgroundColor: cardBg }]}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add" size={20} color={mutedColor} />
+              <Text style={[s.addColumnBtnText, { color: mutedColor }]}>
+                Adicionar coluna
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
         {/* Right scroll arrow (web only) */}
@@ -731,6 +1089,185 @@ function KanbanScreenInner<T>(
 
       {/* Extra modals from the screen */}
       {renderExtraModals?.()}
+
+      {/* ═══ Color Picker Modal ═══ */}
+      {editable && onChangeColumnColor && (
+        <Modal
+          visible={!!colorPickerColumnId}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setColorPickerColumnId(null)}
+        >
+          <View style={s.modalOverlay}>
+            <View
+              style={[
+                s.modalSheet,
+                { backgroundColor: cardBg, maxHeight: "50%" },
+              ]}
+            >
+              <View style={s.modalHeader}>
+                <Text style={[s.modalTitle, { color: textColor }]}>
+                  Cor da coluna
+                </Text>
+                <TouchableOpacity onPress={() => setColorPickerColumnId(null)}>
+                  <Ionicons name="close" size={24} color={mutedColor} />
+                </TouchableOpacity>
+              </View>
+              <View style={s.colorGrid}>
+                {editColors.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    onPress={() => handleColorChange(color)}
+                    disabled={columnSaving}
+                    style={[
+                      s.colorGridItem,
+                      {
+                        backgroundColor: color,
+                        opacity: columnSaving ? 0.5 : 1,
+                      },
+                    ]}
+                  >
+                    {columns.find((c) => c.id === colorPickerColumnId)
+                      ?.color === color && (
+                      <Ionicons name="checkmark" size={18} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {columnSaving && (
+                <ActivityIndicator
+                  size="small"
+                  color={tintColor}
+                  style={{ marginTop: spacing.sm }}
+                />
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* ═══ Add Column Modal ═══ */}
+      {editable && onAddColumn && (
+        <Modal
+          visible={addColumnModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setAddColumnModalVisible(false)}
+        >
+          <View style={s.modalOverlay}>
+            <View style={[s.modalSheet, { backgroundColor: cardBg }]}>
+              <View style={s.modalHeader}>
+                <Text style={[s.modalTitle, { color: textColor }]}>
+                  Nova coluna
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setAddColumnModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color={mutedColor} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[s.addColumnFieldLabel, { color: mutedColor }]}>
+                Nome
+              </Text>
+              <TextInput
+                value={newColumnLabel}
+                onChangeText={setNewColumnLabel}
+                placeholder="Ex: Em andamento"
+                placeholderTextColor={mutedColor}
+                autoFocus
+                style={[
+                  s.searchInput,
+                  {
+                    backgroundColor: bg,
+                    borderColor,
+                    color: textColor,
+                    marginTop: 4,
+                  },
+                ]}
+              />
+
+              <Text
+                style={[
+                  s.addColumnFieldLabel,
+                  { color: mutedColor, marginTop: spacing.md },
+                ]}
+              >
+                Cor
+              </Text>
+              <View style={s.colorGrid}>
+                {editColors.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    onPress={() => setNewColumnColor(color)}
+                    style={[
+                      s.colorGridItem,
+                      { backgroundColor: color },
+                      newColumnColor === color && s.colorGridItemSelected,
+                    ]}
+                  >
+                    {newColumnColor === color && (
+                      <Ionicons name="checkmark" size={18} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Preview */}
+              {newColumnLabel.trim() ? (
+                <View
+                  style={[
+                    s.addColumnPreview,
+                    { backgroundColor: newColumnColor },
+                  ]}
+                >
+                  <Text style={s.addColumnPreviewText} numberOfLines={1}>
+                    {newColumnLabel.trim()}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: spacing.sm,
+                  marginTop: spacing.lg,
+                }}
+              >
+                <TouchableOpacity
+                  style={[s.cancelBtn, { borderColor, flex: 1 }]}
+                  onPress={() => setAddColumnModalVisible(false)}
+                >
+                  <Text style={[s.cancelBtnText, { color: textColor }]}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    s.addBtn,
+                    {
+                      backgroundColor:
+                        columnSaving || !newColumnLabel.trim()
+                          ? mutedColor
+                          : tintColor,
+                      flex: 1,
+                      justifyContent: "center",
+                    },
+                  ]}
+                  onPress={handleAddColumn}
+                  disabled={columnSaving || !newColumnLabel.trim()}
+                >
+                  {columnSaving ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={s.addBtnText}>Adicionar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -937,4 +1474,92 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   cancelBtnText: { ...typography.body, fontWeight: "600" },
+
+  // Settings button (header)
+  settingsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  settingsBtnText: { fontSize: 12, fontWeight: "600" },
+
+  // Column editing
+  columnTitleInput: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700" as const,
+  },
+  colorDot: {
+    width: 20,
+    height: 20,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  colorDotInner: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+  },
+
+  // Add column button (Trello-like)
+  addColumnBtn: {
+    width: 220,
+    minHeight: 80,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: "dashed" as any,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    alignSelf: "flex-start" as const,
+  },
+  addColumnBtnText: { fontSize: 13, fontWeight: "600" as const },
+
+  // Color picker grid (shared by color picker modal & add column modal)
+  colorGrid: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  colorGridItem: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  colorGridItemSelected: {
+    borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.8)",
+  },
+
+  // Add column modal extras
+  addColumnFieldLabel: {
+    fontSize: 12,
+    fontWeight: "600" as const,
+    marginTop: spacing.sm,
+  },
+  addColumnPreview: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: 8,
+    alignItems: "center" as const,
+  },
+  addColumnPreviewText: {
+    color: "#fff",
+    fontWeight: "700" as const,
+    fontSize: 14,
+  },
 });

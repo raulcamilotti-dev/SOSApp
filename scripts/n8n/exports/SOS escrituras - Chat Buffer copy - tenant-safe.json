@@ -1,0 +1,254 @@
+﻿{
+    "name":  "SOS escrituras - Chat Buffer copy",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "schema":  {
+                                                        "__rl":  true,
+                                                        "mode":  "list",
+                                                        "value":  "public"
+                                                    },
+                                         "table":  {
+                                                       "__rl":  true,
+                                                       "value":  "buffer_chat_history",
+                                                       "mode":  "list",
+                                                       "cachedResultName":  "buffer_chat_history"
+                                                   },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "synced":  false,
+                                                                       "session_id":  "={{ $json.session_id }}",
+                                                                       "message":  "={{ $json.message }}",
+                                                                       "update_message":  "={{ $json.update_message }}"
+                                                                   },
+                                                         "matchingColumns":  [
+                                                                                 "id"
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "id",
+                                                                            "displayName":  "id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  true,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "session_id",
+                                                                            "displayName":  "session_id",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "message",
+                                                                            "displayName":  "message",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "object",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "synced",
+                                                                            "displayName":  "synced",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "boolean",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "update_message",
+                                                                            "displayName":  "update_message",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  true
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       1104,
+                                       80
+                                   ],
+                      "id":  "b1914f47-043a-458f-8169-44b5132674e7",
+                      "name":  "Salva no Buffer1"
+                  },
+                  {
+                      "parameters":  {
+                                         "schema":  {
+                                                        "__rl":  true,
+                                                        "mode":  "list",
+                                                        "value":  "public"
+                                                    },
+                                         "tableName":  {
+                                                           "__rl":  true,
+                                                           "value":  "n8n_chat_histories",
+                                                           "mode":  "list",
+                                                           "cachedResultName":  "n8n_chat_histories"
+                                                       },
+                                         "additionalFields":  {
+
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgresTrigger",
+                      "typeVersion":  1,
+                      "position":  [
+                                       560,
+                                       80
+                                   ],
+                      "id":  "af194d62-8c22-448f-9599-76e932f51295",
+                      "name":  "Quando chat_history atualiza"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "update",
+                                         "schema":  {
+                                                        "__rl":  true,
+                                                        "mode":  "list",
+                                                        "value":  "public"
+                                                    },
+                                         "table":  {
+                                                       "__rl":  true,
+                                                       "value":  "n8n_chat_histories",
+                                                       "mode":  "list",
+                                                       "cachedResultName":  "n8n_chat_histories"
+                                                   },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "id":  "={{ $json.payload.id }}",
+                                                                       "update_message":  "={{ $now.minus({ hours: 1 }).toFormat(\"yyyy-LL-dd HH:mm:ss:SSS\") }}"
+                                                                   },
+                                                         "matchingColumns":  [
+                                                                                 "id"
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "id",
+                                                                            "displayName":  "id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  true,
+                                                                            "display":  true,
+                                                                            "type":  "number",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "session_id",
+                                                                            "displayName":  "session_id",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "message",
+                                                                            "displayName":  "message",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "object",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "update_message",
+                                                                            "displayName":  "update_message",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "tenant_id",
+                                                                            "displayName":  "tenant_id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  true
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       784,
+                                       80
+                                   ],
+                      "id":  "7cbe8cd7-2bb9-473e-895d-92c250f97376",
+                      "name":  "Postgres"
+                  }
+              ],
+    "pinData":  {
+
+                },
+    "connections":  {
+                        "Quando chat_history atualiza":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "Postgres",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                        "Postgres":  {
+                                         "main":  [
+                                                      [
+                                                          {
+                                                              "node":  "Salva no Buffer1",
+                                                              "type":  "main",
+                                                              "index":  0
+                                                          }
+                                                      ]
+                                                  ]
+                                     }
+                    },
+    "active":  true,
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "timezone":  "Atlantic/South_Georgia",
+                     "callerPolicy":  "workflowsFromSameOwner"
+                 },
+    "versionId":  "0e67a1d2-201b-4f1b-acb6-93668eb3402c",
+    "meta":  {
+                 "templateCredsSetupCompleted":  true,
+                 "instanceId":  "9c26cbc5515dd6fecda99aa713cb808530b93ecc09f927587152bdc3328eabf6"
+             },
+    "id":  "iKrb6UAO3MNAPRkW",
+    "tags":  [
+
+             ]
+}

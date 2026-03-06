@@ -26,6 +26,7 @@ import {
 import { createAccountPayable } from "./financial";
 import { applyPurchaseCost } from "./product-cost";
 import { recordStockMovement } from "./stock";
+import { createBatch, type BatchReceiveInput } from "./stock-batches";
 import { getSupplier } from "./suppliers";
 
 /* ------------------------------------------------------------------ */
@@ -89,6 +90,9 @@ export interface PurchaseOrderItem {
 export interface ReceivedItemInput {
   itemId: string;
   quantityReceived: number;
+  /** Optional batch allocations for batch-tracked products.
+   *  If provided, stock movements are created per batch. */
+  batches?: BatchReceiveInput[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -279,16 +283,46 @@ export async function receivePurchaseOrder(
     });
 
     // Record stock movement (positive = incoming)
-    await recordStockMovement({
-      tenantId,
-      serviceId: poItem.service_id,
-      movementType: "purchase",
-      quantity: received.quantityReceived,
-      purchaseOrderId: poId,
-      purchaseOrderItemId: poItem.id,
-      unitCost: poItem.unit_cost,
-      userId,
-    });
+    // If batches are specified, create one movement per batch;
+    // otherwise, create a single movement without batch tracking.
+    if (received.batches && received.batches.length > 0) {
+      for (const batchInput of received.batches) {
+        if (batchInput.quantity <= 0) continue;
+        // Create batch record
+        const batch = await createBatch({
+          tenantId,
+          serviceId: poItem.service_id,
+          batchNumber: batchInput.batchNumber,
+          quantity: batchInput.quantity,
+          expiryDate: batchInput.expiryDate,
+          purchaseOrderId: poId,
+          notes: batchInput.notes,
+        });
+        // Stock movement linked to batch
+        await recordStockMovement({
+          tenantId,
+          serviceId: poItem.service_id,
+          movementType: "purchase",
+          quantity: batchInput.quantity,
+          purchaseOrderId: poId,
+          purchaseOrderItemId: poItem.id,
+          batchId: batch.id,
+          unitCost: poItem.unit_cost,
+          userId,
+        });
+      }
+    } else {
+      await recordStockMovement({
+        tenantId,
+        serviceId: poItem.service_id,
+        movementType: "purchase",
+        quantity: received.quantityReceived,
+        purchaseOrderId: poId,
+        purchaseOrderItemId: poItem.id,
+        unitCost: poItem.unit_cost,
+        userId,
+      });
+    }
 
     // Update cost via CMPM (Custo Médio Ponderado Móvel)
     if (poItem.update_cost_price) {

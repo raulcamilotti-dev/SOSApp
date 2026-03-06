@@ -7,10 +7,10 @@ import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useCustomFields } from "@/hooks/use-custom-fields";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
-    AI_AGENT_ENDPOINT,
-    buildAiInsightMessage,
-    extractAiInsightText,
-    UNIVERSAL_AI_INSIGHT_PROMPT,
+  AI_AGENT_ENDPOINT,
+  buildAiInsightMessage,
+  extractAiInsightText,
+  UNIVERSAL_AI_INSIGHT_PROMPT,
 } from "@/services/ai-insights";
 import { api, getApiErrorMessage } from "@/services/api";
 import { CRUD_ENDPOINT } from "@/services/crud";
@@ -19,27 +19,27 @@ import DateTimePickerMobile from "@react-native-community/datetimepicker";
 import { useIsFocused } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import {
-    createElement,
-    useCallback,
-    useEffect,
-    useLayoutEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
+  createElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
 } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 
 export type CrudFieldType =
@@ -1007,60 +1007,63 @@ export function CrudScreen<T extends Record<string, unknown>>({
     Map<string, ReferenceTenantFilter | null>
   >(new Map());
 
-  const getReferenceTenantFilter = useCallback(async (table?: string) => {
-    const normalizedTable = String(table ?? "")
-      .trim()
-      .toLowerCase();
-    if (!normalizedTable || !user?.tenant_id) return null;
+  const getReferenceTenantFilter = useCallback(
+    async (table?: string) => {
+      const normalizedTable = String(table ?? "")
+        .trim()
+        .toLowerCase();
+      if (!normalizedTable || !user?.tenant_id) return null;
 
-    if (
-      normalizedTable === "tenants" ||
-      normalizedTable === "permissions" ||
-      normalizedTable === "role_permissions"
-    ) {
-      return null;
-    }
-
-    const cached = referenceTenantScopeCacheRef.current.get(normalizedTable);
-    if (cached !== undefined) {
-      return cached;
-    }
-
-    try {
-      const info = await getTableInfo(normalizedTable);
-      const hasTenantId = info.some(
-        (column) => String(column.column_name ?? "") === "tenant_id",
-      );
-      if (hasTenantId) {
-        const filter: ReferenceTenantFilter = {
-          field: "tenant_id",
-          operator: "equal",
-          value: String(user.tenant_id),
-        };
-        referenceTenantScopeCacheRef.current.set(normalizedTable, filter);
-        return filter;
+      if (
+        normalizedTable === "tenants" ||
+        normalizedTable === "permissions" ||
+        normalizedTable === "role_permissions"
+      ) {
+        return null;
       }
 
-      const hasTenantsField = info.some(
-        (column) => String(column.column_name ?? "") === "tenants",
-      );
-      if (hasTenantsField) {
-        const filter: ReferenceTenantFilter = {
-          field: "tenants",
-          operator: "ilike",
-          value: `%${String(user.tenant_id)}%`,
-        };
-        referenceTenantScopeCacheRef.current.set(normalizedTable, filter);
-        return filter;
+      const cached = referenceTenantScopeCacheRef.current.get(normalizedTable);
+      if (cached !== undefined) {
+        return cached;
       }
 
-      referenceTenantScopeCacheRef.current.set(normalizedTable, null);
-      return null;
-    } catch {
-      referenceTenantScopeCacheRef.current.set(normalizedTable, null);
-      return null;
-    }
-  }, [user?.tenant_id]);
+      try {
+        const info = await getTableInfo(normalizedTable);
+        const hasTenantId = info.some(
+          (column) => String(column.column_name ?? "") === "tenant_id",
+        );
+        if (hasTenantId) {
+          const filter: ReferenceTenantFilter = {
+            field: "tenant_id",
+            operator: "equal",
+            value: String(user.tenant_id),
+          };
+          referenceTenantScopeCacheRef.current.set(normalizedTable, filter);
+          return filter;
+        }
+
+        const hasTenantsField = info.some(
+          (column) => String(column.column_name ?? "") === "tenants",
+        );
+        if (hasTenantsField) {
+          const filter: ReferenceTenantFilter = {
+            field: "tenants",
+            operator: "ilike",
+            value: `%${String(user.tenant_id)}%`,
+          };
+          referenceTenantScopeCacheRef.current.set(normalizedTable, filter);
+          return filter;
+        }
+
+        referenceTenantScopeCacheRef.current.set(normalizedTable, null);
+        return null;
+      } catch {
+        referenceTenantScopeCacheRef.current.set(normalizedTable, null);
+        return null;
+      }
+    },
+    [user?.tenant_id],
+  );
 
   // Pagination state (only active when paginatedLoadItems is provided)
   const pageSize = propPageSize ?? 20;
@@ -1277,7 +1280,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
           search_operator1: "equal",
         };
 
-        const tenantFilter = await getReferenceTenantFilter(field.referenceTable);
+        const tenantFilter = await getReferenceTenantFilter(
+          field.referenceTable,
+        );
         if (tenantFilter) {
           requestPayload.search_field2 = tenantFilter.field;
           requestPayload.search_value2 = tenantFilter.value;
@@ -1684,12 +1689,19 @@ export function CrudScreen<T extends Record<string, unknown>>({
       normalizedFormFields.forEach((field) => {
         const value = item[field.key];
         if (field.type === "json") {
-          if (value) {
+          // Treat empty objects ({}) as "no value" when a jsonTemplate exists,
+          // so the template pre-populates the expected keys for the user.
+          const isEmptyObj =
+            value &&
+            typeof value === "object" &&
+            !Array.isArray(value) &&
+            Object.keys(value as Record<string, unknown>).length === 0;
+          if (value && !(isEmptyObj && field.jsonTemplate)) {
             nextState[field.key] = JSON.stringify(value, null, 2);
           } else if (field.jsonTemplate) {
             nextState[field.key] = JSON.stringify(field.jsonTemplate, null, 2);
           } else {
-            nextState[field.key] = "";
+            nextState[field.key] = value ? JSON.stringify(value, null, 2) : "";
           }
         } else if (field.type === "reference") {
           nextState[field.key] = value ? String(value) : "";
@@ -1760,7 +1772,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
           nextFilterIndex += 1;
         }
 
-        const tenantFilter = await getReferenceTenantFilter(field.referenceTable);
+        const tenantFilter = await getReferenceTenantFilter(
+          field.referenceTable,
+        );
         if (tenantFilter) {
           requestPayload[`search_field${nextFilterIndex}`] = tenantFilter.field;
           requestPayload[`search_value${nextFilterIndex}`] = tenantFilter.value;
@@ -1859,12 +1873,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
         setReferenceLoading(false);
       }
     },
-    [
-      formState,
-      quickCreateState,
-      getReferenceTenantFilter,
-      user?.tenant_id,
-    ],
+    [formState, quickCreateState, getReferenceTenantFilter, user?.tenant_id],
   );
 
   const openReferenceModal = useCallback(
@@ -2485,7 +2494,9 @@ export function CrudScreen<T extends Record<string, unknown>>({
           search_operator1: "equal",
         };
 
-        const tenantFilter = await getReferenceTenantFilter(field.referenceTable);
+        const tenantFilter = await getReferenceTenantFilter(
+          field.referenceTable,
+        );
         if (tenantFilter) {
           requestPayload.search_field2 = tenantFilter.field;
           requestPayload.search_value2 = tenantFilter.value;

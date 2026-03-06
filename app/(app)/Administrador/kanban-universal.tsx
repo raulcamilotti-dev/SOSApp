@@ -23,6 +23,7 @@ import {
     type KanbanScreenRef,
 } from "@/components/ui/KanbanScreen";
 import { useAuth } from "@/core/auth/AuthContext";
+import { isUserAdmin } from "@/core/auth/auth.utils";
 import { usePartnerScope } from "@/hooks/use-partner-scope";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
@@ -41,8 +42,8 @@ import {
     type UnifiedKanbanItem,
     type WorkflowScope,
     type WorkflowStep,
-    type WorkflowTransition,
     type WorkflowTemplate,
+    type WorkflowTransition,
 } from "@/services/kanban-plugins/types";
 import {
     moveServiceOrder,
@@ -198,6 +199,7 @@ export interface UnifiedKanbanProps {
 export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
   const { user } = useAuth();
   const { partnerFilter } = usePartnerScope();
+  const isAdmin = useMemo(() => isUserAdmin(user), [user]);
 
   /* ── Theme ── */
   const bg = useThemeColor({}, "background");
@@ -220,6 +222,9 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
   );
   const [templatesLoading, setTemplatesLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [templateStepCounts, setTemplateStepCounts] = useState<
+    Record<string, number>
+  >({});
 
   /* ── Steps (cached for plugin props) ── */
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
@@ -298,11 +303,45 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
         );
         setTemplates(list);
 
-        // Auto-select first template
-        if (list.length > 0) {
+        // Auto-select when single template; show selector when multiple
+        if (list.length === 1) {
           setSelectedTemplateId(list[0].id);
         } else {
           setSelectedTemplateId(null);
+        }
+
+        // Load step counts for template selector cards
+        if (list.length > 1) {
+          try {
+            const templateIds = list.map((t) => t.id);
+            const stepsRes = await api.post(CRUD_ENDPOINT, {
+              action: "list",
+              table: "workflow_steps",
+              ...buildSearchParams(
+                [
+                  {
+                    field: "workflow_template_id",
+                    value: templateIds.join(","),
+                    operator: "in",
+                  },
+                ],
+                { autoExcludeDeleted: true },
+              ),
+              fields: "id,workflow_template_id",
+            });
+            const allSteps = normalizeCrudList<{
+              id: string;
+              workflow_template_id: string;
+            }>(stepsRes.data);
+            const counts: Record<string, number> = {};
+            for (const step of allSteps) {
+              const tid = step.workflow_template_id;
+              counts[tid] = (counts[tid] ?? 0) + 1;
+            }
+            if (!cancelled) setTemplateStepCounts(counts);
+          } catch {
+            // Best-effort — show cards without step counts
+          }
         }
       } catch (err) {
         if (__DEV__) {
@@ -358,7 +397,13 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
           action: "list",
           table: "workflow_step_transitions",
           ...buildSearchParams(
-            [{ field: "from_step_id", value: stepIds.join(","), operator: "in" }],
+            [
+              {
+                field: "from_step_id",
+                value: stepIds.join(","),
+                operator: "in",
+              },
+            ],
             { sortColumn: "created_at ASC", autoExcludeDeleted: true },
           ),
         });
@@ -399,7 +444,13 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
       { field: "tenant_id", value: user.tenant_id },
       { field: "process_status", value: "cancelled", operator: "not_equal" },
       ...(!showCompleted
-        ? [{ field: "process_status", value: "finished", operator: "not_equal" }]
+        ? [
+            {
+              field: "process_status",
+              value: "finished",
+              operator: "not_equal",
+            },
+          ]
         : []),
       ...partnerFilter,
     ];
@@ -570,6 +621,110 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     },
     [engineCtx],
   );
+
+  /* ══════════════════════════════════════════════════════════
+   * INLINE COLUMN EDITING (Trello-like)
+   * ══════════════════════════════════════════════════════════ */
+
+  const handleAddColumn = useCallback(
+    async (column: { label: string; color: string; order: number }) => {
+      if (!selectedTemplateId || !user?.tenant_id) return;
+      await api.post(CRUD_ENDPOINT, {
+        action: "create",
+        table: "workflow_steps",
+        payload: {
+          name: column.label,
+          color: column.color,
+          step_order: column.order,
+          template_id: selectedTemplateId,
+          tenant_id: user.tenant_id,
+          is_final: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      });
+    },
+    [selectedTemplateId, user?.tenant_id],
+  );
+
+  const handleRenameColumn = useCallback(
+    async (columnId: string, newLabel: string) => {
+      await api.post(CRUD_ENDPOINT, {
+        action: "update",
+        table: "workflow_steps",
+        payload: {
+          id: columnId,
+          name: newLabel,
+          updated_at: new Date().toISOString(),
+        },
+      });
+    },
+    [],
+  );
+
+  const handleReorderColumn = useCallback(
+    async (columnId: string, direction: "left" | "right") => {
+      const currentSteps = stepsRef.current;
+      const sorted = [...currentSteps].sort(
+        (a, b) => (a.step_order ?? 0) - (b.step_order ?? 0),
+      );
+      const idx = sorted.findIndex((s) => s.id === columnId);
+      if (idx < 0) return;
+
+      const neighborIdx = direction === "left" ? idx - 1 : idx + 1;
+      if (neighborIdx < 0 || neighborIdx >= sorted.length) return;
+
+      const current = sorted[idx];
+      const neighbor = sorted[neighborIdx];
+      const now = new Date().toISOString();
+
+      // Swap step_order values
+      await Promise.all([
+        api.post(CRUD_ENDPOINT, {
+          action: "update",
+          table: "workflow_steps",
+          payload: {
+            id: current.id,
+            step_order: neighbor.step_order ?? neighborIdx,
+            updated_at: now,
+          },
+        }),
+        api.post(CRUD_ENDPOINT, {
+          action: "update",
+          table: "workflow_steps",
+          payload: {
+            id: neighbor.id,
+            step_order: current.step_order ?? idx,
+            updated_at: now,
+          },
+        }),
+      ]);
+    },
+    [],
+  );
+
+  const handleChangeColumnColor = useCallback(
+    async (columnId: string, newColor: string) => {
+      await api.post(CRUD_ENDPOINT, {
+        action: "update",
+        table: "workflow_steps",
+        payload: {
+          id: columnId,
+          color: newColor,
+          updated_at: new Date().toISOString(),
+        },
+      });
+    },
+    [],
+  );
+
+  const handleAdvancedSettings = useCallback(() => {
+    if (!selectedTemplateId) return;
+    router.push({
+      pathname: "/Administrador/workflow_steps" as any,
+      params: { templateId: selectedTemplateId },
+    });
+  }, [selectedTemplateId]);
 
   /* ══════════════════════════════════════════════════════════
    * TASKS MODAL
@@ -761,27 +916,14 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
         fields.push({
           label: df.label,
           value,
-          icon: (df.icon as keyof typeof Ionicons.glyphMap) ?? "ellipse-outline",
+          icon:
+            (df.icon as keyof typeof Ionicons.glyphMap) ?? "ellipse-outline",
         });
       }
     }
 
     return fields;
   }, [detailsModalItem, steps, cardConfig]);
-
-  /* ══════════════════════════════════════════════════════════
-   * TEMPLATE SWITCH
-   * ══════════════════════════════════════════════════════════ */
-
-  const switchTemplate = useCallback(
-    (templateId: string) => {
-      if (templateId === selectedTemplateId) return;
-      setSelectedTemplateId(templateId);
-      // loadColumns/loadItems callbacks depend on selectedTemplateId,
-      // so KanbanScreen will auto-reload via its internal dependency tracking.
-    },
-    [selectedTemplateId],
-  );
 
   /* ══════════════════════════════════════════════════════════
    * CARD CALLBACKS
@@ -1108,7 +1250,9 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
             <View style={[s.modalSheet, { backgroundColor: cardBg }]}>
               <View style={s.modalHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[s.modalTitle, { color: textColor }]}>Detalhes</Text>
+                  <Text style={[s.modalTitle, { color: textColor }]}>
+                    Detalhes
+                  </Text>
                   {detailsModalItem && (
                     <Text
                       style={[s.modalSubtitle, { color: mutedColor }]}
@@ -1245,52 +1389,96 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     );
   }
 
-  /* ── Safety: no template selected ── */
-  if (!selectedTemplateId) return null;
-
-  /* ── Template picker (only when multiple templates exist for scope) ── */
-  const templatePicker = (
-    <View style={s.headerControls}>
-      {templates.length > 1 ? (
+  /* ── Template Selector (when multiple templates exist) ── */
+  if (!selectedTemplateId) {
+    return (
+      <View style={[s.container, { backgroundColor: bg }]}>
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: spacing.md,
-            paddingVertical: spacing.sm,
-            gap: spacing.sm,
-          }}
-          style={{ flexGrow: 0 }}
+          contentContainerStyle={s.selectorContainer}
+          showsVerticalScrollIndicator={false}
         >
+          {/* Header */}
+          <View style={s.selectorHeader}>
+            <View
+              style={[
+                s.selectorIconWrap,
+                { backgroundColor: tintColor + "15" },
+              ]}
+            >
+              <Ionicons
+                name="git-network-outline"
+                size={32}
+                color={tintColor}
+              />
+            </View>
+            <Text style={[s.selectorTitle, { color: textColor }]}>
+              {SCOPE_LABELS[scope]}
+            </Text>
+            <Text style={[s.selectorSubtitle, { color: mutedColor }]}>
+              Selecione um fluxo de trabalho
+            </Text>
+          </View>
+
+          {/* Template cards */}
           {templates.map((t) => {
-            const isSelected = t.id === selectedTemplateId;
+            const stepCount = templateStepCounts[t.id] ?? 0;
             return (
               <TouchableOpacity
                 key={t.id}
-                onPress={() => switchTemplate(t.id)}
+                onPress={() => setSelectedTemplateId(t.id)}
                 style={[
-                  s.templateChip,
-                  {
-                    backgroundColor: isSelected ? tintColor : cardBg,
-                    borderColor: isSelected ? tintColor : borderColor,
-                  },
+                  s.selectorCard,
+                  { backgroundColor: cardBg, borderColor },
                 ]}
+                activeOpacity={0.7}
               >
-                <Text
+                <View
                   style={[
-                    s.templateChipText,
-                    { color: isSelected ? "#fff" : textColor },
+                    s.selectorCardIcon,
+                    { backgroundColor: tintColor + "12" },
                   ]}
-                  numberOfLines={1}
                 >
-                  {t.name}
-                </Text>
+                  <Ionicons name="layers-outline" size={22} color={tintColor} />
+                </View>
+                <View style={s.selectorCardContent}>
+                  <Text
+                    style={[s.selectorCardTitle, { color: textColor }]}
+                    numberOfLines={2}
+                  >
+                    {t.name}
+                  </Text>
+                  {stepCount > 0 && (
+                    <Text style={[s.selectorCardMeta, { color: mutedColor }]}>
+                      {stepCount} etapa{stepCount !== 1 ? "s" : ""}
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={mutedColor} />
               </TouchableOpacity>
             );
           })}
         </ScrollView>
-      ) : null}
+      </View>
+    );
+  }
 
+  /* ── Board header: back button (when multiple templates) ── */
+  const boardHeaderBefore =
+    templates.length > 1 ? (
+      <TouchableOpacity
+        onPress={() => setSelectedTemplateId(null)}
+        style={s.backButton}
+      >
+        <Ionicons name="arrow-back" size={20} color={tintColor} />
+        <Text style={[s.backButtonText, { color: tintColor }]}>
+          Fluxos de Trabalho
+        </Text>
+      </TouchableOpacity>
+    ) : null;
+
+  /* ── Board header: "Mostrar Concluídos" toggle ── */
+  const boardHeaderAfter = (
+    <View style={s.headerControls}>
       <View style={s.completedToggleRow}>
         <TouchableOpacity
           onPress={() => setShowCompleted((prev) => !prev)}
@@ -1319,7 +1507,11 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
     <View style={[s.container, { backgroundColor: bg }]}>
       <KanbanScreen<UnifiedKanbanItem>
         ref={kanbanRef}
-        title={SCOPE_LABELS[scope]}
+        title={
+          templates.length > 1 && selectedTemplate
+            ? selectedTemplate.name
+            : SCOPE_LABELS[scope]
+        }
         getSubtitle={(total, visible) =>
           `${visible} de ${total} processo${total !== 1 ? "s" : ""}`
         }
@@ -1335,11 +1527,20 @@ export default function UnifiedKanbanScreen({ scope }: UnifiedKanbanProps) {
         moveModalTitle="Mover para etapa"
         searchPlaceholder="Buscar processos..."
         searchFields={searchFields}
-        headerAfter={templatePicker}
+        headerBefore={boardHeaderBefore}
+        headerAfter={boardHeaderAfter}
         createButtonLabel={pluginCreateBtn?.label}
         onCreatePress={pluginCreateBtn?.onPress}
         emptyColumnText="Nenhum processo"
         renderExtraModals={renderExtraModals}
+        editable={isAdmin}
+        onAddColumn={handleAddColumn}
+        onRenameColumn={handleRenameColumn}
+        onReorderColumn={handleReorderColumn}
+        onChangeColumnColor={handleChangeColumnColor}
+        columnColors={DEFAULT_STEP_COLORS}
+        advancedSettingsLabel="Configurações"
+        onAdvancedSettings={handleAdvancedSettings}
       />
     </View>
   );
@@ -1474,4 +1675,75 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   closeBtnText: { ...typography.body, fontWeight: "600" },
+
+  // Template selector
+  selectorContainer: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xl * 2,
+  },
+  selectorHeader: {
+    alignItems: "center" as const,
+    marginBottom: spacing.xl,
+    paddingTop: spacing.lg,
+  },
+  selectorIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    marginBottom: spacing.md,
+  },
+  selectorTitle: {
+    ...typography.title,
+    fontWeight: "700" as const,
+    textAlign: "center" as const,
+  },
+  selectorSubtitle: {
+    ...typography.body,
+    textAlign: "center" as const,
+    marginTop: spacing.xs,
+  },
+  selectorCard: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    padding: spacing.lg,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  selectorCardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  selectorCardContent: {
+    flex: 1,
+  },
+  selectorCardTitle: {
+    ...typography.body,
+    fontWeight: "700" as const,
+    fontSize: 16,
+  },
+  selectorCardMeta: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+
+  // Back button
+  backButton: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  backButtonText: {
+    ...typography.body,
+    fontWeight: "600" as const,
+    fontSize: 14,
+  },
 });

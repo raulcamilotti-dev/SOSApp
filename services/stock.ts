@@ -11,11 +11,12 @@
 
 import { api } from "./api";
 import {
-  buildSearchParams,
-  CRUD_ENDPOINT,
-  normalizeCrudList,
-  type CrudFilter,
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    normalizeCrudList,
+    type CrudFilter,
 } from "./crud";
+import { updateBatchQuantity } from "./stock-batches";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -43,6 +44,7 @@ export interface StockMovement {
   sale_item_id?: string | null;
   purchase_order_id?: string | null;
   purchase_order_item_id?: string | null;
+  batch_id?: string | null;
   reason?: string | null;
   created_by?: string | null;
   created_at?: string;
@@ -86,6 +88,7 @@ export async function recordStockMovement(params: {
   saleItemId?: string;
   purchaseOrderId?: string;
   purchaseOrderItemId?: string;
+  batchId?: string;
   unitCost?: number;
   reason?: string;
   userId?: string;
@@ -122,6 +125,7 @@ export async function recordStockMovement(params: {
       sale_item_id: params.saleItemId ?? null,
       purchase_order_id: params.purchaseOrderId ?? null,
       purchase_order_item_id: params.purchaseOrderItemId ?? null,
+      batch_id: params.batchId ?? null,
       reason: params.reason ?? null,
       created_by: params.userId ?? null,
     },
@@ -136,6 +140,11 @@ export async function recordStockMovement(params: {
       stock_quantity: newQty,
     },
   });
+
+  // Update batch quantity if tracking batches
+  if (params.batchId) {
+    await updateBatchQuantity(params.batchId, params.quantity);
+  }
 
   const body = mvRes.data;
   return Array.isArray(body) ? body[0] : body;

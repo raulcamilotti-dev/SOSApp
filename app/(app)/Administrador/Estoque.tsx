@@ -14,20 +14,20 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
 import {
-  buildSearchParams,
-  CRUD_ENDPOINT,
-  normalizeCrudList,
+    buildSearchParams,
+    CRUD_ENDPOINT,
+    normalizeCrudList,
 } from "@/services/crud";
 import { adjustStock, recalculateStockFromMovements } from "@/services/stock";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 type Row = Record<string, unknown>;
@@ -49,6 +49,9 @@ export default function EstoqueScreen() {
   const crudRef = useRef<CrudScreenHandle | null>(null);
   const [recalculating, setRecalculating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [batchSummaries, setBatchSummaries] = useState<
+    Record<string, BatchSummary>
+  >({});
 
   const loadItems = useMemo(() => {
     return async (): Promise<Row[]> => {
@@ -64,7 +67,32 @@ export default function EstoqueScreen() {
           autoExcludeDeleted: true,
         }),
       });
-      return normalizeCrudList<Row>(res.data);
+      const rows = normalizeCrudList<Row>(res.data);
+
+      // Fetch batch summaries for batch-tracked items
+      if (tenantId) {
+        const batchTracked = rows.filter(
+          (r) => r.track_batch === true || r.track_batch === "true",
+        );
+        if (batchTracked.length > 0) {
+          const summaries: Record<string, BatchSummary> = {};
+          await Promise.all(
+            batchTracked.map(async (r) => {
+              try {
+                const s = await getBatchSummary(tenantId, String(r.id));
+                summaries[String(r.id)] = s;
+              } catch {
+                // best effort
+              }
+            }),
+          );
+          setBatchSummaries(summaries);
+        } else {
+          setBatchSummaries({});
+        }
+      }
+
+      return rows;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, reloadKey]);
@@ -250,8 +278,11 @@ export default function EstoqueScreen() {
         const min = Number(item.min_stock ?? 0);
         const isLow = min > 0 && qty <= min;
         const kind = item.item_kind === "product" ? "Produto" : "Serviço";
+        const isBatchTracked =
+          item.track_batch === true || item.track_batch === "true";
+        const summary = batchSummaries[String(item.id)];
 
-        return [
+        const rows = [
           { label: "Item", value: String(item.name ?? "-") },
           { label: "SKU", value: String(item.sku ?? "-") },
           { label: "Tipo", value: kind },
@@ -267,14 +298,61 @@ export default function EstoqueScreen() {
             value: fmt(qty * Number(item.cost_price ?? 0)),
           },
         ];
+
+        if (isBatchTracked) {
+          rows.push({
+            label: "Rastreamento",
+            value: "Rastreado por lote",
+          });
+          if (summary) {
+            rows.push({
+              label: "Lotes ativos",
+              value: String(summary.batchCount),
+            });
+            rows.push({
+              label: "Qtd. em lotes",
+              value: String(summary.totalBatchQuantity),
+            });
+            if (summary.earliestExpiry) {
+              const d = new Date(summary.earliestExpiry);
+              rows.push({
+                label: "Validade mais próxima",
+                value: d.toLocaleDateString("pt-BR"),
+              });
+            }
+            if (summary.hasExpired) {
+              rows.push({
+                label: "Alerta",
+                value: "⛔ Possui lotes vencidos!",
+              });
+            } else if (summary.hasExpiringSoon) {
+              rows.push({
+                label: "Alerta",
+                value: "🔴 Lotes próximos do vencimento",
+              });
+            }
+          }
+        }
+
+        return rows;
       }}
       renderItemActions={(item) => {
         const qty = Number(item.stock_quantity ?? 0);
         const min = Number(item.min_stock ?? 0);
         const isLow = min > 0 && qty <= min;
+        const isBatchTracked =
+          item.track_batch === true || item.track_batch === "true";
+        const summary = batchSummaries[String(item.id)];
 
         return (
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
             {isLow && (
               <View
                 style={{
@@ -303,6 +381,50 @@ export default function EstoqueScreen() {
                 </Text>
               </View>
             )}
+            {isBatchTracked && summary?.hasExpired && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 3,
+                  backgroundColor: "#dc262618",
+                  borderRadius: 12,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                }}
+              >
+                <Text
+                  style={{ fontSize: 11, fontWeight: "700", color: "#dc2626" }}
+                >
+                  ⛔ Vencido
+                </Text>
+              </View>
+            )}
+            {isBatchTracked &&
+              summary?.hasExpiringSoon &&
+              !summary?.hasExpired && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 3,
+                    backgroundColor: "#f59e0b18",
+                    borderRadius: 12,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "700",
+                      color: "#f59e0b",
+                    }}
+                  >
+                    🔴 Vencendo
+                  </Text>
+                </View>
+              )}
             <TouchableOpacity
               onPress={() => handleAdjust(item)}
               style={{
@@ -344,6 +466,33 @@ export default function EstoqueScreen() {
                 Histórico
               </ThemedText>
             </TouchableOpacity>
+            {isBatchTracked && (
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: "/Administrador/Lotes" as any,
+                    params: { serviceId: String(item.id) },
+                  })
+                }
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#16a34a",
+                  borderRadius: 999,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Ionicons name="layers-outline" size={14} color="#16a34a" />
+                <ThemedText
+                  style={{ color: "#16a34a", fontWeight: "700", fontSize: 12 }}
+                >
+                  Lotes
+                </ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
         );
       }}

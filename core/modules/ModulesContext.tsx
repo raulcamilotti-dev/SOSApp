@@ -16,12 +16,12 @@ import { MODULE_KEYS, type ModuleKey } from "@/core/modules/module-config";
 import { api } from "@/services/api";
 import { CRUD_ENDPOINT, normalizeCrudList } from "@/services/crud";
 import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
 } from "react";
 
 /* ------------------------------------------------------------------ */
@@ -59,14 +59,14 @@ export function ModulesProvider({ children }: { children: React.ReactNode }) {
   const tenantId = user?.tenant_id;
 
   const [enabledModules, setEnabledModules] = useState(
-    () => new Set<ModuleKey>([MODULE_KEYS.CORE]),
+    () => new Set<ModuleKey>([MODULE_KEYS.CORE, MODULE_KEYS.MARKETPLACE]),
   );
   const [loading, setLoading] = useState(true);
 
   const fetchModules = useCallback(async () => {
     if (!tenantId) {
-      // No tenant selected — only core enabled
-      setEnabledModules(new Set([MODULE_KEYS.CORE]));
+      // No tenant selected — only core + marketplace enabled
+      setEnabledModules(new Set([MODULE_KEYS.CORE, MODULE_KEYS.MARKETPLACE]));
       setLoading(false);
       return;
     }
@@ -85,7 +85,10 @@ export function ModulesProvider({ children }: { children: React.ReactNode }) {
       });
 
       const rows = normalizeCrudList<TenantModuleRow>(response.data);
-      const keys = new Set<ModuleKey>([MODULE_KEYS.CORE]);
+      const keys = new Set<ModuleKey>([
+        MODULE_KEYS.CORE,
+        MODULE_KEYS.MARKETPLACE,
+      ]);
 
       for (const row of rows) {
         if (row.enabled) {
@@ -96,8 +99,10 @@ export function ModulesProvider({ children }: { children: React.ReactNode }) {
       setEnabledModules(keys);
     } catch (error) {
       console.error("Failed to load tenant modules:", error);
-      // On error, fail-closed: only core module enabled (security-safe default)
-      setEnabledModules(new Set<ModuleKey>([MODULE_KEYS.CORE]));
+      // On error, fail-closed: only core + marketplace enabled (security-safe default)
+      setEnabledModules(
+        new Set<ModuleKey>([MODULE_KEYS.CORE, MODULE_KEYS.MARKETPLACE]),
+      );
     } finally {
       setLoading(false);
     }
@@ -110,8 +115,9 @@ export function ModulesProvider({ children }: { children: React.ReactNode }) {
 
   const isModuleEnabled = useCallback(
     (key: ModuleKey) => {
-      // Core is always enabled
-      if (key === MODULE_KEYS.CORE) return true;
+      // Core and Marketplace are always enabled
+      if (key === MODULE_KEYS.CORE || key === MODULE_KEYS.MARKETPLACE)
+        return true;
       return enabledModules.has(key);
     },
     [enabledModules],

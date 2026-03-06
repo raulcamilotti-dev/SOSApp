@@ -12,6 +12,14 @@ export type Tenant = {
   config?: TenantConfig | null;
   workflow_template_id?: string | null;
   created_at?: string | null;
+  /** Sandbox/builder tenant — excluded from billing metrics, cannot operate. */
+  is_sandbox?: boolean | null;
+  /** Server-computed: count of users linked to this tenant */
+  users_count?: number | null;
+  /** Server-computed: count of user_tenants rows for this tenant */
+  user_tenants_count?: number | null;
+  /** Server-computed: count of roles for this tenant */
+  roles_count?: number | null;
   [key: string]: unknown;
 };
 
@@ -21,6 +29,7 @@ export type CreateTenantPayload = {
   plan?: string;
   status?: string;
   config?: TenantConfig;
+  is_sandbox?: boolean;
 };
 
 export type UpdateTenantPayload = {
@@ -31,6 +40,7 @@ export type UpdateTenantPayload = {
   status?: string;
   config?: TenantConfig;
   workflow_template_id?: string | null;
+  is_sandbox?: boolean;
 };
 
 const TENANT_ENDPOINT = CRUD_ENDPOINT;
@@ -49,6 +59,7 @@ const normalizeTenant = (payload: any): Tenant => {
     config: payload.config ?? payload.settings ?? null,
     workflow_template_id: payload.workflow_template_id ?? null,
     created_at: payload.created_at ?? null,
+    is_sandbox: payload.is_sandbox ?? false,
     ...payload,
   } as Tenant;
 };

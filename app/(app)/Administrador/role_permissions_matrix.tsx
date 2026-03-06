@@ -6,7 +6,11 @@ import { PERMISSIONS } from "@/core/auth/permissions";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
-import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import {
+    API_DINAMICO,
+    buildSearchParams,
+    CRUD_ENDPOINT,
+} from "@/services/crud";
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -249,10 +253,11 @@ export default function RolePermissionsMatrixScreen() {
             payload: { role_id: roleId, permission_id: permissionId },
           });
         } else {
-          await api.post(CRUD_ENDPOINT, {
-            action: "delete",
-            table: "role_permissions",
-            payload: { role_id: roleId, permission_id: permissionId },
+          // role_permissions has composite PK (role_id, permission_id) — no `id` column
+          // and no `deleted_at` column, so the standard CRUD delete (soft-delete) won't work.
+          // Use api_dinamico with a real DELETE statement instead.
+          await api.post(API_DINAMICO, {
+            sql: `DELETE FROM role_permissions WHERE role_id = '${roleId}' AND permission_id = '${permissionId}'`,
           });
         }
 

@@ -284,7 +284,7 @@ export default function ParceirosAdminScreen() {
     },
     {
       key: "asaas_wallet_id",
-      label: "Asaas Wallet ID",
+      label: "Wallet ID (Gateway)",
       placeholder: "Ex: wal_123456789",
       section: "Dados Financeiros",
     },
@@ -370,7 +370,7 @@ export default function ParceirosAdminScreen() {
             : "Não cadastrado",
         },
         {
-          label: "Asaas Wallet",
+          label: "Wallet ID",
           value: String(item.asaas_wallet_id ?? "-") || "-",
         },
         {

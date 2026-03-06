@@ -41,6 +41,11 @@ const OPERATOR_CHAT_ENDPOINTS = {
   apiCrud: CRUD_ENDPOINT,
 };
 
+function normalizeTenantId(tenantId?: string | null): string {
+  const value = String(tenantId ?? "").trim();
+  return /^[0-9a-fA-F-]{36}$/.test(value) ? value : "";
+}
+
 function logRequest(name: string, endpoint: string, payload?: unknown): void {
   log(`[OperatorChat] ${name} -> API ${endpoint}`);
   if (payload !== undefined) {
@@ -415,29 +420,46 @@ function parseMessageRow(
 
 export async function listConversations(
   selectedSessionId?: string,
+  tenantId?: string | null,
 ): Promise<OperatorConversation[]> {
-  const payload = selectedSessionId
-    ? {
-        session_id: selectedSessionId,
-        sessionId: selectedSessionId,
-        telefone_wa: selectedSessionId,
-      }
-    : {};
-  logRequest(
-    "listConversations",
-    OPERATOR_CHAT_ENDPOINTS.conversations,
-    payload,
-  );
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (!normalizedTenantId) return [];
 
-  const response = await api.post(
-    OPERATOR_CHAT_ENDPOINTS.conversations,
-    payload,
-  );
-  const rows = response.data;
-  logResponseShape("listConversations", rows);
-  logResult("listConversations", rows);
+  const sessionFilter = selectedSessionId
+    ? `AND h.session_id = ${sqlLiteral(selectedSessionId)}`
+    : "";
+  const query = `
+    WITH latest AS (
+      SELECT
+        h.session_id,
+        h.message AS raw_message,
+        h.update_message,
+        ROW_NUMBER() OVER (
+          PARTITION BY h.session_id
+          ORDER BY h.update_message DESC NULLS LAST
+        ) AS rn
+      FROM n8n_chat_histories h
+      WHERE h.tenant_id = ${sqlLiteral(normalizedTenantId)}::uuid
+      ${sessionFilter}
+    )
+    SELECT
+      l.session_id,
+      l.raw_message,
+      l.update_message,
+      w.nome_wa AS nome_cliente
+    FROM latest l
+    LEFT JOIN whatsapp_contacts w
+      ON w.telefone_wa = l.session_id
+      AND w.tenant_id = ${sqlLiteral(normalizedTenantId)}::uuid
+    WHERE l.rn = 1
+    ORDER BY l.update_message DESC NULLS LAST
+  `;
 
-  const normalized = normalizeRows(rows)
+  logQuery("listConversations", query);
+  const rows = await executeQuery(query);
+  logResult("listConversations", rows.rows);
+
+  const normalized = normalizeRows(rows.rows)
     .map(parseConversationRow)
     .filter((row): row is OperatorConversation => Boolean(row));
 
@@ -465,49 +487,60 @@ export async function listConversations(
 
 export async function listConversationMessages(
   sessionId: string,
+  tenantId?: string | null,
 ): Promise<OperatorChatMessage[]> {
-  const payload = {
-    session_id: sessionId,
-    sessionId,
-    telefone_wa: sessionId,
-  };
-  logRequest(
-    "listConversationMessages",
-    OPERATOR_CHAT_ENDPOINTS.conversationMessages,
-    payload,
-  );
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (!normalizedTenantId) return [];
 
-  const response = await api.post(
-    OPERATOR_CHAT_ENDPOINTS.conversationMessages,
-    payload,
-  );
-  const rows = response.data;
-  logResponseShape("listConversationMessages", rows);
-  logResult("listConversationMessages", rows);
+  const query = `
+    SELECT
+      h.id,
+      h.session_id,
+      h.message AS raw_message,
+      h.update_message,
+      w.nome_wa AS nome_cliente
+    FROM n8n_chat_histories h
+    LEFT JOIN whatsapp_contacts w
+      ON w.telefone_wa = h.session_id
+      AND w.tenant_id = ${sqlLiteral(normalizedTenantId)}::uuid
+    WHERE h.tenant_id = ${sqlLiteral(normalizedTenantId)}::uuid
+      AND h.session_id = ${sqlLiteral(sessionId)}
+    ORDER BY h.update_message ASC NULLS LAST
+  `;
 
-  return normalizeRows(rows)
+  logQuery("listConversationMessages", query);
+  const rows = await executeQuery(query);
+  logResult("listConversationMessages", rows.rows);
+
+  return normalizeRows(rows.rows)
     .map(parseMessageRow)
     .filter((row): row is OperatorChatMessage => Boolean(row));
 }
 
 export async function countConversationsToday(
   selectedSessionId?: string,
+  tenantId?: string | null,
 ): Promise<number> {
-  const payload = selectedSessionId
-    ? {
-        session_id: selectedSessionId,
-        sessionId: selectedSessionId,
-        telefone_wa: selectedSessionId,
-      }
-    : {};
-  logRequest("countConversationsToday", OPERATOR_CHAT_ENDPOINTS.stats, payload);
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (!normalizedTenantId) return 0;
 
-  const response = await api.post(OPERATOR_CHAT_ENDPOINTS.stats, payload);
-  logResponseShape("countConversationsToday", response.data);
-  const rows = normalizeRows(response.data);
-  logResult("countConversationsToday", rows);
+  const sessionFilter = selectedSessionId
+    ? `AND h.session_id = ${sqlLiteral(selectedSessionId)}`
+    : "";
+  const query = `
+    SELECT COUNT(DISTINCT h.session_id)::int AS conversas_hoje
+    FROM n8n_chat_histories h
+    WHERE h.tenant_id = ${sqlLiteral(normalizedTenantId)}::uuid
+      AND h.update_message >= date_trunc('day', now())
+      ${sessionFilter}
+  `;
 
-  const total = parseCountValue(rows.length > 0 ? rows : response.data);
+  logQuery("countConversationsToday", query);
+  const rows = await executeQuery(query);
+  const normalizedRows = normalizeRows(rows.rows);
+  logResult("countConversationsToday", normalizedRows);
+
+  const total = parseCountValue(normalizedRows.length > 0 ? normalizedRows : []);
   return Number.isFinite(total) ? total : 0;
 }
 
@@ -684,15 +717,13 @@ export type DashboardAnalytics = {
 /**
  * Fetch all controle_atendimento rows with full columns for analytics.
  */
-export async function getAtendimentoFullRows(): Promise<AtendimentoFullRow[]> {
-  try {
-    const response = await api.post(OPERATOR_CHAT_ENDPOINTS.apiCrud, {
-      action: "list",
-      table: "controle_atendimento",
-      ...buildSearchParams([]),
-    });
-    const rows = normalizeRows(response.data);
-    return rows.map((row: any) => ({
+export async function getAtendimentoFullRows(
+  tenantId?: string | null,
+): Promise<AtendimentoFullRow[]> {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (!normalizedTenantId) return [];
+  const buildRows = (rows: Record<string, unknown>[]) =>
+    rows.map((row: any) => ({
       session_id: String(row.session_id ?? ""),
       ativo: toBoolean(row.ativo, true),
       updated_at: String(row.updated_at ?? ""),
@@ -711,6 +742,15 @@ export async function getAtendimentoFullRows(): Promise<AtendimentoFullRow[]> {
         ? String(row.handoff_updated_at)
         : null,
     }));
+
+  try {
+    const response = await api.post(OPERATOR_CHAT_ENDPOINTS.apiCrud, {
+      action: "list",
+      table: "controle_atendimento",
+      ...buildSearchParams([{ field: "tenant_id", value: normalizedTenantId }]),
+    });
+    const rows = normalizeRows(response.data);
+    return buildRows(rows);
   } catch (err) {
     log("[OperatorChat] getAtendimentoFullRows error", err);
     return [];
@@ -767,9 +807,14 @@ export function computeHandoffStats(
 /**
  * Build a 14-day conversation timeline from n8n_chat_histories.
  */
-export async function getConversationTimeline(): Promise<
+export async function getConversationTimeline(
+  tenantId?: string | null,
+): Promise<
   ConversationTimeline[]
 > {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (!normalizedTenantId) return [];
+  const tenantFilter = ` AND h.tenant_id = ${sqlLiteral(normalizedTenantId)}::uuid`;
   try {
     const sql = `
       SELECT
@@ -778,6 +823,7 @@ export async function getConversationTimeline(): Promise<
         COUNT(DISTINCT session_id) AS count
       FROM n8n_chat_histories
       WHERE update_message >= NOW() - INTERVAL '14 days'
+        ${tenantFilter}
       GROUP BY DATE(update_message), TO_CHAR(DATE(update_message), 'DD/MM')
       ORDER BY dt ASC
     `;
@@ -795,9 +841,14 @@ export async function getConversationTimeline(): Promise<
 /**
  * Get message counts by type (received/sent/manual) for the last 7 days.
  */
-export async function getMessageTypeBreakdown(): Promise<
+export async function getMessageTypeBreakdown(
+  tenantId?: string | null,
+): Promise<
   Record<string, number>
 > {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (!normalizedTenantId) return {};
+  const tenantFilter = ` AND tenant_id = ${sqlLiteral(normalizedTenantId)}::uuid`;
   try {
     const sql = `
       SELECT
@@ -805,6 +856,7 @@ export async function getMessageTypeBreakdown(): Promise<
         COUNT(*) AS count
       FROM n8n_chat_histories
       WHERE update_message >= NOW() - INTERVAL '7 days'
+        ${tenantFilter}
       GROUP BY tipo
       ORDER BY count DESC
     `;
@@ -823,9 +875,14 @@ export async function getMessageTypeBreakdown(): Promise<
 /**
  * Get peak hour distribution (0-23) for conversations in the last 7 days.
  */
-export async function getPeakHours(): Promise<
+export async function getPeakHours(
+  tenantId?: string | null,
+): Promise<
   { hour: number; count: number }[]
 > {
+  const normalizedTenantId = normalizeTenantId(tenantId);
+  if (!normalizedTenantId) return [];
+  const tenantFilter = ` AND tenant_id = ${sqlLiteral(normalizedTenantId)}::uuid`;
   try {
     const sql = `
       SELECT
@@ -833,6 +890,7 @@ export async function getPeakHours(): Promise<
         COUNT(DISTINCT session_id) AS count
       FROM n8n_chat_histories
       WHERE update_message >= NOW() - INTERVAL '7 days'
+        ${tenantFilter}
       GROUP BY EXTRACT(HOUR FROM update_message AT TIME ZONE 'America/Sao_Paulo')
       ORDER BY hour ASC
     `;
@@ -850,10 +908,12 @@ export async function getPeakHours(): Promise<
 /**
  * Compute the full dashboard analytics.
  */
-export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
+export async function getDashboardAnalytics(
+  tenantId?: string | null,
+): Promise<DashboardAnalytics> {
   const [sessions, timeline] = await Promise.all([
-    getAtendimentoFullRows(),
-    getConversationTimeline(),
+    getAtendimentoFullRows(tenantId),
+    getConversationTimeline(tenantId),
   ]);
 
   const stateDistribution = computeStateDistribution(sessions);

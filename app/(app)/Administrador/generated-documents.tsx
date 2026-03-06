@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Biblioteca de Documentos — View, preview, download, edit drafts, and manage generated documents.
  *
  * Route: /Administrador/generated-documents
@@ -8,9 +8,13 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
     buildFullHtml,
+    createDocumentFolder,
+    deleteDocumentFolder,
+    listDocumentFolders,
     deleteGeneratedDocument,
     getTemplate,
     listGeneratedDocuments,
+    type DocumentFolder,
     updateGeneratedDocument,
     type DocumentTemplate,
     type GeneratedDocument,
@@ -59,6 +63,8 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "signed", label: "Assinados" },
 ];
 
+type FolderFilter = "all" | "none" | string;
+
 export default function GeneratedDocumentsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -74,10 +80,16 @@ export default function GeneratedDocumentsScreen() {
 
   /* ── State ── */
   const [docs, setDocs] = useState<GeneratedDocument[]>([]);
+  const [folders, setFolders] = useState<DocumentFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [folderFilter, setFolderFilter] = useState<FolderFilter>("all");
+  const [folderModalOpen, setFolderModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [savingFolder, setSavingFolder] = useState(false);
+  const [moveDoc, setMoveDoc] = useState<GeneratedDocument | null>(null);
 
   // Preview modal
   const [previewDoc, setPreviewDoc] = useState<GeneratedDocument | null>(null);
@@ -90,7 +102,10 @@ export default function GeneratedDocumentsScreen() {
   /* ── Load documents ── */
   const loadDocs = useCallback(async () => {
     try {
-      const list = await listGeneratedDocuments(tenantId);
+      const [list, folderList] = await Promise.all([
+        listGeneratedDocuments(tenantId),
+        listDocumentFolders(tenantId),
+      ]);
       setDocs(
         list.sort((a, b) => {
           const da = a.updated_at || a.created_at || "";
@@ -98,6 +113,7 @@ export default function GeneratedDocumentsScreen() {
           return db.localeCompare(da);
         }),
       );
+      setFolders(folderList);
     } catch {
       // ignore
     }
@@ -117,28 +133,99 @@ export default function GeneratedDocumentsScreen() {
     setRefreshing(false);
   }, [loadDocs]);
 
+  const folderById = useMemo(() => {
+    const map: Record<string, DocumentFolder> = {};
+    for (const folder of folders) {
+      map[folder.id] = folder;
+    }
+    return map;
+  }, [folders]);
+
+  const createFolder = useCallback(async () => {
+    const name = newFolderName.trim();
+    if (!name || !tenantId || !user?.id) return;
+    try {
+      setSavingFolder(true);
+      await createDocumentFolder({
+        tenant_id: tenantId,
+        name,
+        created_by: String(user.id),
+      });
+      setNewFolderName("");
+      await loadDocs();
+    } finally {
+      setSavingFolder(false);
+    }
+  }, [loadDocs, newFolderName, tenantId, user?.id]);
+
+  const removeFolder = useCallback(
+    async (folder: DocumentFolder) => {
+      const hasDocs = docs.some((d) => d.folder_id === folder.id);
+      if (hasDocs) {
+        Alert.alert(
+          "Pasta em uso",
+          "Mova os documentos desta pasta antes de excluir.",
+        );
+        return;
+      }
+      await deleteDocumentFolder(folder.id);
+      if (folderFilter === folder.id) setFolderFilter("all");
+      await loadDocs();
+    },
+    [docs, folderFilter, loadDocs],
+  );
+
+  const moveDocumentToFolder = useCallback(
+    async (doc: GeneratedDocument, nextFolderId: string | null) => {
+      await updateGeneratedDocument({ id: doc.id, folder_id: nextFolderId });
+      setMoveDoc(null);
+      await loadDocs();
+    },
+    [loadDocs],
+  );
+
   /* ── Filtered & searched docs ── */
   const filtered = useMemo(() => {
     let list = docs;
     if (statusFilter !== "all") {
       list = list.filter((d) => d.status === statusFilter);
     }
+    if (folderFilter === "none") {
+      list = list.filter((d) => !d.folder_id);
+    } else if (folderFilter !== "all") {
+      list = list.filter((d) => d.folder_id === folderFilter);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (d) =>
           d.name?.toLowerCase().includes(q) ||
-          d.status?.toLowerCase().includes(q),
+          d.status?.toLowerCase().includes(q) ||
+          String(folderById[String(d.folder_id ?? "")]?.name ?? "")
+            .toLowerCase()
+            .includes(q),
       );
     }
     return list;
-  }, [docs, statusFilter, search]);
+  }, [docs, statusFilter, folderFilter, search, folderById]);
 
   /* ── Status counts ── */
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: docs.length };
     for (const d of docs) {
       counts[d.status] = (counts[d.status] || 0) + 1;
+    }
+    return counts;
+  }, [docs]);
+
+  const folderCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: docs.length, none: 0 };
+    for (const d of docs) {
+      if (!d.folder_id) {
+        counts.none += 1;
+      } else {
+        counts[d.folder_id] = (counts[d.folder_id] || 0) + 1;
+      }
     }
     return counts;
   }, [docs]);
@@ -458,6 +545,128 @@ export default function GeneratedDocumentsScreen() {
         })}
       </ScrollView>
 
+      {/* ── Folder filter tabs ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 12 }}
+        contentContainerStyle={{ gap: 6, alignItems: "center" }}
+      >
+        <TouchableOpacity
+          onPress={() => setFolderFilter("all")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            backgroundColor: folderFilter === "all" ? tintColor + "20" : cardBg,
+            borderWidth: 1,
+            borderColor: folderFilter === "all" ? tintColor + "60" : borderColor,
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+          }}
+        >
+          <Ionicons
+            name="folder-open-outline"
+            size={12}
+            color={folderFilter === "all" ? tintColor : mutedColor}
+          />
+          <ThemedText
+            style={{
+              fontSize: 12,
+              fontWeight: folderFilter === "all" ? "700" : "500",
+              color: folderFilter === "all" ? tintColor : mutedColor,
+            }}
+          >
+            Todas ({folderCounts.all || 0})
+          </ThemedText>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setFolderFilter("none")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            backgroundColor: folderFilter === "none" ? "#f59e0b20" : cardBg,
+            borderWidth: 1,
+            borderColor: folderFilter === "none" ? "#f59e0b60" : borderColor,
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+          }}
+        >
+          <ThemedText
+            style={{
+              fontSize: 12,
+              fontWeight: folderFilter === "none" ? "700" : "500",
+              color: folderFilter === "none" ? "#f59e0b" : mutedColor,
+            }}
+          >
+            Sem pasta ({folderCounts.none || 0})
+          </ThemedText>
+        </TouchableOpacity>
+
+        {folders.map((folder) => {
+          const active = folderFilter === folder.id;
+          const count = folderCounts[folder.id] || 0;
+          return (
+            <TouchableOpacity
+              key={folder.id}
+              onPress={() => setFolderFilter(folder.id)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                backgroundColor: active ? tintColor + "20" : cardBg,
+                borderWidth: 1,
+                borderColor: active ? tintColor + "60" : borderColor,
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+              }}
+            >
+              <Ionicons
+                name="folder-outline"
+                size={12}
+                color={active ? tintColor : mutedColor}
+              />
+              <ThemedText
+                style={{
+                  fontSize: 12,
+                  fontWeight: active ? "700" : "500",
+                  color: active ? tintColor : mutedColor,
+                }}
+              >
+                {folder.name} ({count})
+              </ThemedText>
+            </TouchableOpacity>
+          );
+        })}
+
+        <TouchableOpacity
+          onPress={() => setFolderModalOpen(true)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 4,
+            backgroundColor: tintColor + "15",
+            borderWidth: 1,
+            borderColor: tintColor + "35",
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+          }}
+        >
+          <Ionicons name="settings-outline" size={12} color={tintColor} />
+          <ThemedText
+            style={{ fontSize: 12, fontWeight: "700", color: tintColor }}
+          >
+            Pastas
+          </ThemedText>
+        </TouchableOpacity>
+      </ScrollView>
+
       {/* ── Search ── */}
       <View
         style={{
@@ -597,6 +806,13 @@ export default function GeneratedDocumentsScreen() {
                   {doc.created_at !== doc.updated_at && doc.updated_at
                     ? " · editado"
                     : ""}
+                </ThemedText>
+                <ThemedText
+                  style={{ fontSize: 10, color: mutedColor, marginTop: 2 }}
+                >
+                  {doc.folder_id
+                    ? `Pasta: ${folderById[doc.folder_id]?.name ?? "—"}`
+                    : "Sem pasta"}
                 </ThemedText>
               </View>
               <View
@@ -774,6 +990,34 @@ export default function GeneratedDocumentsScreen() {
                 </TouchableOpacity>
               )}
 
+              {/* Move to folder */}
+              <TouchableOpacity
+                onPress={() => setMoveDoc(doc)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  backgroundColor: "#64748b10",
+                  borderWidth: 1,
+                  borderColor: "#64748b30",
+                  borderRadius: 7,
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                }}
+              >
+                <Ionicons name="folder-open-outline" size={13} color="#94a3b8" />
+                <ThemedText
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "600",
+                    color: "#94a3b8",
+                  }}
+                >
+                  Mover
+                </ThemedText>
+              </TouchableOpacity>
+
               {/* Spacer to push delete right */}
               <View style={{ flex: isDraft ? 0 : 1 }} />
 
@@ -796,6 +1040,242 @@ export default function GeneratedDocumentsScreen() {
           </TouchableOpacity>
         );
       })}
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/*  FOLDER MANAGEMENT MODAL                                   */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={folderModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFolderModalOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor,
+              padding: 14,
+              gap: 10,
+              maxHeight: "80%",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <ThemedText style={{ fontSize: 16, fontWeight: "700" }}>
+                Pastas
+              </ThemedText>
+              <TouchableOpacity onPress={() => setFolderModalOpen(false)}>
+                <Ionicons name="close" size={22} color={mutedColor} />
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <TextInput
+                value={newFolderName}
+                onChangeText={setNewFolderName}
+                placeholder="Nome da nova pasta"
+                placeholderTextColor={mutedColor}
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor,
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  color: textColor,
+                  backgroundColor: bgColor,
+                }}
+              />
+              <TouchableOpacity
+                disabled={savingFolder || !newFolderName.trim()}
+                onPress={createFolder}
+                style={{
+                  backgroundColor:
+                    savingFolder || !newFolderName.trim()
+                      ? "#64748b66"
+                      : tintColor,
+                  borderRadius: 8,
+                  paddingHorizontal: 12,
+                  paddingVertical: 9,
+                }}
+              >
+                <ThemedText style={{ color: "white", fontWeight: "700" }}>
+                  Criar
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 300 }}>
+              {folders.length === 0 ? (
+                <ThemedText style={{ color: mutedColor, fontSize: 13 }}>
+                  Nenhuma pasta criada.
+                </ThemedText>
+              ) : (
+                folders.map((folder) => (
+                  <View
+                    key={folder.id}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      paddingVertical: 8,
+                      borderBottomWidth: 1,
+                      borderBottomColor: borderColor,
+                    }}
+                  >
+                    <Ionicons name="folder-outline" size={16} color={tintColor} />
+                    <ThemedText style={{ flex: 1, fontSize: 13 }}>
+                      {folder.name}
+                    </ThemedText>
+                    <ThemedText style={{ color: mutedColor, fontSize: 11 }}>
+                      {folderCounts[folder.id] || 0}
+                    </ThemedText>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const exec = () => removeFolder(folder);
+                        if (Platform.OS === "web") {
+                          if (
+                            window.confirm(
+                              `Excluir a pasta "${folder.name}"?`,
+                            )
+                          ) {
+                            exec();
+                          }
+                        } else {
+                          Alert.alert(
+                            "Excluir pasta",
+                            `Excluir a pasta "${folder.name}"?`,
+                            [
+                              { text: "Cancelar", style: "cancel" },
+                              {
+                                text: "Excluir",
+                                style: "destructive",
+                                onPress: exec,
+                              },
+                            ],
+                          );
+                        }
+                      }}
+                      style={{
+                        backgroundColor: "#ef444410",
+                        borderRadius: 7,
+                        paddingHorizontal: 8,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={13} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/*  MOVE DOCUMENT MODAL                                       */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={!!moveDoc}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMoveDoc(null)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: cardBg,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor,
+              padding: 14,
+              gap: 10,
+              maxHeight: "80%",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <ThemedText style={{ fontSize: 16, fontWeight: "700", flex: 1 }}>
+                Mover documento
+              </ThemedText>
+              <TouchableOpacity onPress={() => setMoveDoc(null)}>
+                <Ionicons name="close" size={22} color={mutedColor} />
+              </TouchableOpacity>
+            </View>
+            <ThemedText style={{ fontSize: 12, color: mutedColor }}>
+              {moveDoc?.name}
+            </ThemedText>
+
+            <ScrollView style={{ maxHeight: 320 }}>
+              <TouchableOpacity
+                onPress={() =>
+                  moveDoc ? moveDocumentToFolder(moveDoc, null) : undefined
+                }
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  paddingVertical: 9,
+                }}
+              >
+                <Ionicons name="remove-circle-outline" size={16} color="#f59e0b" />
+                <ThemedText style={{ fontSize: 13 }}>Sem pasta</ThemedText>
+              </TouchableOpacity>
+              {folders.map((folder) => (
+                <TouchableOpacity
+                  key={folder.id}
+                  onPress={() =>
+                    moveDoc ? moveDocumentToFolder(moveDoc, folder.id) : undefined
+                  }
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    paddingVertical: 9,
+                  }}
+                >
+                  <Ionicons name="folder-outline" size={16} color={tintColor} />
+                  <ThemedText style={{ fontSize: 13 }}>{folder.name}</ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* ═══════════════════════════════════════════════════════════ */}
       {/*  PREVIEW MODAL                                             */}

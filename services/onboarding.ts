@@ -61,6 +61,8 @@ export interface OnboardingCompanyData {
   primary_color?: string;
   /** URL-safe slug for subdomain ({slug}.radul.com.br). Auto-generated if omitted. */
   slug?: string;
+  /** When true, creates a sandbox tenant for pack building — excluded from billing & metrics. */
+  is_sandbox?: boolean;
 }
 
 export interface OnboardingResult {
@@ -336,13 +338,14 @@ export async function createTenant(
     payload: {
       company_name: data.company_name.trim(),
       whatsapp_number: data.whatsapp_number.trim(),
-      plan: "free",
+      plan: data.is_sandbox ? "free" : "free",
       status: "active",
       slug,
       max_users: 2, // Free plan default — enforced by saas-billing
       extra_users_purchased: 0,
       price_per_extra_user: 29.9,
       default_client_role: "Cliente", // Matches the pre-created "Cliente" role
+      is_sandbox: data.is_sandbox ?? false,
       config: JSON.stringify(config),
     },
   });

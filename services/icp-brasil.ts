@@ -4,7 +4,7 @@
  * Handles:
  * - Certificate file (.p12 / .pfx) picking from device
  * - Certificate info extraction (subject, CPF/CNPJ, validity)
- * - PDF digital signing via backend (N8N) using signer's own certificate
+ * - PDF digital signing via Cloudflare Worker using signer's own certificate
  * - Signed PDF download
  *
  * Legal basis: Lei 14.063/2020 — Assinatura Qualificada (Art. 4º, III)
@@ -23,7 +23,10 @@ const getFileSystem = async () =>
 /*  Config                                                             */
 /* ------------------------------------------------------------------ */
 
-const N8N_BASE = "https://n8n.sosescritura.com.br/webhook";
+/** ICP-Brasil signing worker URL (Cloudflare Worker) */
+const ICP_SIGN_URL =
+  process.env.EXPO_PUBLIC_ICP_SIGN_URL ??
+  "https://sos-icp-sign.raulcamilotti-c44.workers.dev";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -40,6 +43,17 @@ export interface CertificateInfo {
   name: string;
   isValid: boolean;
   daysUntilExpiry: number;
+  // MP 2.200-2/2001 compliance fields
+  isIcpBrasil?: boolean;
+  chainDepth?: number;
+  rootCA?: string | null;
+  chainWarnings?: string[];
+  revocationCheck?: {
+    checked: boolean;
+    revoked: boolean;
+    crlUrl?: string | null;
+    error?: string | null;
+  };
 }
 
 export interface SigningResult {
@@ -49,6 +63,15 @@ export interface SigningResult {
   certificateInfo: CertificateInfo;
   signedAt: string;
   error?: string;
+  legalBasis?: string;
+  chainValidation?: {
+    isIcpBrasil: boolean;
+    chainDepth: number;
+    rootCA: string | null;
+    revocationChecked: boolean;
+    revoked: boolean;
+    warnings: string[];
+  };
 }
 
 export interface PickedCertificate {
@@ -70,10 +93,11 @@ export async function pickCertificateFile(): Promise<PickedCertificate | null> {
   try {
     const result = await DocumentPicker.getDocumentAsync({
       type: Platform.select({
-        // MIME types for PKCS#12 certificates
-        ios: "application/x-pkcs12",
-        android: "*/*", // Android doesn't reliably filter by MIME for .p12
-        default: "application/x-pkcs12",
+        // MIME types for PKCS#12 certificates (.p12 and .pfx are the same format)
+        ios: ["application/x-pkcs12", "application/x-pem-file", "public.data"],
+        android: "*/*", // Android doesn't reliably filter by MIME for .p12/.pfx
+        // Web: use broad type so browsers accept both .p12 and .pfx
+        default: "*/*",
       }),
       copyToCacheDirectory: true,
       multiple: false,
@@ -152,7 +176,7 @@ export async function extractCertificateInfo(
   certBase64: string,
   password: string,
 ): Promise<CertificateInfo> {
-  const response = await api.post(`${N8N_BASE}/api_icp_sign`, {
+  const response = await api.post(ICP_SIGN_URL, {
     action: "validate",
     certificate: certBase64,
     password,
@@ -190,10 +214,59 @@ export async function signPdfWithCertificate(
   certBase64: string,
   password: string,
 ): Promise<SigningResult> {
-  const response = await api.post(`${N8N_BASE}/api_icp_sign`, {
+  const response = await api.post(ICP_SIGN_URL, {
     action: "sign",
     signatureId,
     documensoDocumentId: documensoDocId,
+    certificate: certBase64,
+    password,
+  });
+
+  const data = response.data;
+
+  if (!data?.success) {
+    throw new Error(
+      data?.error ?? "Erro ao assinar o documento com o certificado.",
+    );
+  }
+
+  return {
+    success: true,
+    signedPdfUrl: data.signedPdfUrl,
+    signedPdfBase64: data.signedPdfBase64,
+    certificateInfo: data.certificateInfo,
+    signedAt: data.signedAt ?? new Date().toISOString(),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  3b. Sign PDF directly with base64 (no Documenso)                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Signs a PDF directly using the signer's ICP-Brasil certificate,
+ * WITHOUT requiring Documenso. The PDF content is sent as base64
+ * directly to the backend.
+ *
+ * Used when signing_type is "icp_brasil" — the certificate itself
+ * is the signing mechanism, no electronic signature step needed.
+ *
+ * @param signatureId  - ID of the document_signatures row
+ * @param pdfBase64    - The PDF file content as base64
+ * @param certBase64   - The .p12 certificate file content as base64
+ * @param password     - The certificate password
+ * @returns Signing result with cert info and signed PDF URL
+ */
+export async function signPdfDirectlyWithCertificate(
+  signatureId: string,
+  pdfBase64: string,
+  certBase64: string,
+  password: string,
+): Promise<SigningResult> {
+  const response = await api.post(ICP_SIGN_URL, {
+    action: "sign",
+    signatureId,
+    pdfBase64,
     certificate: certBase64,
     password,
   });
@@ -226,7 +299,7 @@ export async function downloadSignedPdf(
   signatureId: string,
 ): Promise<string | null> {
   try {
-    const response = await api.post(`${N8N_BASE}/api_icp_sign`, {
+    const response = await api.post(ICP_SIGN_URL, {
       action: "download",
       signatureId,
     });

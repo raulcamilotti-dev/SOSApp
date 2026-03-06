@@ -1,3 +1,4 @@
+import type { CrudScreenHandle } from "@/components/ui/CrudScreen";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { filterActive } from "@/core/utils/soft-delete";
@@ -8,7 +9,7 @@ import * as DocumensoService from "@/services/documenso";
 import * as ICPBrasilService from "@/services/icp-brasil";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -230,10 +231,38 @@ const fields: CrudFieldConfig<Row>[] = [
 ];
 
 /* ------------------------------------------------------------------ */
+/*  Signed PDF download helper                                         */
+/* ------------------------------------------------------------------ */
+
+/** Trigger browser download of a base64 PDF on web */
+function triggerPdfDownload(signatureId: string, base64: string) {
+  if (Platform.OS === "web") {
+    try {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `documento_assinado_${signatureId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.warn("[triggerPdfDownload] Falha:", err);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Ações por item (botões de ação no card)                            */
 /* ------------------------------------------------------------------ */
 
-function ItemActions({ item }: { item: Row }) {
+function ItemActions({ item, onReload }: { item: Row; onReload?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -462,8 +491,10 @@ function ItemActions({ item }: { item: Row }) {
     const id = String(item.id || "");
     const docId = Number(item.documenso_document_id);
 
-    if (!docId) {
-      Alert.alert("Erro", "Envie o documento para o Documenso primeiro.");
+    // For ICP-Brasil, we can sign directly with the PDF if available
+    // No need to go through Documenso first
+    if (!docId && !pickedPdf) {
+      Alert.alert("Erro", "Selecione um PDF primeiro.");
       return;
     }
 
@@ -484,20 +515,192 @@ function ItemActions({ item }: { item: Row }) {
             text: "Assinar",
             onPress: async (pwd) => {
               if (!pwd) return;
-              await executeICPSign(id, docId, cert, pwd);
+              if (docId) {
+                await executeICPSign(id, docId, cert, pwd);
+              } else {
+                await executeDirectICPSign(id, cert, pwd);
+              }
             },
           },
         ],
         "secure-text",
       );
+    } else if (Platform.OS === "web") {
+      // Web: use window.prompt (synchronous — avoids React state issues
+      // where CrudScreen re-renders can unmount ItemActions and lose modal state)
+      const pwd = window.prompt(
+        `Senha do Certificado\n\n${cert.name}\n\nDigite a senha do certificado ICP-Brasil:`,
+      );
+      if (!pwd) return;
+      setPickedCert(cert);
+      if (docId) {
+        await executeICPSign(id, docId, cert, pwd);
+      } else {
+        await executeDirectICPSign(id, cert, pwd);
+      }
     } else {
-      // Android/Web: show modal for password
+      // Android: show modal for password
       setCertPassword("");
       setShowPasswordModal(true);
     }
-  }, [item]);
+  }, [item, pickedPdf]);
 
-  /** Executes the actual ICP-Brasil signing process */
+  /** Read picked PDF as base64 string */
+  const readPickedPdfAsBase64 = async (): Promise<string | null> => {
+    if (!pickedPdf) return null;
+    const uri = pickedPdf.uri;
+
+    // If it's already a data URI with base64
+    if (uri.startsWith("data:")) {
+      const parts = uri.split(",");
+      return parts[1] ?? null;
+    }
+
+    // Read file from URI
+    try {
+      if (Platform.OS !== "web") {
+        const fs = await import("expo-file-system");
+        const file = new fs.File(uri);
+        try {
+          const text = await file.text();
+          return btoa(text);
+        } catch {
+          const bytes = await file.bytes();
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          return btoa(binary);
+        }
+      } else {
+        // Web: fetch blob and convert via FileReader
+        const resp = await fetch(uri);
+        const blob = await resp.blob();
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            resolve(dataUrl.split(",")[1] ?? "");
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch {
+      return null;
+    }
+  };
+
+  /** Executes direct ICP-Brasil signing (no Documenso) */
+  const executeDirectICPSign = async (
+    id: string,
+    cert: ICPBrasilService.PickedCertificate,
+    password: string,
+  ) => {
+    setLoading(true);
+    try {
+      // Step 1: Validate certificate
+      const certInfo = await ICPBrasilService.extractCertificateInfo(
+        cert.base64,
+        password,
+      );
+
+      if (!certInfo.isValid) {
+        Alert.alert(
+          "Certificado Inválido",
+          `O certificado "${certInfo.name}" expirou em ${certInfo.validTo}.`,
+        );
+        return;
+      }
+
+      // Step 2: Read PDF as base64
+      setLoadingText("Lendo PDF...");
+      const pdfBase64 = await readPickedPdfAsBase64();
+      if (!pdfBase64) {
+        Alert.alert("Erro", "Não foi possível ler o arquivo PDF.");
+        return;
+      }
+
+      // Step 3: Confirm with user
+      const confirmMsg = [
+        `Titular: ${certInfo.name}`,
+        certInfo.cpf ? `CPF: ${certInfo.cpf}` : null,
+        certInfo.cnpj ? `CNPJ: ${certInfo.cnpj}` : null,
+        `Emissor: ${certInfo.issuer}`,
+        `Válido até: ${certInfo.validTo}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      Alert.alert(
+        "Confirmar Assinatura ICP-Brasil",
+        `O documento será assinado digitalmente com:\n\n${confirmMsg}\n\nEsta assinatura tem validade jurídica (Lei 14.063/2020).`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Assinar",
+            style: "default",
+            onPress: async () => {
+              setLoading(true);
+              setLoadingText("Assinando com certificado...");
+              try {
+                // Step 4: Sign the PDF directly
+                const result =
+                  await ICPBrasilService.signPdfDirectlyWithCertificate(
+                    id,
+                    pdfBase64,
+                    cert.base64,
+                    password,
+                  );
+
+                // Step 5: Update record + save signed PDF to database
+                const updatePayload: Record<string, unknown> = {
+                  id,
+                  status: "signed",
+                  signed_at: result.signedAt,
+                  certificate_info: JSON.stringify(result.certificateInfo),
+                };
+                if (result.signedPdfBase64) {
+                  updatePayload.signed_pdf_base64 = result.signedPdfBase64;
+                }
+                await updateRow(updatePayload);
+
+                // Step 6: Trigger download immediately (before any blocking alert)
+                if (result.signedPdfBase64) {
+                  triggerPdfDownload(id, result.signedPdfBase64);
+                }
+
+                setPickedPdf(null);
+
+                // Step 7: Reload the list so status updates and "Baixar PDF" button appears
+                onReload?.();
+
+                Alert.alert(
+                  "Assinado com ICP-Brasil! ✓",
+                  `Documento assinado digitalmente por ${certInfo.name}.\nValidade jurídica: Assinatura Qualificada.${result.signedPdfBase64 ? "\n\nO PDF assinado foi baixado." : ""}`,
+                );
+              } catch (err: unknown) {
+                const errMsg = getApiErrorMessage(err, "Erro ao assinar");
+                Alert.alert("Erro na assinatura", errMsg);
+              } finally {
+                setLoading(false);
+                setLoadingText("");
+              }
+            },
+          },
+        ],
+      );
+    } catch (err: unknown) {
+      const errMsg =
+        err instanceof Error ? err.message : "Erro ao validar certificado";
+      Alert.alert("Erro", errMsg);
+    } finally {
+      setLoading(false);
+      setLoadingText("");
+    }
+  };
+
+  /** Executes the actual ICP-Brasil signing process (via Documenso) */
   const executeICPSign = async (
     id: string,
     docId: number,
@@ -587,8 +790,12 @@ function ItemActions({ item }: { item: Row }) {
     if (!pickedCert || !certPassword) return;
     const id = String(item.id || "");
     const docId = Number(item.documenso_document_id);
-    await executeICPSign(id, docId, pickedCert, certPassword);
-  }, [item, pickedCert, certPassword]);
+    if (docId) {
+      await executeICPSign(id, docId, pickedCert, certPassword);
+    } else {
+      await executeDirectICPSign(id, pickedCert, certPassword);
+    }
+  }, [item, pickedCert, certPassword, pickedPdf]);
 
   /** Sync Documenso status for ICP docs (marks as documenso_signed, not signed) */
   const handleSyncDocumensoForICP = useCallback(async () => {
@@ -624,21 +831,56 @@ function ItemActions({ item }: { item: Row }) {
     }
   }, [item]);
 
-  /** Handle download of signed PDF */
+  /** Handle download of signed PDF — reads from database or Documenso API */
   const handleDownloadSigned = useCallback(async () => {
     const id = String(item.id || "");
     setLoading(true);
+    setLoadingText("Baixando PDF...");
     try {
-      const fileUri = await ICPBrasilService.downloadSignedPdf(id);
-      if (fileUri) {
-        Alert.alert("Download concluído", `PDF salvo em:\n${fileUri}`);
-      } else {
-        Alert.alert("Erro", "Não foi possível baixar o PDF assinado.");
+      // 1) Try to get signed PDF from database (ICP-Brasil flow stores it here)
+      const res = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "document_signatures",
+        ...buildSearchParams([{ field: "id", value: id }]),
+      });
+      const data = res.data;
+      const list = Array.isArray(data) ? data : (data?.data ?? []);
+      const record = Array.isArray(list) ? list[0] : null;
+      const base64FromDb = record?.signed_pdf_base64;
+
+      if (
+        base64FromDb &&
+        typeof base64FromDb === "string" &&
+        base64FromDb.length > 100
+      ) {
+        triggerPdfDownload(id, base64FromDb);
+        Alert.alert("Download concluído", "O PDF assinado foi baixado.");
+        return;
       }
-    } catch {
-      Alert.alert("Erro", "Falha ao baixar documento.");
+
+      // 2) Fallback: download from Documenso API if we have a document ID
+      const documensoId = record?.documenso_document_id;
+      if (documensoId) {
+        const pdfBase64 = await DocumensoService.downloadDocumentPdf(
+          Number(documensoId),
+        );
+        if (pdfBase64 && pdfBase64.length > 100) {
+          triggerPdfDownload(id, pdfBase64);
+          Alert.alert("Download concluído", "O PDF foi baixado.");
+          return;
+        }
+      }
+
+      Alert.alert(
+        "PDF não disponível",
+        "O PDF não foi encontrado. Verifique se o documento foi assinado.",
+      );
+    } catch (err) {
+      const msg = getApiErrorMessage(err, "Erro ao baixar PDF");
+      Alert.alert("Erro", msg);
     } finally {
       setLoading(false);
+      setLoadingText("");
     }
   }, [item]);
 
@@ -751,18 +993,42 @@ function ItemActions({ item }: { item: Row }) {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.actionBtn,
-                { backgroundColor: "#059669" + "15", alignSelf: "stretch" },
-              ]}
-              onPress={handleConfirmSend}
-            >
-              <Ionicons name="cloud-upload-outline" size={16} color="#059669" />
-              <Text style={[styles.actionText, { color: "#059669" }]}>
-                Enviar para Documenso
-              </Text>
-            </TouchableOpacity>
+            {/* ICP-Brasil: Sign directly with certificate (skip Documenso) */}
+            {isICP ? (
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: "#059669" + "15", alignSelf: "stretch" },
+                ]}
+                onPress={handleSignWithICPBrasil}
+              >
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={16}
+                  color="#059669"
+                />
+                <Text style={[styles.actionText, { color: "#059669" }]}>
+                  Assinar com Certificado
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: "#059669" + "15", alignSelf: "stretch" },
+                ]}
+                onPress={handleConfirmSend}
+              >
+                <Ionicons
+                  name="cloud-upload-outline"
+                  size={16}
+                  color="#059669"
+                />
+                <Text style={[styles.actionText, { color: "#059669" }]}>
+                  Enviar para Documenso
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -805,7 +1071,7 @@ function ItemActions({ item }: { item: Row }) {
           </View>
         )}
 
-        {/* ICP-Brasil: Assinar com Certificado (visible até assinar com ICP) */}
+        {/* ICP-Brasil: Assinar com Certificado (visible when has Documenso doc and not yet signed) */}
         {isICP && hasDocumenso && status !== "signed" && (
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: "#059669" + "15" }]}
@@ -822,7 +1088,7 @@ function ItemActions({ item }: { item: Row }) {
           </TouchableOpacity>
         )}
 
-        {/* ICP-Brasil: Sincronizar status Documenso (para ver se signatário assinou lá) */}
+        {/* ICP-Brasil: Sincronizar status Documenso (only when using legacy Documenso flow) */}
         {isICP && hasDocumenso && status === "sent" && (
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: "#6366f1" + "15" }]}
@@ -835,15 +1101,15 @@ function ItemActions({ item }: { item: Row }) {
           </TouchableOpacity>
         )}
 
-        {/* ICP-Brasil: Download PDF assinado */}
-        {isICP && status === "signed" && (
+        {/* Download PDF (signed from DB or from Documenso) */}
+        {(status === "signed" || hasDocumenso) && (
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: "#10b981" + "15" }]}
             onPress={handleDownloadSigned}
           >
             <Ionicons name="download-outline" size={16} color="#10b981" />
             <Text style={[styles.actionText, { color: "#10b981" }]}>
-              Baixar PDF Assinado
+              {status === "signed" ? "Baixar PDF Assinado" : "Baixar PDF"}
             </Text>
           </TouchableOpacity>
         )}
@@ -972,6 +1238,48 @@ function getDetailItems(item: Row) {
       if (cert?.issuer) details.push({ label: "Emissor", value: cert.issuer });
       if (cert?.cpf) details.push({ label: "CPF", value: cert.cpf });
       if (cert?.cnpj) details.push({ label: "CNPJ", value: cert.cnpj });
+
+      // MP 2.200-2/2001 compliance info
+      if (cert?.isIcpBrasil !== undefined) {
+        details.push({
+          label: "Cadeia ICP-Brasil",
+          value: cert.isIcpBrasil
+            ? `✅ Validada (${cert.chainDepth ?? "?"} cert(s) na cadeia)`
+            : "❌ Não pertence à cadeia ICP-Brasil",
+        });
+      }
+      if (cert?.rootCA) {
+        details.push({ label: "AC Raiz", value: String(cert.rootCA) });
+      }
+      if (cert?.revocationCheck) {
+        const rev = cert.revocationCheck;
+        if (rev.revoked) {
+          details.push({
+            label: "Revogação",
+            value: "❌ CERTIFICADO REVOGADO",
+          });
+        } else if (rev.checked) {
+          details.push({
+            label: "Revogação",
+            value: "✅ Verificada (não revogado)",
+          });
+        } else if (rev.error) {
+          details.push({
+            label: "Revogação",
+            value: `⚠️ Não verificada: ${rev.error}`,
+          });
+        }
+      }
+      if (
+        cert?.chainWarnings &&
+        Array.isArray(cert.chainWarnings) &&
+        cert.chainWarnings.length > 0
+      ) {
+        details.push({
+          label: "Alertas de conformidade",
+          value: cert.chainWarnings.join(" | "),
+        });
+      }
     } catch {
       /* ignore parse errors */
     }
@@ -1004,6 +1312,11 @@ const listRowsWithAutoSync = async (): Promise<Row[]> => {
 export default function DocumentSignaturesScreen() {
   const { user } = useAuth();
   const tenantId = user?.tenant_id;
+  const controlRef = useRef<CrudScreenHandle | null>(null);
+
+  const reload = useCallback(() => {
+    controlRef.current?.reload();
+  }, []);
 
   /** Injeta tenant_id automaticamente no create */
   const createWithContext = useMemo(() => {
@@ -1032,7 +1345,10 @@ export default function DocumentSignaturesScreen() {
         String(item.document_title || item.signer_name || "Assinatura")
       }
       getDetails={getDetailItems}
-      renderItemActions={(item) => <ItemActions item={item} />}
+      renderItemActions={(item) => (
+        <ItemActions item={item} onReload={reload} />
+      )}
+      controlRef={controlRef}
     />
   );
 }

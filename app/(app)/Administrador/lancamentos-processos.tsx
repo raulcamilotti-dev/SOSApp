@@ -56,6 +56,8 @@ interface DocumentRequestItem {
   description: string;
 }
 
+type ApprovalStatus = "not_required" | "pending" | "approved" | "rejected";
+
 export default function ProcessoAdvogadoScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -72,6 +74,7 @@ export default function ProcessoAdvogadoScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isClientVisible, setIsClientVisible] = useState(true);
+  const [requiresClientApproval, setRequiresClientApproval] = useState(false);
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [clientFilter, setClientFilter] = useState("");
@@ -294,6 +297,11 @@ export default function ProcessoAdvogadoScreen() {
           title: title || null,
           description_length: description.trim().length,
           is_client_visible: isClientVisible,
+          requires_client_approval: requiresClientApproval,
+          approval_status:
+            requiresClientApproval && isClientVisible
+              ? ("pending" as ApprovalStatus)
+              : ("not_required" as ApprovalStatus),
           files_count: files.length,
           requested_documents_count: documentRequests.length,
           requested_documents: documentRequests.map((doc) => ({
@@ -354,6 +362,7 @@ export default function ProcessoAdvogadoScreen() {
     selectedOrder,
     selectedOrderId,
     title,
+    requiresClientApproval,
     user?.id,
     user?.role,
     user?.tenant_id,
@@ -371,6 +380,14 @@ export default function ProcessoAdvogadoScreen() {
       return;
     }
 
+    if (requiresClientApproval && !isClientVisible) {
+      Alert.alert(
+        "Atenção",
+        "Uma atualização com autorização precisa estar visível para o cliente.",
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       // 1. Create process_update via api_crud
@@ -382,6 +399,11 @@ export default function ProcessoAdvogadoScreen() {
           title: title.trim(),
           description: description.trim(),
           is_client_visible: isClientVisible,
+          requires_client_approval: requiresClientApproval,
+          approval_status:
+            requiresClientApproval && isClientVisible
+              ? ("pending" as ApprovalStatus)
+              : ("not_required" as ApprovalStatus),
           created_by: user?.id || null,
         },
       });
@@ -487,6 +509,7 @@ export default function ProcessoAdvogadoScreen() {
       setTitle("");
       setDescription("");
       setIsClientVisible(true);
+      setRequiresClientApproval(false);
       setFiles([]);
       setDocumentRequests([]);
       setNewDocumentType("");
@@ -670,6 +693,22 @@ export default function ProcessoAdvogadoScreen() {
           />
         </View>
 
+        <View
+          style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}
+        >
+          <Switch
+            value={requiresClientApproval}
+            onValueChange={(value) => {
+              setSuccessMessage(null);
+              setRequiresClientApproval(value);
+              if (value) setIsClientVisible(true);
+            }}
+          />
+          <ThemedText style={{ marginLeft: 8, color: mutedTextColor }}>
+            Requer autorização do cliente
+          </ThemedText>
+        </View>
+
         <View style={{ marginTop: 12 }}>
           <ThemedText style={{ fontSize: 12, color: mutedTextColor }}>
             Descrição
@@ -702,6 +741,9 @@ export default function ProcessoAdvogadoScreen() {
             value={isClientVisible}
             onValueChange={(value) => {
               setSuccessMessage(null);
+              if (!value && requiresClientApproval) {
+                setRequiresClientApproval(false);
+              }
               setIsClientVisible(value);
             }}
           />

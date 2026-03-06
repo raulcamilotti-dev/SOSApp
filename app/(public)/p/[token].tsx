@@ -1,4 +1,5 @@
 import {
+    approvePortalUpdate,
     loadPortalData,
     validatePortalToken,
     type PortalData,
@@ -9,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
+    Alert,
     ActivityIndicator,
     Dimensions,
     Platform,
@@ -123,6 +125,9 @@ export default function PortalPage() {
       createdAt: string;
     }[]
   >([]);
+  const [approvingUpdateId, setApprovingUpdateId] = useState<string | null>(
+    null,
+  );
 
   // Step 1: Validate token
   useEffect(() => {
@@ -182,6 +187,47 @@ export default function PortalPage() {
       setVerifying(false);
     }
   }, [token, cpfInput]);
+
+  const handleApproveUpdate = useCallback(
+    async (updateId: string) => {
+      if (!token || !updateId) return;
+      try {
+        setApprovingUpdateId(updateId);
+        const result = await approvePortalUpdate({
+          token,
+          updateId,
+          cpfPrefix: cpfInput,
+        });
+        if (!result.success) {
+          Alert.alert("Erro", result.error ?? "Nao foi possivel aprovar.");
+          return;
+        }
+
+        const approvedAt = result.approvedAt ?? new Date().toISOString();
+        setPortalData((prev) =>
+          prev
+            ? {
+                ...prev,
+                timeline: prev.timeline.map((entry) =>
+                  String(entry.id) === String(updateId)
+                    ? {
+                        ...entry,
+                        approvalStatus: "approved",
+                        approvedAt,
+                      }
+                    : entry,
+                ),
+              }
+            : prev,
+        );
+      } catch {
+        Alert.alert("Erro", "Nao foi possivel aprovar esta atualizacao.");
+      } finally {
+        setApprovingUpdateId(null);
+      }
+    },
+    [token, cpfInput],
+  );
 
   /* ── Loading ──────────────────────────────────────────────────── */
   if (phase === "loading") {
@@ -648,6 +694,90 @@ export default function PortalPage() {
                 <Text style={styles.timelineDate}>
                   {formatDate(entry.createdAt)}
                 </Text>
+                {entry.requiresClientApproval ? (
+                  <View
+                    style={{
+                      marginTop: 8,
+                      borderWidth: 1,
+                      borderColor:
+                        entry.approvalStatus === "approved"
+                          ? "#22c55e66"
+                          : "#f59e0b66",
+                      backgroundColor:
+                        entry.approvalStatus === "approved"
+                          ? "#22c55e12"
+                          : "#f59e0b12",
+                      borderRadius: 8,
+                      padding: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "700",
+                        color:
+                          entry.approvalStatus === "approved"
+                            ? "#22c55e"
+                            : "#b45309",
+                      }}
+                    >
+                      {entry.approvalStatus === "approved"
+                        ? "Atualizacao aprovada"
+                        : "Aguardando sua aprovacao"}
+                    </Text>
+                    {entry.approvalStatus === "approved" && entry.approvedAt ? (
+                      <Text
+                        style={{
+                          marginTop: 3,
+                          fontSize: 11,
+                          color: TEXT_SECONDARY,
+                        }}
+                      >
+                        Aprovado em {formatDate(entry.approvedAt)}
+                      </Text>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => handleApproveUpdate(String(entry.id))}
+                        disabled={approvingUpdateId === String(entry.id)}
+                        style={{
+                          marginTop: 8,
+                          alignSelf: "flex-start",
+                          borderRadius: 8,
+                          backgroundColor:
+                            approvingUpdateId === String(entry.id)
+                              ? "#64748b88"
+                              : BRAND_COLOR,
+                          paddingHorizontal: 10,
+                          paddingVertical: 7,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        {approvingUpdateId === String(entry.id) ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Ionicons
+                            name="checkmark-circle-outline"
+                            size={14}
+                            color="#fff"
+                          />
+                        )}
+                        <Text
+                          style={{
+                            color: "#fff",
+                            fontSize: 12,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {approvingUpdateId === String(entry.id)
+                            ? "Aprovando..."
+                            : "Aprovar andamento"}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : null}
               </View>
             </View>
           ))

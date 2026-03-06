@@ -13,6 +13,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
     isBuilder,
     loadBuilderDashboard,
@@ -31,7 +32,6 @@ import {
     RefreshControl,
     ScrollView,
     TouchableOpacity,
-    useColorScheme,
     View,
 } from "react-native";
 

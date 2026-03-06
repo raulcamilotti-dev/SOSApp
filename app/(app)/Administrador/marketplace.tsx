@@ -56,6 +56,21 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IS_DESKTOP = SCREEN_WIDTH >= 768;
 
+const CATEGORY_ICON_MAP: Record<string, keyof typeof Ionicons.glyphMap> = {
+  juridico: "scale-outline",
+  saude: "medkit-outline",
+  comercio: "cart-outline",
+  consultoria: "bar-chart-outline",
+  imobiliario: "home-outline",
+  educacao: "school-outline",
+  servicos: "construct-outline",
+  generico: "cube-outline",
+};
+
+function looksLikeIoniconName(value: string): boolean {
+  return /^[a-z0-9-]+$/.test(value) && value.includes("-");
+}
+
 /* ================================================================== */
 /*  Component                                                          */
 /* ================================================================== */
@@ -137,6 +152,27 @@ export default function MarketplaceScreen() {
   const [ratingBreakdown, setRatingBreakdown] = useState<
     Record<number, number>
   >({});
+
+  const renderPackIcon = useCallback(
+    (iconValue: string | null | undefined, size = 22, color = tintColor) => {
+      const raw = String(iconValue ?? "").trim();
+      if (!raw) {
+        return <Ionicons name="cube-outline" size={size} color={color} />;
+      }
+      if (looksLikeIoniconName(raw)) {
+        const glyphMap = Ionicons.glyphMap as Record<string, number>;
+        if (Object.prototype.hasOwnProperty.call(glyphMap, raw)) {
+          return <Ionicons name={raw as any} size={size} color={color} />;
+        }
+      }
+      return (
+        <ThemedText style={{ fontSize: size, lineHeight: size + 2 }}>
+          {raw}
+        </ThemedText>
+      );
+    },
+    [tintColor],
+  );
 
   /* ---- Installed pack IDs (for quick lookup) ---- */
   const installedPackIds = useMemo(
@@ -605,9 +641,7 @@ export default function MarketplaceScreen() {
               alignItems: "center",
             }}
           >
-            <ThemedText style={{ fontSize: 22 }}>
-              {pack.icon || "📦"}
-            </ThemedText>
+            {renderPackIcon(pack.icon, 22)}
           </View>
           <View style={{ flex: 1 }}>
             <View
@@ -694,7 +728,7 @@ export default function MarketplaceScreen() {
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
             >
-              <ThemedText style={{ fontSize: 11 }}>⭐</ThemedText>
+              <Ionicons name="star" size={11} color="#f59e0b" />
               <ThemedText
                 style={{ fontSize: 11, fontWeight: "600", color: textColor }}
               >
@@ -709,9 +743,11 @@ export default function MarketplaceScreen() {
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
             >
-              <ThemedText style={{ fontSize: 11 }}>
-                {categoryInfo.icon}
-              </ThemedText>
+              <Ionicons
+                name={CATEGORY_ICON_MAP[categoryInfo.value] ?? "pricetag-outline"}
+                size={11}
+                color={mutedColor}
+              />
               <ThemedText style={{ fontSize: 11, color: mutedColor }}>
                 {categoryInfo.label}
               </ThemedText>
@@ -908,9 +944,7 @@ export default function MarketplaceScreen() {
                   flex: 1,
                 }}
               >
-                <ThemedText style={{ fontSize: 28 }}>
-                  {detailPack.icon || "📦"}
-                </ThemedText>
+                {renderPackIcon(detailPack.icon, 28)}
                 <View style={{ flex: 1 }}>
                   <ThemedText
                     style={{
@@ -1619,11 +1653,14 @@ export default function MarketplaceScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
         {/* Header */}
         <View style={{ marginBottom: 16 }}>
-          <ThemedText
-            style={{ fontSize: 22, fontWeight: "bold", color: textColor }}
-          >
-            📦 Pack Marketplace
-          </ThemedText>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name="cube-outline" size={22} color={textColor} />
+            <ThemedText
+              style={{ fontSize: 22, fontWeight: "bold", color: textColor }}
+            >
+              Pack Marketplace
+            </ThemedText>
+          </View>
           <ThemedText style={{ fontSize: 13, color: mutedColor, marginTop: 4 }}>
             Encontre e instale packs para configurar seu tenant em minutos
           </ThemedText>
@@ -1690,15 +1727,22 @@ export default function MarketplaceScreen() {
                   activeCategory === cat.value ? tintColor : borderColor + "40",
               }}
             >
-              <ThemedText
-                style={{
-                  fontSize: 12,
-                  fontWeight: "600",
-                  color: activeCategory === cat.value ? "#fff" : textColor,
-                }}
-              >
-                {cat.icon} {cat.label}
-              </ThemedText>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons
+                  name={CATEGORY_ICON_MAP[cat.value] ?? "pricetag-outline"}
+                  size={12}
+                  color={activeCategory === cat.value ? "#fff" : textColor}
+                />
+                <ThemedText
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "600",
+                    color: activeCategory === cat.value ? "#fff" : textColor,
+                  }}
+                >
+                  {cat.label}
+                </ThemedText>
+              </View>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -1712,13 +1756,13 @@ export default function MarketplaceScreen() {
         >
           {(
             [
-              { key: "featured", label: "✨ Destaque" },
-              { key: "popular", label: "🔥 Popular" },
-              { key: "newest", label: "🆕 Recentes" },
-              { key: "rating", label: "⭐ Rating" },
-              { key: "price_asc", label: "💸 Menor Preço" },
-              { key: "price_desc", label: "💰 Maior Preço" },
-              { key: "name", label: "🔤 Nome" },
+              { key: "featured", label: "Destaque" },
+              { key: "popular", label: "Popular" },
+              { key: "newest", label: "Recentes" },
+              { key: "rating", label: "Rating" },
+              { key: "price_asc", label: "Menor Preco" },
+              { key: "price_desc", label: "Maior Preco" },
+              { key: "name", label: "Nome" },
             ] as const
           ).map((sort) => (
             <TouchableOpacity
@@ -1788,9 +1832,9 @@ export default function MarketplaceScreen() {
 
           {(
             [
-              { key: "all", label: "Preço: Todos" },
-              { key: "free", label: "Só Grátis" },
-              { key: "paid", label: "Só Pagos" },
+              { key: "all", label: "Preco: Todos" },
+              { key: "free", label: "So Gratis" },
+              { key: "paid", label: "So Pagos" },
             ] as const
           ).map((item) => (
             <TouchableOpacity
@@ -1820,9 +1864,9 @@ export default function MarketplaceScreen() {
 
           {(
             [
-              { key: 0, label: "Sem nota mínima" },
-              { key: 4, label: "⭐ 4.0+" },
-              { key: 4.5, label: "⭐ 4.5+" },
+              { key: 0, label: "Sem nota minima" },
+              { key: 4, label: "4.0+" },
+              { key: 4.5, label: "4.5+" },
             ] as const
           ).map((item) => (
             <TouchableOpacity

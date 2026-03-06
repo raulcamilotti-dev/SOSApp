@@ -1,37 +1,37 @@
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
 } from "react";
 
 import { api, setAuthToken } from "@/services/api";
 import { autoLinkUserToCompanies } from "@/services/companies";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
 import {
-  autoLinkUserToTenant,
-  resolveTenantFromContext,
+    autoLinkUserToTenant,
+    resolveTenantFromContext,
 } from "@/services/tenant-resolver";
 import {
-  getSelectedTenant,
-  getTenantOptions,
-  getToken,
-  getUser,
-  saveSelectedTenant,
-  saveTenantOptions,
-  saveToken,
-  saveUser,
+    getSelectedTenant,
+    getTenantOptions,
+    getToken,
+    getUser,
+    saveSelectedTenant,
+    saveTenantOptions,
+    saveToken,
+    saveUser,
 } from "./auth.storage";
 import {
-  AuthContextData,
-  AuthProviderProps,
-  LoginResponse,
-  RegisterPayload,
-  RegisterResponse,
-  TenantOption,
-  User,
+    AuthContextData,
+    AuthProviderProps,
+    LoginResponse,
+    RegisterPayload,
+    RegisterResponse,
+    TenantOption,
+    User,
 } from "./auth.types";
 import { isPlatformAdminStable } from "./auth.utils";
 import { buildTenantContextPayload } from "./tenant-context";

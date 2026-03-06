@@ -252,6 +252,8 @@ interface TenantRow {
   pix_key_type?: string | null;
   pix_merchant_name?: string | null;
   pix_merchant_city?: string | null;
+  /** Sandbox/builder tenant — excluded from billing and metrics */
+  is_sandbox?: boolean;
   [key: string]: unknown;
 }
 
@@ -601,6 +603,8 @@ export async function getTenantActiveCustomerCount(
  * Get the effective limits for a tenant.
  * Active-client-tier model: limits are based on ACTIVE customer count (90-day window).
  * Free plan also limits users to 3.
+ *
+ * Sandbox tenants get unlimited everything — they exist only for pack building/testing.
  */
 export async function getTenantLimits(tenantId: string): Promise<TenantLimits> {
   const [tenant, userCount, customerCounts] = await Promise.all([
@@ -608,6 +612,37 @@ export async function getTenantLimits(tenantId: string): Promise<TenantLimits> {
     getTenantUserCount(tenantId),
     getTenantActiveCustomerCount(tenantId),
   ]);
+
+  // Sandbox tenants: unlimited everything, no limits enforced
+  if (tenant?.is_sandbox) {
+    const sandboxTier = PLAN_TIERS.enterprise;
+    return {
+      plan: tenant.plan ?? "free",
+      planTier: sandboxTier,
+      planBaseCustomers: null,
+      extraClientsPurchased: 0,
+      effectiveMaxCustomers: null,
+      currentCustomers: customerCounts.active,
+      totalStoredCustomers: customerCounts.total,
+      availableSlots: null,
+      isAtLimit: false,
+      isNearLimit: false,
+      usagePercent: 0,
+      monthlyPrice: 0,
+      currentUsers: userCount,
+      maxUsers: null,
+      isUserAtLimit: false,
+      isUserNearLimit: false,
+      userUsagePercent: 0,
+      pricePerExtraClient: 0,
+      suggestedUpgrade: null,
+      planBaseUsers: null,
+      extraUsersPurchased: 0,
+      effectiveMaxUsers: null,
+      pricePerExtraUser: 0,
+      availableSeats: null,
+    };
+  }
 
   const { active: activeCustomerCount, total: totalStoredCustomers } =
     customerCounts;
@@ -712,12 +747,25 @@ export async function canAddUser(tenantId: string): Promise<boolean> {
  * 3. AccountReceivable on the Radul tenant (recurrence: "monthly") with PIX QR
  *
  * Returns PIX payload + QR for first month's payment.
+ *
+ * Sandbox tenants CANNOT subscribe to plans — they are for pack building only.
  */
 export async function subscribeToPlan(
   buyerTenantId: string,
   targetPlan: string,
 ): Promise<PurchaseSeatsResult> {
   try {
+    // Block sandbox tenants from billing operations
+    const buyerCheck = await getTenantInfo(buyerTenantId);
+    if (buyerCheck?.is_sandbox) {
+      return {
+        success: false,
+        totalAmount: 0,
+        error:
+          "Tenants sandbox não podem assinar planos. Usado apenas para criação de packs.",
+      };
+    }
+
     const tier = PLAN_TIERS[targetPlan];
     if (!tier) {
       return {
@@ -879,6 +927,7 @@ export async function subscribeToPlan(
 
 /**
  * Purchase extra client slots for Enterprise plan (R$ 0,20/client/month).
+ * Blocked for sandbox tenants.
  */
 export async function purchaseExtraClients(
   buyerTenantId: string,
@@ -896,6 +945,14 @@ export async function purchaseExtraClients(
     const buyer = await getTenantInfo(buyerTenantId);
     if (!buyer) {
       return { success: false, totalAmount: 0, error: "Tenant não encontrado" };
+    }
+
+    if (buyer.is_sandbox) {
+      return {
+        success: false,
+        totalAmount: 0,
+        error: "Tenants sandbox não podem comprar slots extras.",
+      };
     }
 
     if (buyer.plan !== "enterprise") {

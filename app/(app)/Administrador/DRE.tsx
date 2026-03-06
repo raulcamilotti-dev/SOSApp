@@ -18,7 +18,7 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
-import { api } from "@/services/api";
+import { api, getApiErrorMessage } from "@/services/api";
 import {
   buildSearchParams,
   CRUD_ENDPOINT,
@@ -118,13 +118,16 @@ export default function DREScreen() {
       setTruncated(false);
       let hitLimit = false;
 
-      // 1) Get all non-cancelled sales for the year
+      // Regime de competencia:
+      // - Receita: contas a receber (amount)
+      // - Custo: contas a pagar (amount)
+      // - Todos os status, exceto "cancelled"
       const startDate = `${year}-01-01`;
       const endDate = `${year + 1}-01-01`;
 
-      const salesRes = await api.post(CRUD_ENDPOINT, {
+      const arRes = await api.post(CRUD_ENDPOINT, {
         action: "list",
-        table: "sales",
+        table: "accounts_receivable",
         ...buildSearchParams(
           [
             { field: "tenant_id", value: tenantId },
@@ -133,197 +136,110 @@ export default function DREScreen() {
               value: "cancelled",
               operator: "not_equal" as const,
             },
-            { field: "created_at", value: startDate, operator: "gte" as const },
-            { field: "created_at", value: endDate, operator: "lt" as const },
           ],
           {
-            sortColumn: "created_at ASC",
-            limit: 5000,
+            sortColumn: "competence_date ASC",
+            limit: 10000,
             autoExcludeDeleted: true,
           },
         ),
       });
-      const sales = normalizeCrudList<Record<string, unknown>>(salesRes.data);
-      if (sales.length >= 5000) hitLimit = true;
+      const receivables = normalizeCrudList<Record<string, unknown>>(arRes.data);
+      if (receivables.length >= 10000) hitLimit = true;
 
-      if (sales.length === 0) {
+      const apRes = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "accounts_payable",
+        ...buildSearchParams(
+          [
+            { field: "tenant_id", value: tenantId },
+            {
+              field: "status",
+              value: "cancelled",
+              operator: "not_equal" as const,
+            },
+          ],
+          {
+            sortColumn: "competence_date ASC",
+            limit: 10000,
+            autoExcludeDeleted: true,
+          },
+        ),
+      });
+      const payables = normalizeCrudList<Record<string, unknown>>(apRes.data);
+      if (payables.length >= 10000) hitLimit = true;
+
+      const revenueByMonth = new Map<string, number>();
+      const costByMonth = new Map<string, number>();
+      const movementCountByMonth = new Map<string, number>();
+
+      for (const ar of receivables) {
+        const date = String(
+          ar.competence_date ?? ar.due_date ?? ar.created_at ?? "",
+        );
+        if (!date) continue;
+        const period = date.slice(0, 7);
+        if (!period.startsWith(`${year}-`)) continue;
+        const amount = Number(ar.amount ?? 0);
+        if (amount <= 0) continue;
+        revenueByMonth.set(period, (revenueByMonth.get(period) ?? 0) + amount);
+        movementCountByMonth.set(period, (movementCountByMonth.get(period) ?? 0) + 1);
+      }
+
+      for (const ap of payables) {
+        const date = String(
+          ap.competence_date ?? ap.due_date ?? ap.created_at ?? "",
+        );
+        if (!date) continue;
+        const period = date.slice(0, 7);
+        if (!period.startsWith(`${year}-`)) continue;
+        const amount = Number(ap.amount ?? 0);
+        if (amount <= 0) continue;
+        costByMonth.set(period, (costByMonth.get(period) ?? 0) + amount);
+        movementCountByMonth.set(period, (movementCountByMonth.get(period) ?? 0) + 1);
+      }
+
+      const periods = new Set<string>([
+        ...Array.from(revenueByMonth.keys()),
+        ...Array.from(costByMonth.keys()),
+      ]);
+
+      if (periods.size === 0) {
         setRows([]);
         setSummaryRows([]);
+        setTruncated(hitLimit);
         return;
       }
 
-      // 2) Get sale_items for these sales
-      const saleIds = sales.map((s) => String(s.id));
-      const itemsRes = await api.post(CRUD_ENDPOINT, {
-        action: "list",
-        table: "sale_items",
-        ...buildSearchParams(
-          [
-            {
-              field: "sale_id",
-              value: saleIds.join(","),
-              operator: "in" as const,
-            },
-          ],
-          { limit: 10000, autoExcludeDeleted: true },
-        ),
-      });
-      const items = normalizeCrudList<Record<string, unknown>>(itemsRes.data);
-      if (items.length >= 10000) hitLimit = true;
-
-      // 3) Build a sale lookup (id → sale)
-      const saleMap = new Map(sales.map((s) => [String(s.id), s]));
-
-      // 4) Group by month + item_kind
-      const grouped = new Map<
-        string,
-        { revenue: number; cost: number; discount: number; count: number }
-      >();
-
-      for (const item of items) {
-        const sale = saleMap.get(String(item.sale_id));
-        if (!sale) continue;
-
-        const created = String(sale.created_at ?? "");
-        const period = created.slice(0, 7) || `${year}-01`; // "YYYY-MM"
-        const kind = String(item.item_kind ?? "service");
-
-        const key = `${period}|${kind}`;
-        const entry = grouped.get(key) ?? {
-          revenue: 0,
-          cost: 0,
-          discount: 0,
-          count: 0,
-        };
-
-        const qty = Number(item.quantity ?? 1);
-        const totalPrice = Number(item.total_price ?? 0);
-        const unitCost = Number(item.unit_cost ?? 0);
-
-        entry.revenue += totalPrice;
-        entry.cost += qty * unitCost;
-        entry.count += 1;
-
-        grouped.set(key, entry);
-      }
-
-      // Also account for sale-level discounts (distributed proportionally already in total_price)
-      // Aggregate discount and tax from sales by month
-      const discountByMonth = new Map<string, number>();
-      const taxByMonth = new Map<string, number>();
-      for (const s of sales) {
-        const period = String(s.created_at ?? "").slice(0, 7) || `${year}-01`;
-        const disc = Number(s.discount_amount ?? 0);
-        discountByMonth.set(period, (discountByMonth.get(period) ?? 0) + disc);
-        const tax = Number(s.tax_amount ?? 0);
-        taxByMonth.set(period, (taxByMonth.get(period) ?? 0) + tax);
-      }
-
-      // 4b) Fetch accounts_payable (despesas) for the year
-      const expenseByMonth = new Map<string, number>();
-      try {
-        const apRes = await api.post(CRUD_ENDPOINT, {
-          action: "list",
-          table: "accounts_payable",
-          ...buildSearchParams(
-            [
-              { field: "tenant_id", value: tenantId },
-              {
-                field: "status",
-                value: "cancelled",
-                operator: "not_equal" as const,
-              },
-              { field: "due_date", value: startDate, operator: "gte" as const },
-              { field: "due_date", value: endDate, operator: "lt" as const },
-            ],
-            {
-              sortColumn: "due_date ASC",
-              limit: 5000,
-              autoExcludeDeleted: true,
-            },
-          ),
-        });
-        const apEntries = normalizeCrudList<Record<string, unknown>>(
-          apRes.data,
-        );
-        if (apEntries.length >= 5000) hitLimit = true;
-        for (const ap of apEntries) {
-          const dt = String(ap.competence_date ?? ap.due_date ?? "");
-          const period = dt.slice(0, 7) || `${year}-01`;
-          const amt = Number(ap.amount ?? 0);
-          expenseByMonth.set(period, (expenseByMonth.get(period) ?? 0) + amt);
-        }
-      } catch {
-        /* AP fetch is best-effort */
-      }
-
-      // 5) Build DreRow array
       const dreRows: DreRow[] = [];
-      const periods = new Set<string>();
-
-      for (const [key, data] of grouped) {
-        const [period, kind] = key.split("|");
-        periods.add(period);
-        const margin = data.revenue - data.cost;
-        dreRows.push({
-          period,
-          kind,
-          revenue: data.revenue,
-          cost: data.cost,
-          margin,
-          marginPct: data.revenue > 0 ? (margin / data.revenue) * 100 : 0,
-          discount: 0,
-          saleCount: data.count,
-        });
-      }
-
-      // Add total rows per period
       for (const period of Array.from(periods).sort()) {
-        const periodRows = dreRows.filter((r) => r.period === period);
-        const totRevenue = periodRows.reduce((s, r) => s + r.revenue, 0);
-        const totCost = periodRows.reduce((s, r) => s + r.cost, 0);
-        const totMargin = totRevenue - totCost;
-        const disc = discountByMonth.get(period) ?? 0;
+        const revenue = revenueByMonth.get(period) ?? 0;
+        const cost = costByMonth.get(period) ?? 0;
+        const margin = revenue - cost;
         dreRows.push({
           period,
           kind: "total",
-          revenue: totRevenue,
-          cost: totCost,
-          margin: totMargin,
-          marginPct: totRevenue > 0 ? (totMargin / totRevenue) * 100 : 0,
-          discount: disc,
-          saleCount: periodRows.reduce((s, r) => s + r.saleCount, 0),
+          revenue,
+          cost,
+          margin,
+          marginPct: revenue > 0 ? (margin / revenue) * 100 : 0,
+          discount: 0,
+          saleCount: movementCountByMonth.get(period) ?? 0,
         });
       }
 
-      // Sort: by period DESC, then total last
-      dreRows.sort((a, b) => {
-        const cmp = b.period.localeCompare(a.period);
-        if (cmp !== 0) return cmp;
-        if (a.kind === "total") return 1;
-        if (b.kind === "total") return -1;
-        return a.kind.localeCompare(b.kind);
-      });
-
+      dreRows.sort((a, b) => b.period.localeCompare(a.period));
       setRows(dreRows);
 
-      // Build DRE summary rows (traditional accounting format)
-      const allSummaryPeriods = new Set<string>();
-      for (const r of dreRows)
-        if (r.kind === "total") allSummaryPeriods.add(r.period);
-      for (const [p] of expenseByMonth) allSummaryPeriods.add(p);
-
       const newSummary: DreSummaryRow[] = [];
-      for (const period of Array.from(allSummaryPeriods).sort()) {
-        const totalRow = dreRows.find(
-          (r) => r.period === period && r.kind === "total",
-        );
+      for (const period of Array.from(periods).sort()) {
+        const totalRow = dreRows.find((r) => r.period === period && r.kind === "total");
         const faturamento = totalRow?.revenue ?? 0;
         const deducoes = totalRow?.cost ?? 0;
-        const impostos = taxByMonth.get(period) ?? 0;
-        const margemBruta = faturamento - deducoes - impostos;
-        const despesas = expenseByMonth.get(period) ?? 0;
-        const lucro = margemBruta - despesas;
+        const impostos = 0;
+        const margemBruta = faturamento - deducoes;
+        const despesas = 0;
+        const lucro = margemBruta;
         newSummary.push({
           period,
           faturamento,
@@ -334,11 +250,12 @@ export default function DREScreen() {
           lucro,
         });
       }
+
       newSummary.sort((a, b) => b.period.localeCompare(a.period));
       setSummaryRows(newSummary);
       setTruncated(hitLimit);
-    } catch {
-      setError("Erro ao carregar DRE");
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Erro ao carregar DRE"));
     }
   }, [tenantId, year]);
 
@@ -384,9 +301,7 @@ export default function DREScreen() {
   }
 
   const kindLabels: Record<string, string> = {
-    product: "📦 Produtos",
-    service: "🔧 Serviços",
-    total: "📊 Total",
+    total: "Total",
   };
 
   // Group rows by period for rendering
@@ -416,7 +331,7 @@ export default function DREScreen() {
         <ThemedText
           style={{ fontSize: 13, color: mutedTextColor, marginBottom: 12 }}
         >
-          Receita × Custo por período e tipo
+          Receita x Custo por competencia
         </ThemedText>
 
         {/* Year selector */}
@@ -696,7 +611,7 @@ export default function DREScreen() {
               padding: 32,
             }}
           >
-            Nenhuma venda em {year}
+            Nenhuma movimentacao financeira em {year}
           </ThemedText>
         )}
 

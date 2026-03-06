@@ -169,7 +169,7 @@ export const MODULE_DEFINITIONS: ModuleDefinition[] = [
     label: "Marketplace de Packs",
     description: "Explore, publique e gerencie template packs da comunidade",
     icon: "grid-outline",
-    isCore: false,
+    isCore: true,
     requires: [],
   },
 ];
@@ -273,6 +273,7 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
   // Stock module
   estoque: MODULE_KEYS.STOCK,
   movimentacoes_estoque: MODULE_KEYS.STOCK,
+  lotes: MODULE_KEYS.STOCK,
 
   // Purchases module
   solicitacoes_compras: MODULE_KEYS.PURCHASES,
