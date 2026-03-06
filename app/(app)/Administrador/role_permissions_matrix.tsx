@@ -10,32 +10,32 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
 import {
-    type CrudAction,
-    getPermissionDomains,
-    type Permission,
-    type PermissionDomain,
-    PERMISSIONS,
+  type CrudAction,
+  getPermissionDomains,
+  type Permission,
+  type PermissionDomain,
+  PERMISSIONS,
 } from "@/core/auth/permissions";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api, getApiErrorMessage } from "@/services/api";
 import {
-    API_DINAMICO,
-    buildSearchParams,
-    CRUD_ENDPOINT,
+  API_DINAMICO,
+  buildSearchParams,
+  CRUD_ENDPOINT,
 } from "@/services/crud";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    useWindowDimensions,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 
 /* ═══════════════════════════════════════════════════════
@@ -611,16 +611,45 @@ function RolePermissionsMatrixScreen() {
                       <View
                         style={{ flex: 1, minWidth: isCompact ? 100 : 160 }}
                       >
-                        <ThemedText
+                        <View
                           style={{
-                            fontSize: 13,
-                            fontWeight: "500",
-                            color: textColor,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
                           }}
-                          numberOfLines={1}
                         >
-                          {domain.label}
-                        </ThemedText>
+                          <ThemedText
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "500",
+                              color: textColor,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {domain.label}
+                          </ThemedText>
+                          <View
+                            style={{
+                              borderWidth: 1,
+                              borderColor,
+                              borderRadius: 999,
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              backgroundColor: tintColor + "14",
+                            }}
+                          >
+                            <ThemedText
+                              style={{
+                                fontSize: 10,
+                                fontWeight: "700",
+                                color: tintColor,
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              {domain.category}
+                            </ThemedText>
+                          </View>
+                        </View>
                         <ThemedText
                           style={{ fontSize: 10, color: mutedColor }}
                           numberOfLines={1}

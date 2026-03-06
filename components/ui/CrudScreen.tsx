@@ -1,6 +1,7 @@
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { JsonEditor } from "@/components/ui/JsonEditor";
+import { getCrudHelpContent } from "@/components/ui/crud-help-content";
 import { useAuth } from "@/core/auth/AuthContext";
 import { isUserAdmin } from "@/core/auth/auth.utils";
 import { useCustomFields } from "@/hooks/use-custom-fields";
@@ -135,6 +136,7 @@ export type CrudScreenHandle = {
 
 type Props<T> = {
   tableName?: string;
+  helpKey?: string;
   title: string;
   subtitle?: string;
   searchPlaceholder?: string;
@@ -870,6 +872,7 @@ const buildCacheKey = (table: string | undefined, id: string) =>
 
 export function CrudScreen<T extends Record<string, unknown>>({
   tableName,
+  helpKey,
   title,
   subtitle,
   searchPlaceholder,
@@ -920,6 +923,7 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<T[]>([]);
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [saving, setSaving] = useState(false);
@@ -1120,6 +1124,10 @@ export function CrudScreen<T extends Record<string, unknown>>({
   const inputBackground = useThemeColor({}, "input");
   const onTintTextColor = useThemeColor({}, "background");
   const modalBackdrop = "rgba(0, 0, 0, 0.55)";
+  const helpContent = useMemo(
+    () => getCrudHelpContent({ tableName, title, subtitle, helpKey }),
+    [helpKey, subtitle, tableName, title],
+  );
   const responsiveSpacing = useMemo(() => {
     if (width < 360) {
       return {
@@ -2899,6 +2907,34 @@ export function CrudScreen<T extends Record<string, unknown>>({
             >
               {title}
             </ThemedText>
+            {helpContent ? (
+              <TouchableOpacity
+                onPress={() => setHelpModalOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Ajuda sobre ${title}`}
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  borderWidth: 1,
+                  borderColor,
+                  backgroundColor: cardColor,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <ThemedText
+                  style={{
+                    color: tintColor,
+                    fontWeight: "700",
+                    fontSize: 14,
+                    lineHeight: 16,
+                  }}
+                >
+                  ?
+                </ThemedText>
+              </TouchableOpacity>
+            ) : null}
             {filteredItems.length > 0 && !(isPaginated && hasMore) ? (
               <View
                 style={{
@@ -3610,6 +3646,177 @@ export function CrudScreen<T extends Record<string, unknown>>({
             Todos os {items.length} registros carregados.
           </ThemedText>
         ) : null}
+
+        <Modal
+          transparent
+          visible={helpModalOpen && !!helpContent}
+          animationType="fade"
+          onRequestClose={() => setHelpModalOpen(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: modalBackdrop,
+              justifyContent: "center",
+              padding: 16,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: cardColor,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor,
+                maxHeight: "88%",
+                overflow: "hidden",
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: borderColor,
+                }}
+              >
+                <ThemedText
+                  style={{ fontSize: 18, fontWeight: "700", color: textColor }}
+                >
+                  {helpContent?.title ?? title}
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={() => setHelpModalOpen(false)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: borderColor + "60",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText
+                    style={{
+                      color: mutedTextColor,
+                      fontSize: 16,
+                      lineHeight: 18,
+                    }}
+                  >
+                    x
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+                <View>
+                  <ThemedText
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "700",
+                      color: textColor,
+                      marginBottom: 6,
+                    }}
+                  >
+                    O que e esta tela
+                  </ThemedText>
+                  <ThemedText
+                    style={{ fontSize: 13, color: mutedTextColor, lineHeight: 20 }}
+                  >
+                    {helpContent?.whatIs}
+                  </ThemedText>
+                </View>
+
+                <View>
+                  <ThemedText
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "700",
+                      color: textColor,
+                      marginBottom: 6,
+                    }}
+                  >
+                    O que voce faz aqui
+                  </ThemedText>
+                  {(helpContent?.whatItDoes ?? []).map((line, idx) => (
+                    <ThemedText
+                      key={`help-do-${idx}`}
+                      style={{ fontSize: 13, color: mutedTextColor, lineHeight: 20 }}
+                    >
+                      {`\u2022 ${line}`}
+                    </ThemedText>
+                  ))}
+                </View>
+
+                <View>
+                  <ThemedText
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "700",
+                      color: textColor,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Conexoes com outros modulos
+                  </ThemedText>
+                  {(helpContent?.connections ?? []).map((line, idx) => (
+                    <ThemedText
+                      key={`help-conn-${idx}`}
+                      style={{ fontSize: 13, color: mutedTextColor, lineHeight: 20 }}
+                    >
+                      {`\u2022 ${line}`}
+                    </ThemedText>
+                  ))}
+                </View>
+
+                <View>
+                  <ThemedText
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "700",
+                      color: textColor,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Objetivo da tela
+                  </ThemedText>
+                  {(helpContent?.objectives ?? []).map((line, idx) => (
+                    <ThemedText
+                      key={`help-goal-${idx}`}
+                      style={{ fontSize: 13, color: mutedTextColor, lineHeight: 20 }}
+                    >
+                      {`\u2022 ${line}`}
+                    </ThemedText>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <View
+                style={{
+                  padding: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: borderColor,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => setHelpModalOpen(false)}
+                  style={{
+                    backgroundColor: tintColor,
+                    borderRadius: 10,
+                    paddingVertical: 12,
+                    alignItems: "center",
+                  }}
+                >
+                  <ThemedText style={{ color: onTintTextColor, fontWeight: "700" }}>
+                    Fechar
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <Modal
           transparent

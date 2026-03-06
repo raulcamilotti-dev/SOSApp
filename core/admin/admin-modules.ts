@@ -249,6 +249,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
     pageIds: [
       "gestao_tenant",
       "roles",
+      "terceirizacao",
       "permissions",
       "permissions_sync",
       "role_permissions",

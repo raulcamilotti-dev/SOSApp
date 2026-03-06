@@ -499,6 +499,7 @@ async function handleDnsCreateSubdomain(
   const RESERVED = new Set([
     "app",
     "api",
+    "umami",
     "www",
     "mail",
     "smtp",

@@ -1175,6 +1175,43 @@ export const ADMIN_PANEL_PERMISSIONS: Permission[] = [
 /** CRUD actions set for domain detection */
 const CRUD_ACTIONS_SET = new Set<string>(["view", "create", "edit", "delete"]);
 
+/** Domain labels used by matrix/wizard UIs (separate from broad category grouping). */
+const DOMAIN_DISPLAY_NAMES: Record<string, string> = {
+  admin: "Admin",
+  customer: "Clientes",
+  document: "Documentos",
+  project: "Projetos",
+  task: "Tarefas",
+  automation: "Automações",
+  agent: "Agentes",
+  workflow: "Workflows",
+  user: "Usuários",
+  role: "Roles",
+  permission: "Permissões",
+  tenant: "Tenant",
+  service: "Serviços",
+  appointment: "Agendamentos",
+  property: "Imóveis",
+  company: "Empresas",
+  review: "Avaliações",
+  calendar: "Calendário",
+  process_update: "Atualizações de Processo",
+  signature: "Assinaturas",
+  ocr: "OCR",
+  protocol: "Protocolos",
+  financial: "Financeiro",
+  delinquency: "Inadimplência",
+  partner: "Parceiros",
+  pdv: "PDV",
+  sale: "Vendas",
+  presale: "Pré-Vendas",
+  stock: "Estoque",
+  supplier: "Fornecedores",
+  purchase: "Compras",
+  discount: "Descontos",
+  atendimento: "Atendimento",
+};
+
 /**
  * Obtém todas as permissões como array
  */
@@ -1232,7 +1269,7 @@ export function getPermissionDomains(): PermissionDomain[] {
       const meta = PERMISSION_METADATA[code as Permission];
       domainMap.set(domainKey, {
         key: domainKey,
-        label: meta?.category ?? domainKey,
+        label: DOMAIN_DISPLAY_NAMES[domainKey] ?? meta?.category ?? domainKey,
         category: meta?.category ?? "Outros",
         crud: {},
         special: [],
@@ -1251,5 +1288,9 @@ export function getPermissionDomains(): PermissionDomain[] {
     }
   }
 
-  return Array.from(domainMap.values());
+  return Array.from(domainMap.values()).sort((a, b) => {
+    const byCategory = a.category.localeCompare(b.category, "pt-BR");
+    if (byCategory !== 0) return byCategory;
+    return a.label.localeCompare(b.label, "pt-BR");
+  });
 }

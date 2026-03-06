@@ -124,16 +124,7 @@ export function buildTenantContextPayload(): TenantContextPayload {
     normalizeHint(params.get("tenant_slug")) ??
     normalizeHint(params.get("tenantSubdomain")) ??
     normalizeHint(params.get("t"));
-  const tenantFromEnv = normalizeHint(
-    String(
-      extra.tenantSlug ??
-        extra.tenant_slug ??
-        process.env.EXPO_PUBLIC_TENANT_SLUG ??
-        "",
-    ),
-  );
-
-  const tenantHint = tenantFromQuery ?? tenantFromHost ?? tenantFromEnv;
+  const tenantHint = tenantFromQuery ?? tenantFromHost;
 
   // Detect platform root: radul.com.br bare domain or "app" subdomain
   const hostLower = hostname.toLowerCase();
@@ -151,8 +142,10 @@ export function buildTenantContextPayload(): TenantContextPayload {
       ? rootDomain.split(".")[0] || undefined
       : undefined;
 
+  const resolvedTenantSlug = tenantHint ?? platformSlug;
+
   return {
-    tenant_slug: tenantHint ?? platformSlug,
+    tenant_slug: resolvedTenantSlug,
     tenant_subdomain: tenantFromHost,
     tenant_hint: tenantHint,
     app_slug: appSlug || undefined,

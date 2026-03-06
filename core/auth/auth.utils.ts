@@ -134,6 +134,23 @@ export function isPlatformAdminStable(user?: User | null): boolean {
   return RADUL_EMAILS.has(email);
 }
 
+/**
+ * Restrictive check for screens that must be visible only to Radul super admins.
+ * Requires BOTH:
+ *  - user is recognized as Radul platform user
+ *  - role resolves to superadmin/root variants
+ */
+export function isRadulSuperAdmin(user?: User | null): boolean {
+  if (!isRadulUser(user)) return false;
+  const role = normalizeRole(
+    (user as any)?.role ??
+      (user as any)?.perfil ??
+      (user as any)?.type ??
+      (user as any)?.user_type,
+  );
+  return role === "superadmin" || role === "super_admin" || role === "root";
+}
+
 export function isUserProfileComplete(user?: User | null): boolean {
   if (!user) return false;
 

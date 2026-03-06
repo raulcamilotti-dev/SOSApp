@@ -1,37 +1,38 @@
 import {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 import { api, setAuthToken } from "@/services/api";
 import { autoLinkUserToCompanies } from "@/services/companies";
 import { buildSearchParams, CRUD_ENDPOINT } from "@/services/crud";
+import { tryAutoLinkServiceProviders } from "@/services/service-providers";
 import {
-    autoLinkUserToTenant,
-    resolveTenantFromContext,
+  autoLinkUserToTenant,
+  resolveTenantFromContext,
 } from "@/services/tenant-resolver";
 import {
-    getSelectedTenant,
-    getTenantOptions,
-    getToken,
-    getUser,
-    saveSelectedTenant,
-    saveTenantOptions,
-    saveToken,
-    saveUser,
+  getSelectedTenant,
+  getTenantOptions,
+  getToken,
+  getUser,
+  saveSelectedTenant,
+  saveTenantOptions,
+  saveToken,
+  saveUser,
 } from "./auth.storage";
 import {
-    AuthContextData,
-    AuthProviderProps,
-    LoginResponse,
-    RegisterPayload,
-    RegisterResponse,
-    TenantOption,
-    User,
+  AuthContextData,
+  AuthProviderProps,
+  LoginResponse,
+  RegisterPayload,
+  RegisterResponse,
+  TenantOption,
+  User,
 } from "./auth.types";
 import { isPlatformAdminStable } from "./auth.utils";
 import { buildTenantContextPayload } from "./tenant-context";
@@ -55,13 +56,23 @@ const tryAutoLinkCompanies = (userId: string, cpf?: string) => {
   });
 };
 
+/** Fire-and-forget: link user to any service_provider_invites matching their CPF */
+const tryAutoLinkServiceProvidersAfterAuth = (userId: string, cpf?: string) => {
+  if (!userId || !cpf) return;
+  tryAutoLinkServiceProviders(userId, cpf).catch(() => {
+    /* silent — best effort */
+  });
+};
+
 /**
  * Auto-resolve tenant from domain context and link user if applicable.
- * Called after login/register to auto-link users visiting tenant-specific domains.
- * - app.radul.com.br → resolve slug "radul" → auto-link as client of Radul
- * - cartorio.radul.com.br → resolve slug "cartorio" → auto-link as client
- * - app.sosescritura.com.br → resolve custom_domain → auto-link as client
- * - localhost → no auto-link (dev environment, no tenant context)
+ * Called after login/register to auto-link users as clients of the current domain tenant.
+ * - app.radul.com.br → tenant "radul"
+ * - umami.radul.com.br → tenant "umami"
+ * - sosescritura.radul.com.br → tenant "sosescritura"
+ * - localhost → no auto-link (dev environment)
+ *
+ * If a user_tenants link already exists for (user, tenant), it is preserved.
  */
 const tryAutoResolveTenant = async (
   userId: string,
@@ -75,7 +86,7 @@ const tryAutoResolveTenant = async (
 
     if (!result.resolved || !result.tenant?.id) return null;
 
-    const { linked } = await autoLinkUserToTenant(
+    await autoLinkUserToTenant(
       userId,
       result.tenant.id,
       result.tenant.default_client_role ?? "client",
@@ -599,6 +610,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const { userWithTenant } = await loadAvailableTenants(mergedUser);
       tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
+      tryAutoLinkServiceProvidersAfterAuth(
+        String(userWithTenant.id),
+        userWithTenant.cpf,
+      );
       return userWithTenant;
     } catch (err) {
       setTenantLoading(false);
@@ -653,6 +668,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const { userWithTenant } = await loadAvailableTenants(mergedUser);
       tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
+      tryAutoLinkServiceProvidersAfterAuth(
+        String(userWithTenant.id),
+        userWithTenant.cpf,
+      );
       return userWithTenant;
     } catch (err) {
       setTenantLoading(false);
@@ -711,6 +730,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const { userWithTenant } = await loadAvailableTenants(mergedUser);
       tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
+      tryAutoLinkServiceProvidersAfterAuth(
+        String(userWithTenant.id),
+        userWithTenant.cpf,
+      );
       return userWithTenant;
     } catch (err) {
       setTenantLoading(false);
@@ -787,6 +810,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const { userWithTenant } = await loadAvailableTenants(mergedUser);
 
       tryAutoLinkCompanies(String(userWithTenant.id), userWithTenant.cpf);
+      tryAutoLinkServiceProvidersAfterAuth(
+        String(userWithTenant.id),
+        userWithTenant.cpf,
+      );
       result.user = userWithTenant;
     }
 

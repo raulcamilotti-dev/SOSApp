@@ -1,6 +1,6 @@
 import {
-    ADMIN_MODULE_CARDS,
-    type AdminModuleCard,
+  ADMIN_MODULE_CARDS,
+  type AdminModuleCard,
 } from "@/core/admin/admin-modules";
 import { ADMIN_PAGES } from "@/core/admin/admin-pages";
 import { isRadulUser } from "@/core/auth/auth.utils";
@@ -16,13 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    View,
-} from "react-native";
+import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -178,6 +172,17 @@ export default function AdminHomeScreen() {
     return allModules.filter((m) => !hiddenModuleKeys.includes(m.key));
   }, [allModules, hiddenModuleKeys, editMode]);
 
+  const terceirizacaoPage = useMemo(
+    () => ADMIN_PAGES.find((page) => page.id === "terceirizacao") ?? null,
+    [],
+  );
+
+  const canStartTerceirizacao = useMemo(() => {
+    if (!terceirizacaoPage) return false;
+    const moduleKey = getAdminPageModule(terceirizacaoPage.id);
+    return isModuleEnabled(moduleKey) && canAccessPage(terceirizacaoPage);
+  }, [terceirizacaoPage, isModuleEnabled, canAccessPage]);
+
   // ---- Quick access pages ----
   const quickPages = useMemo(() => {
     if (!favoritesLoaded) return [];
@@ -281,6 +286,59 @@ export default function AdminHomeScreen() {
           mutedColor={mutedColor}
           isDark={isDark}
         />
+
+        {canStartTerceirizacao && (
+          <Pressable
+            onPress={() => router.push("/Administrador/terceirizacao" as any)}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? `${tintColor}22` : `${tintColor}12`,
+              borderWidth: 1,
+              borderColor: `${tintColor}55`,
+              borderRadius: 14,
+              padding: 14,
+              marginBottom: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              ...(Platform.OS === "web" ? { cursor: "pointer" as any } : {}),
+            })}
+          >
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                backgroundColor: `${tintColor}24`,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Ionicons name="people-outline" size={20} color={tintColor} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "700",
+                  color: textColor,
+                  marginBottom: 2,
+                }}
+              >
+                Iniciar terceirização de serviço
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: mutedColor,
+                  lineHeight: 16,
+                }}
+              >
+                Abra o wizard para criar role, permissões e CPFs de prestadores.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={tintColor} />
+          </Pressable>
+        )}
 
         {/* ---- Quick Access ---- */}
         {quickPages.length > 0 && (

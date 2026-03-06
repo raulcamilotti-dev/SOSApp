@@ -13,24 +13,25 @@
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
-    generateSlug,
-    runOnboarding,
-    type OnboardingCompanyData,
+  generateSlug,
+  runOnboarding,
+  validateTenantSlug,
+  type OnboardingCompanyData,
 } from "@/services/onboarding";
 import { captureReferralOnRegistration } from "@/services/referral-tracking";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    Text,
-    TextInput,
-    View
+  Animated,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 /* ================================================================== */
@@ -126,9 +127,23 @@ export default function OnboardingScreen() {
   }, [user, companyName]);
 
   /* ---- Validation ---- */
+  const effectiveSlug = useMemo(
+    () => slugValue.trim() || generateSlug(companyName),
+    [slugValue, companyName],
+  );
+
+  const slugValidation = useMemo(
+    () => validateTenantSlug(effectiveSlug),
+    [effectiveSlug],
+  );
+
   const isStep1Valid = useMemo(() => {
-    return companyName.trim().length >= 2 && whatsapp.trim().length >= 8;
-  }, [companyName, whatsapp]);
+    return (
+      companyName.trim().length >= 2 &&
+      whatsapp.trim().length >= 8 &&
+      slugValidation.valid
+    );
+  }, [companyName, whatsapp, slugValidation.valid]);
 
   /* ---- Format CNPJ ---- */
   const formatCnpj = (text: string) => {
@@ -644,6 +659,11 @@ export default function OnboardingScreen() {
             Endereço personalizado para seus clientes acessarem. Se vazio, será
             gerado automaticamente.
           </Text>
+          {!slugValidation.valid ? (
+            <Text style={{ fontSize: 11, color: "#dc2626", marginTop: 6 }}>
+              {slugValidation.reason}
+            </Text>
+          ) : null}
         </View>
       </View>
     </View>

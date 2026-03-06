@@ -1,20 +1,75 @@
+import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { getPermissionDomains } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
+import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
+import { CRUD_ENDPOINT } from "@/services/crud";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo } from "react";
-import { CRUD_ENDPOINT } from "@/services/crud";
+import { View } from "react-native";
 
 type Row = Record<string, unknown>;
 
 const listRows = async (): Promise<Row[]> => {
-  const response = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "role_permissions",
+  const [rolePermissionsResponse, permissionsResponse] = await Promise.all([
+    api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "role_permissions",
+    }),
+    api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "permissions",
+    }),
+  ]);
+
+  const rolePermissionsData = rolePermissionsResponse.data;
+  const rolePermissionsList = Array.isArray(rolePermissionsData)
+    ? rolePermissionsData
+    : (rolePermissionsData?.data ?? []);
+
+  const permissionsData = permissionsResponse.data;
+  const permissionsList = Array.isArray(permissionsData)
+    ? permissionsData
+    : (permissionsData?.data ?? []);
+
+  const permissionById = new Map<
+    string,
+    { code: string; displayName: string; domain: string; category: string }
+  >();
+
+  const domainMap = new Map(
+    getPermissionDomains().map((domain) => [domain.key, domain]),
+  );
+
+  for (const permission of filterActive(permissionsList as Row[])) {
+    const id = String(permission.id ?? "");
+    if (!id) continue;
+    const code = String(permission.code ?? "");
+    const domainKey = code.includes(".") ? code.split(".")[0] : "";
+    const domain = domainMap.get(domainKey);
+    permissionById.set(id, {
+      code,
+      displayName: String((permission.display_name ?? code) || "-"),
+      domain: (domain?.label ?? domainKey) || "Outros",
+      category: domain?.category ?? "Outros",
+    });
+  }
+
+  return filterActive(
+    Array.isArray(rolePermissionsList) ? (rolePermissionsList as Row[]) : [],
+  ).map((row) => {
+    const permissionId = String(row.permission_id ?? "");
+    const permissionMeta = permissionById.get(permissionId);
+    return {
+      ...row,
+      permission_code: permissionMeta?.code ?? String(row.permission_id ?? "-"),
+      permission_display:
+        permissionMeta?.displayName ?? String(row.permission_id ?? "-"),
+      permission_domain: permissionMeta?.domain ?? "Outros",
+      permission_category: permissionMeta?.category ?? "Outros",
+    };
   });
-  const data = response.data;
-  const list = Array.isArray(data) ? data : (data?.data ?? []);
-  return filterActive(Array.isArray(list) ? (list as Row[]) : []);
 };
 
 const createRow = async (payload: Partial<Row>): Promise<unknown> => {
@@ -53,6 +108,9 @@ const deleteRow = async (
 };
 
 export default function RolePermissionsScreen() {
+  const tintColor = useThemeColor({}, "tint");
+  const borderColor = useThemeColor({}, "border");
+  const textColor = useThemeColor({}, "text");
   const params = useLocalSearchParams<{
     roleId?: string;
     permissionId?: string;
@@ -143,13 +201,67 @@ export default function RolePermissionsScreen() {
       deleteItem={deleteRow}
       getDetails={(item) => [
         { label: "Role", value: String(item.role_id ?? "-") },
-        { label: "Permission", value: String(item.permission_id ?? "-") },
+        {
+          label: "Permissão",
+          value: String(item.permission_display ?? item.permission_id ?? "-"),
+        },
+        { label: "Domínio", value: String(item.permission_domain ?? "-") },
+        {
+          label: "Categoria",
+          value: String(item.permission_category ?? "Outros"),
+        },
       ]}
+      renderItemActions={(item) => (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor,
+              borderRadius: 999,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              backgroundColor: "transparent",
+            }}
+          >
+            <ThemedText
+              style={{
+                color: textColor,
+                fontWeight: "700",
+                fontSize: 10,
+              }}
+            >
+              {String(item.permission_domain ?? "Outros")}
+            </ThemedText>
+          </View>
+
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor,
+              borderRadius: 999,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              backgroundColor: `${tintColor}14`,
+            }}
+          >
+            <ThemedText
+              style={{
+                color: tintColor,
+                fontWeight: "700",
+                fontSize: 10,
+                textTransform: "uppercase",
+              }}
+            >
+              {String(item.permission_category ?? "Outros")}
+            </ThemedText>
+          </View>
+        </View>
+      )}
       getId={(item) =>
         `${String(item.role_id ?? "")}::${String(item.permission_id ?? "")}`
       }
       getTitle={(item) =>
-        `${String(item.role_id ?? "Role")} · ${String(item.permission_id ?? "Permission")}`
+        `${String(item.role_id ?? "Role")} · ${String(item.permission_code ?? item.permission_id ?? "Permission")}`
       }
     />
   );

@@ -1,7 +1,9 @@
 import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
+import { useAuth } from "@/core/auth/AuthContext";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
 import { PERMISSIONS } from "@/core/auth/permissions";
+import { isRadulSuperAdmin } from "@/core/auth/auth.utils";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
@@ -94,9 +96,39 @@ const deleteRow = async (
 };
 
 export default function PermissionsScreen() {
+  const { user } = useAuth();
   const router = useRouter();
   const tintColor = useThemeColor({}, "tint");
   const borderColor = useThemeColor({}, "border");
+  const textColor = useThemeColor({}, "text");
+  const mutedColor = useThemeColor({}, "muted");
+
+  if (!isRadulSuperAdmin(user)) {
+    return (
+      <ProtectedRoute
+        requiredPermission={PERMISSIONS.ADMIN_FULL}
+        fallback={
+          <View style={{ flex: 1 }}>
+            <CrudScreen<Row>
+              tableName="permissions"
+              title="Permissões"
+              subtitle="Acesso exclusivo do super admin da Radul"
+              searchPlaceholder=""
+              fields={[]}
+              loadItems={async () => []}
+              createItem={async () => ({})}
+              updateItem={async () => ({})}
+              hideAddButton
+              getId={() => ""}
+              getTitle={() => ""}
+            />
+          </View>
+        }
+      >
+        <View style={{ flex: 1 }} />
+      </ProtectedRoute>
+    );
+  }
 
   const fields: CrudFieldConfig<Row>[] = [
     { key: "id", label: "Id", placeholder: "Id", visibleInForm: false },

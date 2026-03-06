@@ -13,15 +13,15 @@ import { api, getApiErrorMessage } from "./api";
 import { seedDefaultChartOfAccounts } from "./chart-of-accounts";
 import { createSubdomainDNS } from "./cloudflare-dns";
 import {
-    buildSearchParams,
-    CRUD_ENDPOINT,
-    normalizeCrudList,
-    normalizeCrudOne,
+  buildSearchParams,
+  CRUD_ENDPOINT,
+  normalizeCrudList,
+  normalizeCrudOne,
 } from "./crud";
 import {
-    installPack as installMarketplacePack,
-    listMarketplacePacks,
-    type MarketplacePack,
+  installPack as installMarketplacePack,
+  listMarketplacePacks,
+  type MarketplacePack,
 } from "./marketplace-packs";
 import { applyTemplatePack } from "./template-packs";
 
@@ -78,6 +78,39 @@ export type OnboardingProgressCallback = (
   step: string,
   progress: number,
 ) => void;
+
+export type TenantSlugValidationResult = {
+  valid: boolean;
+  normalized: string;
+  reason?: string;
+};
+
+/**
+ * Reserved infrastructure/platform subdomains that cannot be used by tenants.
+ * Keep this list aligned with Worker `/dns/create-subdomain` RESERVED set.
+ */
+export const RESERVED_TENANT_SLUGS = new Set([
+  "app",
+  "api",
+  "umami",
+  "www",
+  "mail",
+  "smtp",
+  "imap",
+  "pop",
+  "ftp",
+  "admin",
+  "ns1",
+  "ns2",
+  "cdn",
+  "static",
+  "assets",
+  "staging",
+  "dev",
+  "test",
+  "n8n",
+  "api-crud",
+]);
 
 /* ================================================================== */
 /*  Helpers                                                            */
@@ -254,6 +287,61 @@ export function generateSlug(text: string): string {
     .slice(0, 60);
 }
 
+/**
+ * Validate a tenant slug for onboarding (format + reserved names).
+ */
+export function validateTenantSlug(
+  rawSlug: string,
+): TenantSlugValidationResult {
+  const normalized = generateSlug(rawSlug ?? "");
+
+  if (!normalized) {
+    return {
+      valid: false,
+      normalized,
+      reason: "Informe um endereço web válido para sua empresa.",
+    };
+  }
+
+  if (!/^[a-z0-9]([a-z0-9-]{0,58}[a-z0-9])?$/.test(normalized)) {
+    return {
+      valid: false,
+      normalized,
+      reason:
+        "Use apenas letras minúsculas, números e hífen (sem espaço no início/fim).",
+    };
+  }
+
+  if (RESERVED_TENANT_SLUGS.has(normalized)) {
+    return {
+      valid: false,
+      normalized,
+      reason: `O endereço "${normalized}" é reservado. Escolha outro subdomínio.`,
+    };
+  }
+
+  return { valid: true, normalized };
+}
+
+async function ensureSlugAvailable(slug: string): Promise<void> {
+  const res = await api.post(CRUD_ENDPOINT, {
+    action: "list",
+    table: "tenants",
+    ...buildSearchParams([{ field: "slug", value: slug, operator: "equal" }]),
+  });
+
+  const tenants = normalizeCrudList<{ id: string; deleted_at?: string | null }>(
+    res.data,
+  );
+
+  const inUse = tenants.some((tenant) => !tenant.deleted_at);
+  if (inUse) {
+    throw new Error(
+      `O endereço "${slug}.radul.com.br" já está em uso. Escolha outro.`,
+    );
+  }
+}
+
 /* ================================================================== */
 /*  Main Functions                                                     */
 /* ================================================================== */
@@ -330,7 +418,14 @@ export async function createTenant(
   };
 
   // Generate slug: explicit > auto-generated from company name
-  const slug = data.slug?.trim() || generateSlug(data.company_name);
+  const slugInput = data.slug?.trim() || data.company_name;
+  const slugValidation = validateTenantSlug(slugInput);
+  if (!slugValidation.valid) {
+    throw new Error(slugValidation.reason || "Subdomínio inválido.");
+  }
+  const slug = slugValidation.normalized;
+
+  await ensureSlugAvailable(slug);
 
   const res = await api.post(CRUD_ENDPOINT, {
     action: "create",
@@ -399,8 +494,10 @@ export async function runOnboarding(
   const tenantId = await createTenant(companyData);
 
   // Step 1b — Create DNS subdomain (best-effort, never blocks onboarding)
-  const slug =
-    companyData.slug?.trim() || generateSlug(companyData.company_name);
+  const slugValidation = validateTenantSlug(
+    companyData.slug?.trim() || companyData.company_name,
+  );
+  const slug = slugValidation.normalized;
   if (slug) {
     onProgress?.("Configurando subdomínio...", 0.15);
     try {

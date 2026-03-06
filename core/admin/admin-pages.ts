@@ -170,6 +170,16 @@ export const ADMIN_PAGES: AdminPage[] = [
     requiredAnyPermissions: [PERMISSIONS.ROLE_MANAGE],
   },
   {
+    id: "terceirizacao",
+    group: "Acesso & Permissões",
+    module: "admin",
+    title: "Terceirização",
+    description: "Wizard para acesso de serviços externos por role e CPF",
+    icon: "people-outline",
+    route: "/Administrador/terceirizacao",
+    requiredAnyPermissions: [PERMISSIONS.ROLE_MANAGE],
+  },
+  {
     id: "permissions",
     group: "Acesso & Permissões",
     module: "admin",
@@ -188,6 +198,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "sync-outline",
     route: "/Administrador/permissions_sync",
     hidden: true,
+    superAdminOnly: true,
   },
   {
     id: "role_permissions",
@@ -197,6 +208,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Atribuir permissões a cada papel de acesso",
     icon: "shield-checkmark-outline",
     route: "/Administrador/role_permissions",
+    superAdminOnly: true,
     requiredAnyPermissions: [
       PERMISSIONS.ROLE_MANAGE,
       PERMISSIONS.PERMISSION_MANAGE,
@@ -210,6 +222,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Visão consolidada de permissões por papel",
     icon: "grid-outline",
     route: "/Administrador/role_permissions_matrix",
+    superAdminOnly: true,
     requiredAnyPermissions: [
       PERMISSIONS.ROLE_MANAGE,
       PERMISSIONS.PERMISSION_MANAGE,
@@ -395,7 +408,10 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Requisicoes internas para aprovacao e compra",
     icon: "clipboard-outline",
     route: "/Administrador/SolicitacoesCompras",
-    requiredAnyPermissions: [PERMISSIONS.PURCHASE_CREATE, PERMISSIONS.PURCHASE_EDIT],
+    requiredAnyPermissions: [
+      PERMISSIONS.PURCHASE_CREATE,
+      PERMISSIONS.PURCHASE_EDIT,
+    ],
   },
   {
     id: "compras",
@@ -534,7 +550,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/atendimento-operador",
     requiredAnyPermissions: [
       PERMISSIONS.ATENDIMENTO_VIEW,
-      PERMISSIONS.ATENDIMENTO_CREATE, PERMISSIONS.ATENDIMENTO_EDIT,
+      PERMISSIONS.ATENDIMENTO_CREATE,
+      PERMISSIONS.ATENDIMENTO_EDIT,
     ],
   },
   {
@@ -574,7 +591,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     hidden: true,
     requiredAnyPermissions: [
       PERMISSIONS.COMPANY_VIEW,
-      PERMISSIONS.COMPANY_CREATE, PERMISSIONS.COMPANY_EDIT,
+      PERMISSIONS.COMPANY_CREATE,
+      PERMISSIONS.COMPANY_EDIT,
     ],
   },
   {
@@ -656,7 +674,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/Parceiros",
     requiredAnyPermissions: [
       PERMISSIONS.PARTNER_VIEW,
-      PERMISSIONS.PARTNER_CREATE, PERMISSIONS.PARTNER_EDIT,
+      PERMISSIONS.PARTNER_CREATE,
+      PERMISSIONS.PARTNER_EDIT,
     ],
   },
   {
@@ -693,7 +712,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     superAdminOnly: true,
     requiredAnyPermissions: [
       PERMISSIONS.PARTNER_VIEW,
-      PERMISSIONS.PARTNER_CREATE, PERMISSIONS.PARTNER_EDIT,
+      PERMISSIONS.PARTNER_CREATE,
+      PERMISSIONS.PARTNER_EDIT,
     ],
   },
   {
@@ -720,7 +740,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/DisponibilidadeParceiro",
     requiredAnyPermissions: [
       PERMISSIONS.PARTNER_VIEW,
-      PERMISSIONS.PARTNER_CREATE, PERMISSIONS.PARTNER_EDIT,
+      PERMISSIONS.PARTNER_CREATE,
+      PERMISSIONS.PARTNER_EDIT,
     ],
   },
   {
@@ -733,7 +754,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/FolgasParceiro",
     requiredAnyPermissions: [
       PERMISSIONS.PARTNER_VIEW,
-      PERMISSIONS.PARTNER_CREATE, PERMISSIONS.PARTNER_EDIT,
+      PERMISSIONS.PARTNER_CREATE,
+      PERMISSIONS.PARTNER_EDIT,
     ],
   },
   {
@@ -801,7 +823,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/recebimentos-config",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -840,7 +863,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/ContasAReceber",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -853,7 +877,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/ContasAPagar",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -866,7 +891,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/Faturas",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -879,7 +905,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/Pagamentos",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -892,7 +919,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/Inadimplentes",
     requiredAnyPermissions: [
       PERMISSIONS.DELINQUENCY_VIEW,
-      PERMISSIONS.DELINQUENCY_CREATE, PERMISSIONS.DELINQUENCY_EDIT,
+      PERMISSIONS.DELINQUENCY_CREATE,
+      PERMISSIONS.DELINQUENCY_EDIT,
     ],
   },
   {
@@ -906,7 +934,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/ConciliadorBancario",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -933,7 +962,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/bancos",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -946,7 +976,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/contas-bancarias",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -959,7 +990,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/extrato-bancario",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -972,7 +1004,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/plano-contas",
     requiredAnyPermissions: [
       PERMISSIONS.FINANCIAL_VIEW,
-      PERMISSIONS.FINANCIAL_CREATE, PERMISSIONS.FINANCIAL_EDIT,
+      PERMISSIONS.FINANCIAL_CREATE,
+      PERMISSIONS.FINANCIAL_EDIT,
     ],
   },
   {
@@ -1124,7 +1157,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/workflow-editor",
     requiredAnyPermissions: [
       PERMISSIONS.WORKFLOW_VIEW,
-      PERMISSIONS.WORKFLOW_CREATE, PERMISSIONS.WORKFLOW_EDIT,
+      PERMISSIONS.WORKFLOW_CREATE,
+      PERMISSIONS.WORKFLOW_EDIT,
     ],
     hidden: true,
   },
@@ -1285,7 +1319,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/document-generator",
     requiredAnyPermissions: [
       PERMISSIONS.DOCUMENT_VIEW,
-      PERMISSIONS.DOCUMENT_CREATE, PERMISSIONS.DOCUMENT_EDIT,
+      PERMISSIONS.DOCUMENT_CREATE,
+      PERMISSIONS.DOCUMENT_EDIT,
     ],
   },
   {
@@ -1298,7 +1333,8 @@ export const ADMIN_PAGES: AdminPage[] = [
     route: "/Administrador/template-editor",
     requiredAnyPermissions: [
       PERMISSIONS.DOCUMENT_VIEW,
-      PERMISSIONS.DOCUMENT_CREATE, PERMISSIONS.DOCUMENT_EDIT,
+      PERMISSIONS.DOCUMENT_CREATE,
+      PERMISSIONS.DOCUMENT_EDIT,
     ],
   },
 
@@ -1472,6 +1508,9 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "clipboard-outline",
     route: "/Administrador/SolicitacaoCompras",
     hidden: true,
-    requiredAnyPermissions: [PERMISSIONS.PURCHASE_CREATE, PERMISSIONS.PURCHASE_EDIT],
+    requiredAnyPermissions: [
+      PERMISSIONS.PURCHASE_CREATE,
+      PERMISSIONS.PURCHASE_EDIT,
+    ],
   },
 ];

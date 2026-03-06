@@ -92,6 +92,47 @@ export default function ModulosScreen() {
     async (moduleKey: ModuleKey, newEnabled: boolean) => {
       if (!tenantId) return;
 
+      const toggleModuleImpl = async (
+        key: ModuleKey,
+        enabled: boolean,
+      ) => {
+        setToggling(key);
+
+        try {
+          const existing = rows.find((r) => r.module_key === key);
+
+          if (existing) {
+            await api.post(CRUD_ENDPOINT, {
+              action: "update",
+              table: "tenant_modules",
+              payload: {
+                id: existing.id,
+                enabled,
+                updated_at: new Date().toISOString(),
+              },
+            });
+          } else {
+            await api.post(CRUD_ENDPOINT, {
+              action: "create",
+              table: "tenant_modules",
+              payload: {
+                tenant_id: tenantId,
+                module_key: key,
+                enabled,
+              },
+            });
+          }
+
+          await loadModules();
+          await refreshModules();
+        } catch (err) {
+          console.error("Failed to toggle module:", err);
+          Alert.alert("Erro", "Falha ao atualizar módulo.");
+        } finally {
+          setToggling(null);
+        }
+      };
+
       // Enforce dependencies
       if (newEnabled) {
         const missing = getMissingDependencies(moduleKey, enabledSet);
@@ -125,9 +166,9 @@ export default function ModulosScreen() {
                 onPress: async () => {
                   // Disable dependents first
                   for (const depKey of dependents) {
-                    await toggleModule(depKey, false);
+                    await toggleModuleImpl(depKey, false);
                   }
-                  await toggleModule(moduleKey, false);
+                  await toggleModuleImpl(moduleKey, false);
                 },
               },
             ],
@@ -136,49 +177,10 @@ export default function ModulosScreen() {
         }
       }
 
-      await toggleModule(moduleKey, newEnabled);
+      await toggleModuleImpl(moduleKey, newEnabled);
     },
-    [tenantId, enabledSet],
+    [tenantId, enabledSet, rows, loadModules, refreshModules],
   );
-
-  const toggleModule = async (moduleKey: ModuleKey, newEnabled: boolean) => {
-    if (!tenantId) return;
-    setToggling(moduleKey);
-
-    try {
-      const existing = rows.find((r) => r.module_key === moduleKey);
-
-      if (existing) {
-        await api.post(CRUD_ENDPOINT, {
-          action: "update",
-          table: "tenant_modules",
-          payload: {
-            id: existing.id,
-            enabled: newEnabled,
-            updated_at: new Date().toISOString(),
-          },
-        });
-      } else {
-        await api.post(CRUD_ENDPOINT, {
-          action: "create",
-          table: "tenant_modules",
-          payload: {
-            tenant_id: tenantId,
-            module_key: moduleKey,
-            enabled: newEnabled,
-          },
-        });
-      }
-
-      await loadModules();
-      await refreshModules();
-    } catch (err) {
-      console.error("Failed to toggle module:", err);
-      Alert.alert("Erro", "Falha ao atualizar módulo.");
-    } finally {
-      setToggling(null);
-    }
-  };
 
   if (loading) {
     return (
