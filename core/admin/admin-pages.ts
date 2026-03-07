@@ -208,7 +208,6 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Atribuir permissões a cada papel de acesso",
     icon: "shield-checkmark-outline",
     route: "/Administrador/role_permissions",
-    superAdminOnly: true,
     requiredAnyPermissions: [
       PERMISSIONS.ROLE_MANAGE,
       PERMISSIONS.PERMISSION_MANAGE,
@@ -222,7 +221,6 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Visão consolidada de permissões por papel",
     icon: "grid-outline",
     route: "/Administrador/role_permissions_matrix",
-    superAdminOnly: true,
     requiredAnyPermissions: [
       PERMISSIONS.ROLE_MANAGE,
       PERMISSIONS.PERMISSION_MANAGE,

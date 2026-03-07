@@ -6,11 +6,13 @@ compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
 # Secrets (set via `wrangler secret put`):
-#   DATABASE_URL  - postgres://USER:PASS@HOST:PORT/DB
-#   API_KEY       - same key used by the app (X-Api-Key header)
-#   JWT_SECRET    - secret key for signing JWT tokens (use: openssl rand -base64 48)
+#   DATABASE_URL      - postgres://USER:PASS@HOST:PORT/DB
+#   API_KEY           - same key used by the app (X-Api-Key header)
+#   JWT_SECRET        - secret key for signing JWT tokens (use: openssl rand -base64 48)
+#   RESEND_API_KEY    - Resend API key for transactional emails (password reset)
 # Vars (optional):
 #   GOOGLE_CLIENT_IDS - comma-separated allowed Google OAuth client IDs
+#   RESEND_FROM_EMAIL - sender address for emails (requires verified domain in Resend)
 #
 # When Easypanel PG gets SSL enabled, migrate to Hyperdrive:
 #   wrangler hyperdrive create sos-postgres --connection-string="$DATABASE_URL"
@@ -19,7 +21,9 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ENVIRONMENT = "production"
 GOOGLE_CLIENT_IDS = ""
+RESEND_FROM_EMAIL = "Radul <noreply@mail.radul.com.br>"
 # JWT_SECRET is a secret, not a var - set via: npx wrangler secret put JWT_SECRET
+# RESEND_API_KEY is a secret - set via: npx wrangler secret put RESEND_API_KEY
 
 # KV namespace for public API rate limiting (persistent across isolates)
 # Create via: npx wrangler kv namespace create "RATE_LIMIT_KV"

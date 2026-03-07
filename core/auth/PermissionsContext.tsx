@@ -90,18 +90,33 @@ export function PermissionsProvider({
     try {
       setLoading(true);
 
-      // 1. Fetch user_tenants for this user
+      // 1. Fetch user_tenants for this user (active links only)
       const userTenantsRes = await api.post(CRUD_ENDPOINT, {
         action: "list",
         table: "user_tenants",
-        ...buildSearchParams([{ field: "user_id", value: String(user.id) }]),
+        ...buildSearchParams(
+          [
+            { field: "user_id", value: String(user.id) },
+            { field: "is_active", value: "true", operator: "equal" },
+            { field: "deleted_at", value: "", operator: "is_null" },
+          ],
+          { combineType: "AND" },
+        ),
       });
 
       const userTenantsList = normalizeList(userTenantsRes.data);
-      const userTenants = userTenantsList.filter(
-        (ut: any) =>
-          String(ut?.user_id ?? ut?.id_user ?? "") === String(user.id),
-      );
+      const currentTenantId = String(user?.tenant_id ?? "").trim();
+      const userTenants = userTenantsList.filter((ut: any) => {
+        const rowUserId = String(ut?.user_id ?? ut?.id_user ?? "");
+        if (rowUserId !== String(user.id)) return false;
+
+        if (currentTenantId) {
+          const rowTenantId = String(ut?.tenant_id ?? ut?.id_tenant ?? "");
+          if (rowTenantId !== currentTenantId) return false;
+        }
+
+        return true;
+      });
 
       if (userTenants.length === 0) {
         setPermissions([]);

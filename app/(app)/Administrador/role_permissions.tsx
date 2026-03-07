@@ -1,6 +1,9 @@
 import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
-import { getPermissionDomains } from "@/core/auth/permissions";
+import { useAuth } from "@/core/auth/AuthContext";
+import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
+import { isRadulSuperAdmin } from "@/core/auth/auth.utils";
+import { getPermissionDomains, PERMISSIONS } from "@/core/auth/permissions";
 import { filterActive } from "@/core/utils/soft-delete";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { api } from "@/services/api";
@@ -108,9 +111,11 @@ const deleteRow = async (
 };
 
 export default function RolePermissionsScreen() {
+  const { user } = useAuth();
   const tintColor = useThemeColor({}, "tint");
   const borderColor = useThemeColor({}, "border");
   const textColor = useThemeColor({}, "text");
+  const mutedColor = useThemeColor({}, "muted");
   const params = useLocalSearchParams<{
     roleId?: string;
     permissionId?: string;
@@ -187,82 +192,113 @@ export default function RolePermissionsScreen() {
     },
   ];
 
-  return (
-    <CrudScreen<Row>
-      tableName="role_permissions"
-      title="Role Permissions"
-      subtitle="Gestao de permissoes por role"
-      searchPlaceholder="Buscar por role ou permissao"
-      searchFields={["role_id", "permission_id"]}
-      fields={fields}
-      loadItems={loadFilteredRows}
-      createItem={createWithContext}
-      updateItem={updateWithContext}
-      deleteItem={deleteRow}
-      getDetails={(item) => [
-        { label: "Role", value: String(item.role_id ?? "-") },
-        {
-          label: "Permissão",
-          value: String(item.permission_display ?? item.permission_id ?? "-"),
-        },
-        { label: "Domínio", value: String(item.permission_domain ?? "-") },
-        {
-          label: "Categoria",
-          value: String(item.permission_category ?? "Outros"),
-        },
-      ]}
-      renderItemActions={(item) => (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor,
-              borderRadius: 999,
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-              backgroundColor: "transparent",
-            }}
-          >
-            <ThemedText
-              style={{
-                color: textColor,
-                fontWeight: "700",
-                fontSize: 10,
-              }}
-            >
-              {String(item.permission_domain ?? "Outros")}
-            </ThemedText>
-          </View>
+  if (!isRadulSuperAdmin(user)) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <ThemedText
+          style={{ fontSize: 18, fontWeight: "700", color: textColor }}
+        >
+          Acesso restrito
+        </ThemedText>
+        <ThemedText
+          style={{ marginTop: 8, textAlign: "center", color: mutedColor }}
+        >
+          Esta tela e exclusiva para o super admin da Radul.
+        </ThemedText>
+      </View>
+    );
+  }
 
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor,
-              borderRadius: 999,
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-              backgroundColor: `${tintColor}14`,
-            }}
-          >
-            <ThemedText
+  return (
+    <ProtectedRoute
+      requiredPermission={[
+        PERMISSIONS.ROLE_MANAGE,
+        PERMISSIONS.PERMISSION_MANAGE,
+      ]}
+    >
+      <CrudScreen<Row>
+        tableName="role_permissions"
+        title="Role Permissions"
+        subtitle="Gestao de permissoes por role"
+        searchPlaceholder="Buscar por role ou permissao"
+        searchFields={["role_id", "permission_id"]}
+        fields={fields}
+        loadItems={loadFilteredRows}
+        createItem={createWithContext}
+        updateItem={updateWithContext}
+        deleteItem={deleteRow}
+        getDetails={(item) => [
+          { label: "Role", value: String(item.role_id ?? "-") },
+          {
+            label: "Permissão",
+            value: String(item.permission_display ?? item.permission_id ?? "-"),
+          },
+          { label: "Domínio", value: String(item.permission_domain ?? "-") },
+          {
+            label: "Categoria",
+            value: String(item.permission_category ?? "Outros"),
+          },
+        ]}
+        renderItemActions={(item) => (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <View
               style={{
-                color: tintColor,
-                fontWeight: "700",
-                fontSize: 10,
-                textTransform: "uppercase",
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                backgroundColor: "transparent",
               }}
             >
-              {String(item.permission_category ?? "Outros")}
-            </ThemedText>
+              <ThemedText
+                style={{
+                  color: textColor,
+                  fontWeight: "700",
+                  fontSize: 10,
+                }}
+              >
+                {String(item.permission_domain ?? "Outros")}
+              </ThemedText>
+            </View>
+
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor,
+                borderRadius: 999,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                backgroundColor: `${tintColor}14`,
+              }}
+            >
+              <ThemedText
+                style={{
+                  color: tintColor,
+                  fontWeight: "700",
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                }}
+              >
+                {String(item.permission_category ?? "Outros")}
+              </ThemedText>
+            </View>
           </View>
-        </View>
-      )}
-      getId={(item) =>
-        `${String(item.role_id ?? "")}::${String(item.permission_id ?? "")}`
-      }
-      getTitle={(item) =>
-        `${String(item.role_id ?? "Role")} · ${String(item.permission_code ?? item.permission_id ?? "Permission")}`
-      }
-    />
+        )}
+        getId={(item) =>
+          `${String(item.role_id ?? "")}::${String(item.permission_id ?? "")}`
+        }
+        getTitle={(item) =>
+          `${String(item.role_id ?? "Role")} · ${String(item.permission_code ?? item.permission_id ?? "Permission")}`
+        }
+      />
+    </ProtectedRoute>
   );
 }

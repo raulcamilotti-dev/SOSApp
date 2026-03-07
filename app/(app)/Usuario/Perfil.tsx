@@ -165,7 +165,7 @@ export default function Profile() {
           <ProfileCard
             icon="business"
             label="Tenant atual"
-            value={currentTenant?.company_name || user.tenant_id || "-"}
+            value={`${currentTenant?.company_name || user.tenant_id || "-"}${currentTenant?.role_name ? ` · ${currentTenant.role_name}` : ""}`}
             cardBg={cardBg}
             tintColor={tintColor}
             mutedTextColor={mutedTextColor}
@@ -176,6 +176,11 @@ export default function Profile() {
                 const isCurrent = String(tenant.id) === String(user.tenant_id);
                 const isSwitching = switchingTenantId === tenant.id;
 
+                const tenantLabel = tenant.company_name || tenant.id;
+                const roleTag = tenant.role_name
+                  ? ` · ${tenant.role_name}`
+                  : "";
+
                 return (
                   <ActionButton
                     key={tenant.id}
@@ -184,8 +189,8 @@ export default function Profile() {
                       isSwitching
                         ? "Trocando tenant..."
                         : isCurrent
-                          ? `Tenant atual: ${tenant.company_name || tenant.id}`
-                          : `Usar: ${tenant.company_name || tenant.id}`
+                          ? `Tenant atual: ${tenantLabel}${roleTag}`
+                          : `Usar: ${tenantLabel}${roleTag}`
                     }
                     onPress={() => handleTenantSelect(tenant.id)}
                     color={tintColor}

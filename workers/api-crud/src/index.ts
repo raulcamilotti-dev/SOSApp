@@ -20,30 +20,30 @@ import bcrypt from "bcryptjs";
 import { generateApiKey } from "./api-key-auth";
 import { executeQuery } from "./db";
 import {
-    handleDelinquencySummary,
-    handleDelinquentCustomers,
-    handleMarkOverdue,
-    handleMonthlyRevenue,
-    handleOverdueEntries,
+  handleDelinquencySummary,
+  handleDelinquentCustomers,
+  handleMarkOverdue,
+  handleMonthlyRevenue,
+  handleOverdueEntries,
 } from "./financial";
 import { signToken, verifyToken, type JwtPayload } from "./jwt";
 import {
-    handleCancelOrder,
-    handleConfirmPayment,
-    handleCreateOrderRecords,
-    handleOrderSummary,
-    handleResolveCustomer,
+  handleCancelOrder,
+  handleConfirmPayment,
+  handleCreateOrderRecords,
+  handleOrderSummary,
+  handleResolveCustomer,
 } from "./marketplace";
 import { handlePublicApiRequest } from "./public-api";
 import { handleClearCart, handleRemoveCartItem } from "./shopping-cart";
 import {
-    buildAggregate,
-    buildBatchCreate,
-    buildCount,
-    buildCreate,
-    buildDelete,
-    buildList,
-    buildUpdate,
+  buildAggregate,
+  buildBatchCreate,
+  buildCount,
+  buildCreate,
+  buildDelete,
+  buildList,
+  buildUpdate,
 } from "./sql-builder";
 import { handleClearPackData } from "./template-packs";
 import type { CrudRequestBody, Env } from "./types";
@@ -921,15 +921,96 @@ async function resolveUserAuthContext(
 /*  Token can be redeemed via POST /auth/confirm-password-reset        */
 /* ------------------------------------------------------------------ */
 
+/** Send password reset email via Resend API */
+async function sendPasswordResetEmail(
+  env: Env,
+  to: string,
+  resetUrl: string,
+): Promise<{ success: boolean; error?: string }> {
+  const apiKey = env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error("[email] RESEND_API_KEY not configured");
+    return { success: false, error: "Email service not configured" };
+  }
+
+  const from = env.RESEND_FROM_EMAIL || "Radul <noreply@mail.radul.com.br>";
+
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fb;padding:40px 20px;"><tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <tr><td style="background:#2563eb;padding:28px 32px;text-align:center;">
+    <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Radul</h1>
+  </td></tr>
+  <tr><td style="padding:32px;">
+    <h2 style="margin:0 0 16px;color:#111827;font-size:18px;font-weight:700;">Redefinir sua senha</h2>
+    <p style="margin:0 0 24px;color:#4b5563;font-size:14px;line-height:22px;">
+      Recebemos uma solicitação para redefinir a senha da sua conta. Clique no botão abaixo para criar uma nova senha.
+    </p>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr><td align="center" style="background:#2563eb;border-radius:8px;">
+      <a href="${resetUrl}" target="_blank" style="display:inline-block;padding:14px 28px;color:#fff;text-decoration:none;font-weight:700;font-size:15px;">Redefinir senha</a>
+    </td></tr></table>
+    <p style="margin:24px 0 0;color:#6b7280;font-size:12px;line-height:18px;">
+      Este link é válido por <strong>24 horas</strong>. Se você não solicitou a redefinição de senha, ignore este email — sua conta permanece segura.
+    </p>
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+    <p style="margin:0;color:#9ca3af;font-size:11px;line-height:16px;">
+      Se o botão não funcionar, copie e cole este link no navegador:<br>
+      <a href="${resetUrl}" style="color:#2563eb;word-break:break-all;">${resetUrl}</a>
+    </p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject: "Redefinir sua senha — Radul",
+        html,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorBody = await res.text();
+      console.error(`[email] Resend API error ${res.status}: ${errorBody}`);
+      return { success: false, error: `Email API returned ${res.status}` };
+    }
+
+    return { success: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[email] Failed to send:", msg);
+    return { success: false, error: msg };
+  }
+}
+
 async function handleRequestPasswordReset(
   body: Record<string, unknown>,
   env: Env,
+  request: Request,
 ): Promise<Response> {
   const identifier = String(body.identifier ?? "").trim(); // CPF or email
 
   if (!identifier) {
     return errorResponse(400, "identifier (CPF or email) is required");
   }
+
+  // Generic success response (used for both found and not-found to prevent enumeration)
+  const genericSuccess = corsResponse(200, {
+    success: true,
+    message:
+      "Se a conta existir, um link de recuperação será enviado por email.",
+  });
 
   try {
     // 1. Look up user
@@ -941,14 +1022,18 @@ async function handleRequestPasswordReset(
 
     if (!Array.isArray(users) || users.length === 0) {
       // Always return success to prevent user enumeration
-      return corsResponse(200, {
-        success: true,
-        message:
-          "If the account exists, a reset link will be sent to your email",
-      });
+      return genericSuccess;
     }
 
     const user = users[0] as { id: string; email: string };
+
+    if (!user.email) {
+      // User has no email — can't send reset link, but still return generic success
+      console.warn(
+        `[auth/request-password-reset] User ${user.id} has no email`,
+      );
+      return genericSuccess;
+    }
 
     // 2. Generate a cryptographically secure random token (32 bytes = 64 hex chars)
     const randomBytes = crypto.getRandomValues(new Uint8Array(32));
@@ -960,7 +1045,7 @@ async function handleRequestPasswordReset(
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     // 4. Insert token into password_reset_tokens table
-    // First, delete any existing unused tokens for this user
+    // First, soft-delete any existing unused tokens for this user
     await executeQuery(
       env,
       "UPDATE password_reset_tokens SET deleted_at = NOW() WHERE user_id = $1 AND used_at IS NULL AND deleted_at IS NULL",
@@ -974,19 +1059,24 @@ async function handleRequestPasswordReset(
       [user.id, token, expiresAt],
     );
 
-    // 5. Return token to client
-    // NOTE: In production, the token would be sent via email by N8N webhook.
-    // For now, we return it directly for testing/demo purposes.
-    return corsResponse(200, {
-      success: true,
-      token,
-      message:
-        "Reset token generated. Valid for 24 hours. Send this to the client via email.",
-    });
+    // 5. Build reset URL from request origin
+    const origin = request.headers.get("Origin") || "https://app.radul.com.br";
+    const resetUrl = `${origin}/reset-password?token=${token}`;
+
+    // 6. Send email via Resend
+    const emailResult = await sendPasswordResetEmail(env, user.email, resetUrl);
+    if (!emailResult.success) {
+      console.error(
+        `[auth/request-password-reset] Email failed: ${emailResult.error}`,
+      );
+      // Still return success to not leak info — but log the failure
+    }
+
+    return genericSuccess;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[auth/request-password-reset]", message);
-    return errorResponse(500, "Failed to generate reset token");
+    return errorResponse(500, "Failed to process password reset request");
   }
 }
 
@@ -1891,7 +1981,7 @@ export default {
         case "/auth/verify-password":
           return handleVerifyPassword(body, env);
         case "/auth/request-password-reset":
-          return handleRequestPasswordReset(body, env);
+          return handleRequestPasswordReset(body, env, request);
         case "/auth/confirm-password-reset":
           return handleConfirmPasswordReset(body, env);
         case "/auth/register":

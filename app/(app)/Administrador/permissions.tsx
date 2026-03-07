@@ -1,4 +1,4 @@
-import { ThemedText } from "@/components/themed-text";
+﻿import { ThemedText } from "@/components/themed-text";
 import { CrudScreen, type CrudFieldConfig } from "@/components/ui/CrudScreen";
 import { useAuth } from "@/core/auth/AuthContext";
 import { ProtectedRoute } from "@/core/auth/ProtectedRoute";
@@ -105,28 +105,23 @@ export default function PermissionsScreen() {
 
   if (!isRadulSuperAdmin(user)) {
     return (
-      <ProtectedRoute
-        requiredPermission={PERMISSIONS.ADMIN_FULL}
-        fallback={
-          <View style={{ flex: 1 }}>
-            <CrudScreen<Row>
-              tableName="permissions"
-              title="Permissões"
-              subtitle="Acesso exclusivo do super admin da Radul"
-              searchPlaceholder=""
-              fields={[]}
-              loadItems={async () => []}
-              createItem={async () => ({})}
-              updateItem={async () => ({})}
-              hideAddButton
-              getId={() => ""}
-              getTitle={() => ""}
-            />
-          </View>
-        }
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
       >
-        <View style={{ flex: 1 }} />
-      </ProtectedRoute>
+        <ThemedText style={{ fontSize: 18, fontWeight: "700", color: textColor }}>
+          Acesso restrito
+        </ThemedText>
+        <ThemedText
+          style={{ marginTop: 8, textAlign: "center", color: mutedColor }}
+        >
+          Esta tela e exclusiva para o super admin da Radul.
+        </ThemedText>
+      </View>
     );
   }
 
@@ -134,22 +129,22 @@ export default function PermissionsScreen() {
     { key: "id", label: "Id", placeholder: "Id", visibleInForm: false },
     {
       key: "code",
-      label: "Código",
+      label: "CÃ³digo",
       placeholder: "code",
       required: true,
       visibleInList: true,
     },
     {
       key: "display_name",
-      label: "Nome Amigável",
-      placeholder: "Ex: Ler Usuários",
+      label: "Nome AmigÃ¡vel",
+      placeholder: "Ex: Ler UsuÃ¡rios",
       required: true,
       visibleInList: true,
     },
     {
       key: "description",
-      label: "Descrição",
-      placeholder: "Descrição",
+      label: "DescriÃ§Ã£o",
+      placeholder: "DescriÃ§Ã£o",
       type: "multiline",
     },
     {
@@ -193,16 +188,16 @@ export default function PermissionsScreen() {
             <ThemedText
               style={{ color: tintColor, fontWeight: "700", fontSize: 13 }}
             >
-              Sincronizar Permissões
+              Sincronizar PermissÃµes
             </ThemedText>
           </TouchableOpacity>
         </View>
 
         <CrudScreen<Row>
           tableName="permissions"
-          title="Permissões"
-          subtitle="Gestão de Permissões do Sistema"
-          searchPlaceholder="Buscar por código, nome ou descrição"
+          title="PermissÃµes"
+          subtitle="GestÃ£o de PermissÃµes do Sistema"
+          searchPlaceholder="Buscar por cÃ³digo, nome ou descriÃ§Ã£o"
           searchFields={["code", "display_name", "description"]}
           fields={fields}
           loadItems={listRows}
@@ -210,9 +205,9 @@ export default function PermissionsScreen() {
           updateItem={updateRow}
           deleteItem={deleteRow}
           getDetails={(item) => [
-            { label: "Código", value: String(item.code ?? "-") },
+            { label: "CÃ³digo", value: String(item.code ?? "-") },
             { label: "Nome", value: String(item.display_name ?? "-") },
-            { label: "Descrição", value: String(item.description ?? "-") },
+            { label: "DescriÃ§Ã£o", value: String(item.description ?? "-") },
             {
               label: "Roles vinculadas",
               value: String(item.permission_roles_count ?? 0),
@@ -280,10 +275,11 @@ export default function PermissionsScreen() {
           }}
           getId={(item) => String(item.id ?? "")}
           getTitle={(item) =>
-            String(item.display_name ?? item.code ?? "Permissão")
+            String(item.display_name ?? item.code ?? "PermissÃ£o")
           }
         />
       </View>
     </ProtectedRoute>
   );
 }
+

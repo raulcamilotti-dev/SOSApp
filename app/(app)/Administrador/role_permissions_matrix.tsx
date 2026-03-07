@@ -10,8 +10,8 @@ import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useAuth } from "@/core/auth/AuthContext";
 import {
-  type CrudAction,
-  getPermissionDomains,
+    type CrudAction,
+    getPermissionDomains,
   type Permission,
   type PermissionDomain,
   PERMISSIONS,
