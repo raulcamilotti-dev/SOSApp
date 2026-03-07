@@ -1,15 +1,16 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/services/api";
 import {
   buildSearchParams,
   countCrud,
   CRUD_ENDPOINT,
+  type CrudFilter,
   normalizeCrudList,
 } from "@/services/crud";
 import {
   loadTenantFiscalConfig,
   validateTenantFiscalReadiness,
 } from "@/services/fiscal-config";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type SetupStepId =
   | "catalog"
@@ -30,6 +31,7 @@ export interface SetupWizardStep {
 export interface SetupWizardStepSnapshot {
   status: SetupStepStatus;
   progress?: number;
+  next_route?: string;
 }
 
 export interface SetupWizardStatusSnapshot {
@@ -84,7 +86,7 @@ export const SETUP_WIZARD_STEPS: SetupWizardStep[] = [
   },
 ];
 
-const SETUP_CACHE_PREFIX = "setup_wizard_status_v2:";
+const SETUP_CACHE_PREFIX = "setup_wizard_status_v3:";
 export const SETUP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function defaultSnapshot(): SetupWizardStatusSnapshot {
@@ -134,6 +136,10 @@ function normalizeSnapshot(raw: unknown): SetupWizardStatusComputed {
     base.steps[step.id] = {
       status,
       ...(Number.isFinite(progress) ? { progress } : {}),
+      next_route:
+        typeof rawStep.next_route === "string" && rawStep.next_route
+          ? rawStep.next_route
+          : step.route,
     };
   }
 
@@ -175,7 +181,80 @@ function stepFromProgress(progress: number): SetupWizardStepSnapshot {
   return { status: "partial", progress: Number(progress.toFixed(2)) };
 }
 
-async function readCache(tenantId: string): Promise<CachedWizardPayload | null> {
+function parseBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return ["true", "1", "yes", "sim", "ativo"].includes(normalized);
+}
+
+async function safeCount(
+  table: string,
+  tenantId: string,
+  includeActiveFilter = false,
+): Promise<number> {
+  try {
+    const filters: CrudFilter[] = [{ field: "tenant_id", value: tenantId }];
+    if (includeActiveFilter) {
+      filters.push({
+        field: "is_active",
+        value: "true",
+        operator: "equal",
+      });
+    }
+    return await countCrud(table, filters, { autoExcludeDeleted: true });
+  } catch {
+    if (includeActiveFilter) {
+      try {
+        return await countCrud(
+          table,
+          [{ field: "tenant_id", value: tenantId }],
+          { autoExcludeDeleted: true },
+        );
+      } catch {
+        return 0;
+      }
+    }
+    return 0;
+  }
+}
+
+async function safeListServiceTypesForWorkflow(
+  tenantId: string,
+): Promise<Record<string, unknown>[]> {
+  try {
+    const response = await api.post(CRUD_ENDPOINT, {
+      action: "list",
+      table: "service_types",
+      ...buildSearchParams([{ field: "tenant_id", value: tenantId }], {
+        autoExcludeDeleted: true,
+        fields: ["id", "default_template_id", "is_active"],
+        limit: 10000,
+      }),
+    });
+    return normalizeCrudList<Record<string, unknown>>(response.data);
+  } catch {
+    try {
+      const response = await api.post(CRUD_ENDPOINT, {
+        action: "list",
+        table: "service_types",
+        ...buildSearchParams([{ field: "tenant_id", value: tenantId }], {
+          autoExcludeDeleted: true,
+          fields: ["id", "default_template_id"],
+          limit: 10000,
+        }),
+      });
+      return normalizeCrudList<Record<string, unknown>>(response.data);
+    } catch {
+      return [];
+    }
+  }
+}
+
+async function readCache(
+  tenantId: string,
+): Promise<CachedWizardPayload | null> {
   try {
     const raw = await AsyncStorage.getItem(getCacheKey(tenantId));
     if (!raw) return null;
@@ -199,9 +278,7 @@ async function writeCache(
   await AsyncStorage.setItem(getCacheKey(tenantId), JSON.stringify(payload));
 }
 
-async function fetchStatusFromServer(
-  tenantId: string,
-): Promise<{
+async function fetchStatusFromServer(tenantId: string): Promise<{
   computed: SetupWizardStatusComputed;
   hasSnapshot: boolean;
   tenantConfig: Record<string, unknown>;
@@ -256,95 +333,58 @@ async function computeSnapshotFromTenantData(
     banksCount,
     bankAccountsCount,
     activeWorkflowCount,
-    serviceTypesForWorkflowRes,
-    tenantsRes,
+    serviceTypesForWorkflow,
+    tenantRows,
     fiscalConfig,
   ] = await Promise.all([
-    countCrud(
-      "service_categories",
-      [
-        { field: "tenant_id", value: tenantId },
-        { field: "is_active", value: "true", operator: "equal" },
-      ],
-      { autoExcludeDeleted: true },
-    ),
-    countCrud(
-      "service_types",
-      [
-        { field: "tenant_id", value: tenantId },
-        { field: "is_active", value: "true", operator: "equal" },
-      ],
-      { autoExcludeDeleted: true },
-    ),
-    countCrud(
-      "services",
-      [
-        { field: "tenant_id", value: tenantId },
-        { field: "is_active", value: "true", operator: "equal" },
-      ],
-      { autoExcludeDeleted: true },
-    ),
-    countCrud(
-      "chart_of_accounts",
-      [
-        { field: "tenant_id", value: tenantId },
-        { field: "is_active", value: "true", operator: "equal" },
-      ],
-      { autoExcludeDeleted: true },
-    ),
-    countCrud(
-      "banks",
-      [{ field: "tenant_id", value: tenantId }],
-      { autoExcludeDeleted: true },
-    ),
-    countCrud(
-      "bank_accounts",
-      [{ field: "tenant_id", value: tenantId }],
-      { autoExcludeDeleted: true },
-    ),
-    countCrud(
-      "workflow_templates",
-      [
-        { field: "tenant_id", value: tenantId },
-        { field: "is_active", value: "true", operator: "equal" },
-      ],
-      { autoExcludeDeleted: true },
-    ),
-    api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "service_types",
-      ...buildSearchParams([{ field: "tenant_id", value: tenantId }], {
-        autoExcludeDeleted: true,
-        fields: ["id", "default_template_id", "is_active"],
-        limit: 10000,
-      }),
-    }),
-    api.post(CRUD_ENDPOINT, {
-      action: "list",
-      table: "tenants",
-      fields: "id,payments_enabled,pix_enabled,card_enabled,config",
-      ...buildSearchParams([{ field: "id", value: tenantId }], { limit: 1 }),
-    }),
-    loadTenantFiscalConfig(tenantId),
+    safeCount("service_categories", tenantId, true),
+    safeCount("service_types", tenantId, true),
+    safeCount("services", tenantId, true),
+    safeCount("chart_of_accounts", tenantId, false),
+    safeCount("banks", tenantId, false),
+    safeCount("bank_accounts", tenantId, false),
+    safeCount("workflow_templates", tenantId, true),
+    safeListServiceTypesForWorkflow(tenantId),
+    (async () => {
+      try {
+        const res = await api.post(CRUD_ENDPOINT, {
+          action: "list",
+          table: "tenants",
+          fields: "id,payments_enabled,pix_enabled,card_enabled,config",
+          ...buildSearchParams([{ field: "id", value: tenantId }], {
+            limit: 1,
+          }),
+        });
+        return normalizeCrudList<Record<string, unknown>>(res.data);
+      } catch {
+        return [];
+      }
+    })(),
+    loadTenantFiscalConfig(tenantId).catch(() => null),
   ]);
 
-  const tenantRows = normalizeCrudList<Record<string, unknown>>(tenantsRes.data);
   const tenantRow = tenantRows[0] ?? {};
-  const linkedTypeCount = normalizeCrudList<Record<string, unknown>>(
-    serviceTypesForWorkflowRes.data,
-  ).filter((row) => {
+  const linkedTypeCount = serviceTypesForWorkflow.filter((row) => {
     if (row.is_active === false) return false;
     const tpl = String(row.default_template_id ?? "").trim();
     return !!tpl;
   }).length;
-  const paymentsEnabled = Boolean(tenantRow.payments_enabled);
-  const pixEnabled = Boolean(tenantRow.pix_enabled);
-  const cardEnabled = Boolean(tenantRow.card_enabled);
+  const paymentsEnabled = parseBoolean(tenantRow.payments_enabled);
+  const pixEnabled = parseBoolean(tenantRow.pix_enabled);
+  const cardEnabled = parseBoolean(tenantRow.card_enabled);
 
   const fiscalReadiness = validateTenantFiscalReadiness(fiscalConfig, "nfe");
 
-  const catalogChecks = [categoriesCount > 0, serviceTypesCount > 0, servicesCount > 0];
-  const financialChecks = [chartCount > 0, banksCount > 0, bankAccountsCount > 0];
+  const catalogChecks = [
+    categoriesCount > 0,
+    serviceTypesCount > 0,
+    servicesCount > 0,
+  ];
+  const financialChecks = [
+    chartCount > 0,
+    banksCount > 0,
+    bankAccountsCount > 0,
+  ];
   const billingChecks = [
     paymentsEnabled,
     pixEnabled || cardEnabled,
@@ -360,18 +400,58 @@ async function computeSnapshotFromTenantData(
   const workflowChecks = [activeWorkflowCount > 0, linkedTypeCount > 0];
 
   const ratio = (checks: boolean[]) =>
-    checks.length === 0
-      ? 0
-      : checks.filter(Boolean).length / checks.length;
+    checks.length === 0 ? 0 : checks.filter(Boolean).length / checks.length;
+
+  const catalogNextRoute =
+    categoriesCount <= 0
+      ? "/Administrador/ServiceCategories"
+      : serviceTypesCount <= 0
+        ? "/Administrador/ServiceTypes"
+        : servicesCount <= 0
+          ? "/Administrador/services"
+          : "/Administrador/ServiceCategories";
+
+  const financialNextRoute =
+    chartCount <= 0
+      ? "/Administrador/plano-contas"
+      : banksCount <= 0
+        ? "/Administrador/bancos"
+        : bankAccountsCount <= 0
+          ? "/Administrador/contas-bancarias"
+          : "/Administrador/plano-contas";
+
+  const billingNextRoute =
+    bankAccountsCount <= 0
+      ? "/Administrador/contas-bancarias"
+      : "/Administrador/recebimentos-config";
+
+  const workflowNextRoute =
+    activeWorkflowCount <= 0
+      ? "/Administrador/workflow_templates"
+      : linkedTypeCount <= 0
+        ? "/Administrador/ServicosWorkflow"
+        : "/Administrador/workflow_templates";
 
   const steps: Record<SetupStepId, SetupWizardStepSnapshot> = {
-    catalog: stepFromProgress(ratio(catalogChecks)),
-    financial_base: stepFromProgress(ratio(financialChecks)),
-    billing: stepFromProgress(ratio(billingChecks)),
+    catalog: {
+      ...stepFromProgress(ratio(catalogChecks)),
+      next_route: catalogNextRoute,
+    },
+    financial_base: {
+      ...stepFromProgress(ratio(financialChecks)),
+      next_route: financialNextRoute,
+    },
+    billing: {
+      ...stepFromProgress(ratio(billingChecks)),
+      next_route: billingNextRoute,
+    },
     fiscal: stepFromProgress(
       fiscalReadiness.ok ? 1 : Math.min(ratio(fiscalChecks), 0.8),
     ),
-    workflow: stepFromProgress(ratio(workflowChecks)),
+    workflow: {
+      ...stepFromProgress(ratio(workflowChecks)),
+      next_route: workflowNextRoute,
+    },
   };
 
   return {
@@ -393,17 +473,35 @@ export async function getSetupWizardStatus(
   const cached = await readCache(tenantId);
   if (!forceRefresh && cached) {
     const ageMs = Date.now() - new Date(cached.fetchedAt).getTime();
-    if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < ttlMs) {
+    const canUseCachedPending =
+      cached.data.overallStatus !== "pending" || cached.data.completedSteps > 0;
+    if (
+      Number.isFinite(ageMs) &&
+      ageMs >= 0 &&
+      ageMs < ttlMs &&
+      canUseCachedPending
+    ) {
       return cached.data;
     }
   }
 
   try {
-    const { computed, hasSnapshot, tenantConfig } = await fetchStatusFromServer(
-      tenantId,
-    );
+    const { computed, hasSnapshot, tenantConfig } =
+      await fetchStatusFromServer(tenantId);
 
-    if (hasSnapshot && !forceRefresh) {
+    const canUseServerSnapshot =
+      computed.overallStatus !== "pending" || computed.completedSteps > 0;
+    const snapshotHasNextRoutes = SETUP_WIZARD_STEPS.every((step) => {
+      const route = computed.snapshot.steps[step.id]?.next_route;
+      return typeof route === "string" && route.length > 0;
+    });
+
+    if (
+      hasSnapshot &&
+      !forceRefresh &&
+      canUseServerSnapshot &&
+      snapshotHasNextRoutes
+    ) {
       await writeCache(tenantId, computed);
       return computed;
     }

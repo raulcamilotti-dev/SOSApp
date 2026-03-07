@@ -1,3 +1,4 @@
+import { ADMIN_PAGES } from "@/core/admin/admin-pages";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import {
@@ -8,8 +9,9 @@ import {
   type SetupWizardStatusComputed,
 } from "@/services/setup-wizard-status";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -66,9 +68,12 @@ export default function SetupWizardScreen() {
     [tenantId],
   );
 
-  useEffect(() => {
-    load(false);
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      load(true);
+    }, [load]),
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -80,6 +85,14 @@ export default function SetupWizardScreen() {
     return Math.round((status.completedSteps / status.totalSteps) * 100);
   }, [status]);
 
+  const routeTitleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const page of ADMIN_PAGES) {
+      if (page.route) map.set(page.route, page.title);
+    }
+    return map;
+  }, []);
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor }}
@@ -88,7 +101,9 @@ export default function SetupWizardScreen() {
       }
       showsVerticalScrollIndicator={false}
     >
-      <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 }}>
+      <View
+        style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 }}
+      >
         <View
           style={{
             flexDirection: "row",
@@ -130,7 +145,8 @@ export default function SetupWizardScreen() {
               : "Nenhum status registrado ainda"}
           </Text>
           <Text style={{ color: mutedColor, marginTop: 4, fontSize: 12 }}>
-            Atualiza automaticamente a cada {Math.round(SETUP_CACHE_TTL_MS / 3600000)}h.
+            Atualiza automaticamente a cada{" "}
+            {Math.round(SETUP_CACHE_TTL_MS / 3600000)}h.
           </Text>
         </View>
 
@@ -162,12 +178,15 @@ export default function SetupWizardScreen() {
         ) : (
           <View style={{ gap: 8 }}>
             {SETUP_WIZARD_STEPS.map((step, index) => {
-              const stepStatus = status?.snapshot.steps[step.id]?.status ?? "pending";
+              const stepSnapshot = status?.snapshot.steps[step.id];
+              const stepStatus = stepSnapshot?.status ?? "pending";
+              const targetRoute = stepSnapshot?.next_route || step.route;
+              const nextLabel = routeTitleMap.get(targetRoute) ?? targetRoute;
               const color = statusColor(stepStatus);
               return (
                 <Pressable
                   key={step.id}
-                  onPress={() => router.push(step.route as any)}
+                  onPress={() => router.push(targetRoute as any)}
                   style={({ pressed }) => ({
                     borderWidth: 1,
                     borderColor,
@@ -195,11 +214,30 @@ export default function SetupWizardScreen() {
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: textColor, fontSize: 14, fontWeight: "700" }}>
+                    <Text
+                      style={{
+                        color: textColor,
+                        fontSize: 14,
+                        fontWeight: "700",
+                      }}
+                    >
                       {step.title}
                     </Text>
-                    <Text style={{ color: mutedColor, fontSize: 12, marginTop: 2 }}>
+                    <Text
+                      style={{ color: mutedColor, fontSize: 12, marginTop: 2 }}
+                    >
                       {step.description}
+                    </Text>
+                    <Text
+                      style={{
+                        color: mutedColor,
+                        fontSize: 11,
+                        marginTop: 4,
+                        fontWeight: "600",
+                      }}
+                      numberOfLines={1}
+                    >
+                      Proximo: {nextLabel}
                     </Text>
                   </View>
                   <View
