@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  fiscal-nfe:
+    build: .
+    container_name: fiscal-nfe
+    restart: unless-stopped
+    ports:
+      - "8580:8580"
+    environment:
+      - FISCAL_API_KEY=${FISCAL_API_KEY:-changeme}
+      - PHP_MEMORY_LIMIT=256M
+    volumes:
+      # Persist certificates and XML archives outside the container
+      - fiscal-data:/app/storage
+    networks:
+      - sosapp
+
+volumes:
+  fiscal-data:
+    driver: local
+
+networks:
+  sosapp:
+    external: true

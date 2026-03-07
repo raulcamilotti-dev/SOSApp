@@ -22,8 +22,10 @@ compatibility_flags = ["nodejs_compat"]
 ENVIRONMENT = "production"
 GOOGLE_CLIENT_IDS = ""
 RESEND_FROM_EMAIL = "Radul <noreply@mail.radul.com.br>"
+CF_ANALYTICS_SITE_TAG = "666e0c812f89489685d1a6a8aac08313"
 # JWT_SECRET is a secret, not a var - set via: npx wrangler secret put JWT_SECRET
 # RESEND_API_KEY is a secret - set via: npx wrangler secret put RESEND_API_KEY
+# CLOUDFLARE_ACCOUNT_ID is a secret - set via: npx wrangler secret put CLOUDFLARE_ACCOUNT_ID
 
 # KV namespace for public API rate limiting (persistent across isolates)
 # Create via: npx wrangler kv namespace create "RATE_LIMIT_KV"
@@ -46,5 +48,24 @@ invocation_logs = true
 
 [observability.traces]
 enabled = false
+
+# ─── Workers Containers (beta) — PHP fiscal microservice ───
+# The FiscalContainer class (Durable Object) manages a Docker container
+# running the sped-nfe PHP service. Cold start ~2-3s, scale-to-zero after 10m idle.
+# Docker must be running locally during `npx wrangler deploy`.
+
+[[containers]]
+class_name = "FiscalContainer"
+image = "../../microservices/fiscal-nfe"
+max_instances = 1
+instance_type = "lite"
+
+[[durable_objects.bindings]]
+name = "FISCAL_CONTAINER"
+class_name = "FiscalContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["FiscalContainer"]
 persist = true
 head_sampling_rate = 1

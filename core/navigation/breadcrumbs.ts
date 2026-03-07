@@ -5,6 +5,7 @@
 export const breadcrumbMap: Record<string, string> = {
   /* ---- Raiz & Grupos ---- */
   "": "Início",
+  Inicio: "Início",
   home: "Início",
   Servicos: "Serviços",
   Usuario: "Usuário",
@@ -86,6 +87,7 @@ export const breadcrumbMap: Record<string, string> = {
   LogsAgendamentos: "Logs de Agendamentos",
   LogsAvaliacoes: "Logs de Avaliações",
   "marketplace-config": "Configuração do Marketplace",
+  "web-analytics": "Web Analytics",
   metabase: "Metabase (BI)",
   "module-detail": "Módulo",
   modulos: "Módulos",
@@ -109,6 +111,7 @@ export const breadcrumbMap: Record<string, string> = {
   role_permissions: "Permissões dos Papéis",
   role_permissions_matrix: "Matriz de Permissões",
   "saas-dashboard": "Dashboard SaaS",
+  "setup-wizard": "Assistente de Parametrização",
   Separacao: "Separação",
   ServiceCategories: "Categorias de Serviço",
   services: "Serviços",

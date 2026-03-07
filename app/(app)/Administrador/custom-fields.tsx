@@ -23,7 +23,7 @@ import {
     normalizeCrudList,
 } from "@/services/crud";
 import {
-    CUSTOM_FIELDS_ALLOWED_TABLES,
+    CUSTOM_FIELDS_WELL_KNOWN_TABLES,
     type CustomFieldDefinition,
 } from "@/services/custom-fields";
 
@@ -32,6 +32,12 @@ const TABLE_LABELS: Record<string, string> = {
   customers: "Clientes",
   service_orders: "Ordens de Serviço",
   leads: "Leads",
+  partners: "Parceiros",
+  companies: "Empresas",
+  products: "Produtos",
+  suppliers: "Fornecedores",
+  contracts: "Contratos",
+  invoices: "Faturas",
 };
 
 const formatTableLabel = (table: string): string =>
@@ -65,7 +71,7 @@ const MASK_TYPE_OPTIONS = [
 ];
 
 /* ── Target table options ── */
-const TARGET_TABLE_OPTIONS = CUSTOM_FIELDS_ALLOWED_TABLES.map((table) => ({
+const TARGET_TABLE_OPTIONS = CUSTOM_FIELDS_WELL_KNOWN_TABLES.map((table) => ({
   label: formatTableLabel(table),
   value: table,
 }));

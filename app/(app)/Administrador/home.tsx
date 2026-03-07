@@ -267,16 +267,6 @@ export default function AdminHomeScreen() {
           </Text>
         </View>
 
-        {/* ---- Guided Tour Banner ---- */}
-        <TourBanner
-          tintColor={tintColor}
-          cardColor={cardColor}
-          borderColor={borderColor}
-          textColor={textColor}
-          mutedColor={mutedColor}
-          isDark={isDark}
-        />
-
         {/* ---- Quick Access ---- */}
         {quickPages.length > 0 && (
           <View style={{ marginBottom: 24 }}>
@@ -516,6 +506,18 @@ export default function AdminHomeScreen() {
             </Text>
           </View>
         )}
+
+        {/* ---- Guided Tour Banner ---- */}
+        <View style={{ marginTop: 16 }}>
+          <TourBanner
+            tintColor={tintColor}
+            cardColor={cardColor}
+            borderColor={borderColor}
+            textColor={textColor}
+            mutedColor={mutedColor}
+            isDark={isDark}
+          />
+        </View>
       </View>
     </ScrollView>
   );

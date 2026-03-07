@@ -8,7 +8,7 @@ import { useTenantModules } from "@/core/modules/ModulesContext";
 import { useThemeColor } from "@/hooks/use-theme-color";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Appearance,
@@ -29,7 +29,8 @@ type AdminPageItem = (typeof ADMIN_PAGES)[number];
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const FAVORITES_KEY = "admin_quick_access_favorites";
+const FAVORITES_KEY_ADMIN = "admin_quick_access_favorites";
+const FAVORITES_KEY_INICIO = "inicio_quick_access_favorites";
 const MAX_FAVORITES = 6;
 
 /* ------------------------------------------------------------------ */
@@ -37,6 +38,7 @@ const MAX_FAVORITES = 6;
 /* ------------------------------------------------------------------ */
 
 export default function EditFavoritesScreen() {
+  const params = useLocalSearchParams<{ scope?: string }>();
   const { user } = useAuth();
   const { hasAnyPermission } = usePermissions();
   const isRadul = isRadulUser(user);
@@ -51,6 +53,17 @@ export default function EditFavoritesScreen() {
   const borderColor = useThemeColor({}, "border");
   const tintColor = useThemeColor({}, "tint");
   const isDark = Appearance.getColorScheme() === "dark";
+  const scope = Array.isArray(params.scope) ? params.scope[0] : params.scope;
+  const isInicioScope = scope === "inicio";
+  const favoritesKey = isInicioScope
+    ? FAVORITES_KEY_INICIO
+    : FAVORITES_KEY_ADMIN;
+  const titleText = isInicioScope
+    ? "Editar Atalhos do Inicio"
+    : "Editar Acesso Rapido";
+  const subtitleText = isInicioScope
+    ? `Escolha ate ${MAX_FAVORITES} atalhos para a tela Inicio.`
+    : `Escolha ate ${MAX_FAVORITES} funcionalidades para acesso rapido na tela inicial.`;
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -59,7 +72,7 @@ export default function EditFavoritesScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const favs = await AsyncStorage.getItem(FAVORITES_KEY);
+        const favs = await AsyncStorage.getItem(favoritesKey);
         if (favs) setSelectedIds(JSON.parse(favs));
       } catch {
         // ignore
@@ -67,7 +80,7 @@ export default function EditFavoritesScreen() {
         setLoaded(true);
       }
     })();
-  }, []);
+  }, [favoritesKey]);
 
   // ---- Page access check ----
   const canAccessPage = useCallback(
@@ -129,15 +142,15 @@ export default function EditFavoritesScreen() {
       } else {
         return prev; // max reached
       }
-      AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(next)).catch(() => {});
+      AsyncStorage.setItem(favoritesKey, JSON.stringify(next)).catch(() => {});
       return next;
     });
-  }, []);
+  }, [favoritesKey]);
 
   const clearAll = useCallback(() => {
     setSelectedIds([]);
-    AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify([])).catch(() => {});
-  }, []);
+    AsyncStorage.setItem(favoritesKey, JSON.stringify([])).catch(() => {});
+  }, [favoritesKey]);
 
   if (!loaded) return null;
 
@@ -174,11 +187,10 @@ export default function EditFavoritesScreen() {
               marginBottom: 4,
             }}
           >
-            Editar Acesso Rápido
+            {titleText}
           </Text>
           <Text style={{ fontSize: 14, color: mutedColor, marginBottom: 6 }}>
-            Escolha até {MAX_FAVORITES} funcionalidades para acesso rápido na
-            tela inicial.
+            {subtitleText}
           </Text>
 
           {/* Counter + clear */}

@@ -22,7 +22,8 @@
 /*   14. ocr_config (FK → steps - optional)                            */
 /*   15. tenant config update                                          */
 /*   16. Link service_types → default_template_id                      */
-/*   17. custom_fields (optional)                                      */
+/*  16b. entity_definitions (optional)                                 */
+/*   17. custom_fields (optional, FK → entity_definitions)             */
 /*   18. agents (optional AI)                                          */
 /*   19. playbooks (FK → agents)                                       */
 /*   20. playbook_rules (FK → playbooks)                               */
@@ -35,8 +36,8 @@
 /* ------------------------------------------------------------------ */
 
 import type {
-  PackWorkflowTemplate,
-  TemplatePack,
+    PackWorkflowTemplate,
+    TemplatePack,
 } from "@/data/template-packs/types";
 import { api } from "./api";
 import { buildSearchParams, CRUD_ENDPOINT, normalizeCrudList } from "./crud";
@@ -948,12 +949,53 @@ export async function applyTemplatePack(
     }
 
     /* -------------------------------------------------------------- */
+    /*  16b. Entity Definitions (optional, before custom fields)       */
+    /* -------------------------------------------------------------- */
+    const entityRefMap: RefMap = {};
+    if (pack.entity_definitions && pack.entity_definitions.length > 0) {
+      progress("Criando entidades personalizadas...");
+      for (const ed of pack.entity_definitions) {
+        try {
+          const id = await crudCreate("entity_definitions", {
+            tenant_id: tenantId,
+            ref_key: ed.ref_key,
+            name: ed.name,
+            name_plural: ed.name_plural,
+            description: ed.description ?? null,
+            icon: ed.icon ?? "cube-outline",
+            color: ed.color ?? "#6366f1",
+            parent_table: ed.parent_table ?? null,
+            parent_fk_field: ed.parent_fk_field ?? null,
+            is_system: ed.is_system ?? true,
+            module_key: ed.module_key ?? null,
+            config: ed.config ? JSON.stringify(ed.config) : "{}",
+            sort_order: ed.sort_order ?? 0,
+          });
+          if (id) entityRefMap[ed.ref_key] = id;
+          result.counts.entity_definitions =
+            (result.counts.entity_definitions ?? 0) + 1;
+        } catch (err) {
+          result.errors.push(
+            `entity_definition[${ed.ref_key}]: ${describeError(err)}`,
+          );
+        }
+      }
+    }
+
+    /* -------------------------------------------------------------- */
     /*  17. Custom Field Definitions (optional)                        */
     /* -------------------------------------------------------------- */
     if (pack.custom_fields && pack.custom_fields.length > 0) {
       progress("Aplicando campos customizados...");
       for (const cf of pack.custom_fields) {
         try {
+          // Resolve entity_definition_id if target_table is an entity ref (entity::ref_key)
+          let entityDefId: string | null = null;
+          if (cf.target_table.startsWith("entity::")) {
+            const entityRef = cf.target_table.replace("entity::", "");
+            entityDefId = entityRefMap[entityRef] ?? null;
+          }
+
           await crudCreate("custom_field_definitions", {
             tenant_id: tenantId,
             target_table: cf.target_table,
@@ -979,6 +1021,7 @@ export async function applyTemplatePack(
             show_when: cf.show_when ? JSON.stringify(cf.show_when) : null,
             is_system: true,
             pack_ref_key: cf.ref_key,
+            ...(entityDefId ? { entity_definition_id: entityDefId } : {}),
           });
           result.counts.custom_fields = (result.counts.custom_fields ?? 0) + 1;
         } catch (err) {
@@ -1548,6 +1591,9 @@ export function validatePack(pack: TemplatePack): {
   if (pack.custom_fields) {
     const cfSeen = new Set<string>();
     const fieldKeysByTable = new Map<string, Set<string>>();
+    const entityDefRefs = new Set(
+      (pack.entity_definitions ?? []).map((e) => e.ref_key),
+    );
 
     for (const cf of pack.custom_fields) {
       // ref_key uniqueness (also checked against global seen set)
@@ -1573,6 +1619,16 @@ export function validatePack(pack: TemplatePack): {
       }
       tableKeys.add(cf.field_key);
 
+      // Validate entity:: target_table references
+      if (cf.target_table.startsWith("entity::")) {
+        const entityRef = cf.target_table.replace("entity::", "");
+        if (!entityDefRefs.has(entityRef)) {
+          errors.push(
+            `custom_field[${cf.ref_key}]: entity target '${entityRef}' not found in entity_definitions`,
+          );
+        }
+      }
+
       // Validate required fields
       if (!cf.target_table) {
         errors.push(`custom_field[${cf.ref_key}]: missing target_table`);
@@ -1582,6 +1638,26 @@ export function validatePack(pack: TemplatePack): {
       }
       if (!cf.field_type) {
         errors.push(`custom_field[${cf.ref_key}]: missing field_type`);
+      }
+    }
+  }
+
+  // Validate entity_definitions — unique ref_keys
+  if (pack.entity_definitions) {
+    const edSeen = new Set<string>();
+    for (const ed of pack.entity_definitions) {
+      if (seen.has(ed.ref_key)) {
+        errors.push(`Duplicate ref_key: ${ed.ref_key} (entity_definition)`);
+      }
+      seen.add(ed.ref_key);
+
+      if (edSeen.has(ed.ref_key)) {
+        errors.push(`Duplicate entity_definition ref_key: ${ed.ref_key}`);
+      }
+      edSeen.add(ed.ref_key);
+
+      if (!ed.name) {
+        errors.push(`entity_definition[${ed.ref_key}]: missing name`);
       }
     }
   }

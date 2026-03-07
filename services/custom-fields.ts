@@ -31,19 +31,28 @@ import {
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Tables that support custom fields (v1 whitelist) */
-export const CUSTOM_FIELDS_ALLOWED_TABLES = [
+/**
+ * Well-known tables for the custom fields admin UI dropdown.
+ * NOT a whitelist — custom fields can target ANY table or entity.
+ * Custom entities use "entity::<ref_key>" as target_table.
+ */
+export const CUSTOM_FIELDS_WELL_KNOWN_TABLES = [
   "customers",
   "service_orders",
   "leads",
+  "partners",
+  "companies",
+  "products",
+  "suppliers",
+  "contracts",
+  "invoices",
 ] as const;
 
-export type CustomFieldTargetTable =
-  (typeof CUSTOM_FIELDS_ALLOWED_TABLES)[number];
+export type CustomFieldTargetTable = string;
 
-/** Check if a table supports custom fields */
-export function isCustomFieldsEnabled(table: string): boolean {
-  return (CUSTOM_FIELDS_ALLOWED_TABLES as readonly string[]).includes(table);
+/** Custom fields are enabled for ALL tables (whitelist removed in v2). */
+export function isCustomFieldsEnabled(_table: string): boolean {
+  return true;
 }
 
 /* ------------------------------------------------------------------ */

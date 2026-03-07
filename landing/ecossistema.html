@@ -23,10 +23,6 @@
   <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
   <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 
-  <!-- Google Analytics (production placeholder) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PLACEHOLDER"></script>
-  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-PLACEHOLDER');</script>
-
   <style>
     /* ════════════════════════════════════
        ECOSSISTEMA PAGE — Inline overrides
@@ -1292,13 +1288,6 @@ function setupFormSubmission() {
 
       e.target.reset();
       setupProgramSelector(); // Reset pill UI
-
-      if (window.gtag) {
-        gtag('event', 'conversion', {
-          event_category: 'ecosystem_signup',
-          event_label: program
-        });
-      }
     } catch (error) {
       console.error('Form submission error:', error);
       formMessage.className = 'form-message error';
@@ -1324,5 +1313,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+  <!-- Cloudflare Web Analytics -->
+  <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "570bb785fd554328b9a9005b2f2041a9"}'></script>
 </body>
 </html>

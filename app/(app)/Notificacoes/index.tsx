@@ -38,6 +38,8 @@ const NotificationItem = ({
   const primaryTextColor = useThemeColor({}, "text");
   const cardColor = useThemeColor({}, "card");
   const borderColor = useThemeColor({}, "border");
+  const unreadBackgroundColor = `${tintColor}12`;
+  const unreadBorderColor = `${tintColor}35`;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -59,7 +61,7 @@ const NotificationItem = ({
     <TouchableOpacity
       onPress={() => onPress(notification)}
       style={{
-        backgroundColor: notification.is_read ? cardColor : tintColor + "15",
+        backgroundColor: notification.is_read ? cardColor : unreadBackgroundColor,
         borderLeftWidth: 4,
         borderLeftColor: notification.is_read ? borderColor : tintColor,
         paddingHorizontal: 12,
@@ -67,7 +69,7 @@ const NotificationItem = ({
         marginBottom: 8,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor,
+        borderColor: notification.is_read ? borderColor : unreadBorderColor,
       }}
     >
       <View
@@ -131,6 +133,11 @@ export default function NotificationsScreen() {
   const mutedTextColor = useThemeColor({}, "muted");
   const tintColor = useThemeColor({}, "tint");
   const cardColor = useThemeColor({}, "card");
+  const borderColor = useThemeColor({}, "border");
+  const summaryCardColor = useThemeColor(
+    { light: "#eef4ff", dark: "#1f2b42" },
+    "card",
+  );
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
@@ -231,7 +238,7 @@ export default function NotificationsScreen() {
         <ThemedView
           style={[
             styles.processCard,
-            { backgroundColor: cardColor, marginBottom: 16 },
+            { backgroundColor: cardColor, borderColor, marginBottom: 16 },
           ]}
         >
           <TouchableOpacity onPress={() => setSelectedNotification(null)}>
@@ -293,7 +300,15 @@ export default function NotificationsScreen() {
         </ThemedView>
       ) : (
         <>
-          <ThemedView style={styles.processCard}>
+          <ThemedView
+            style={[
+              styles.processCard,
+              {
+                backgroundColor: summaryCardColor,
+                borderColor: `${tintColor}30`,
+              },
+            ]}
+          >
             <View
               style={{
                 flexDirection: "row",
@@ -320,7 +335,7 @@ export default function NotificationsScreen() {
                 style={{
                   paddingHorizontal: 12,
                   paddingVertical: 8,
-                  backgroundColor: tintColor + "20",
+                  backgroundColor: `${tintColor}1f`,
                   borderRadius: 6,
                 }}
               >

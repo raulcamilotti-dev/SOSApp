@@ -1,17 +1,43 @@
-import { createNotification } from "./notifications";
+import {
+    createNotification,
+    type CreateNotificationPayload,
+} from "./notifications";
 
 /**
- * Ativa notificações para eventos específicos no sistema
- * Este arquivo centraliza o disparo de notificações
+ * Ativa notificações para eventos específicos no sistema.
+ * Este arquivo centraliza o disparo de notificações.
+ *
+ * Fix B5: All dispatchers use `dispatchWithRetry` — 1 automatic retry
+ * with 2s delay on failure, so transient network errors don't silently
+ * drop notifications.
  */
+
+const RETRY_DELAY_MS = 2000;
+
+async function dispatchWithRetry(
+  payload: CreateNotificationPayload,
+  label: string,
+): Promise<void> {
+  try {
+    await createNotification(payload);
+  } catch (firstError) {
+    // 1 automatic retry after a short delay
+    try {
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      await createNotification(payload);
+    } catch (retryError) {
+      console.error(`[Notification] ${label} falhou após retry:`, retryError);
+    }
+  }
+}
 
 export async function notifyNewProcess(
   userId: string,
   processTitle: string,
   propertyAddress?: string,
 ) {
-  try {
-    await createNotification({
+  await dispatchWithRetry(
+    {
       user_id: userId,
       type: "new_process",
       title: "Novo Processo",
@@ -19,14 +45,10 @@ export async function notifyNewProcess(
         propertyAddress ? ` - ${propertyAddress}` : ""
       }`,
       related_table: "properties",
-      data: {
-        processTitle,
-        propertyAddress,
-      },
-    });
-  } catch (error) {
-    console.error("Erro ao notificar novo processo:", error);
-  }
+      data: { processTitle, propertyAddress },
+    },
+    "notifyNewProcess",
+  );
 }
 
 export async function notifyProcessUpdate(
@@ -35,21 +57,17 @@ export async function notifyProcessUpdate(
   updateTitle: string,
   updateMessage: string,
 ) {
-  try {
-    await createNotification({
+  await dispatchWithRetry(
+    {
       user_id: userId,
       type: "process_update",
       title: `Atualização: ${updateTitle}`,
       message: updateMessage,
       related_table: "process_updates",
-      data: {
-        processTitle,
-        updateTitle,
-      },
-    });
-  } catch (error) {
-    console.error("Erro ao notificar atualização de processo:", error);
-  }
+      data: { processTitle, updateTitle },
+    },
+    "notifyProcessUpdate",
+  );
 }
 
 export async function notifyDocumentRequested(
@@ -57,21 +75,17 @@ export async function notifyDocumentRequested(
   documentType: string,
   processTitle: string,
 ) {
-  try {
-    await createNotification({
+  await dispatchWithRetry(
+    {
       user_id: userId,
       type: "document_requested",
       title: "Documento Solicitado",
       message: `Um ${documentType} foi solicitado para o processo: ${processTitle}`,
       related_table: "process_document_requests",
-      data: {
-        documentType,
-        processTitle,
-      },
-    });
-  } catch (error) {
-    console.error("Erro ao notificar solicitação de documento:", error);
-  }
+      data: { documentType, processTitle },
+    },
+    "notifyDocumentRequested",
+  );
 }
 
 export async function notifyDocumentFulfilled(
@@ -79,21 +93,17 @@ export async function notifyDocumentFulfilled(
   documentType: string,
   processTitle: string,
 ) {
-  try {
-    await createNotification({
+  await dispatchWithRetry(
+    {
       user_id: userId,
       type: "document_fulfilled",
       title: "Documento Recebido",
       message: `O ${documentType} foi recebido para o processo: ${processTitle}`,
       related_table: "process_document_responses",
-      data: {
-        documentType,
-        processTitle,
-      },
-    });
-  } catch (error) {
-    console.error("Erro ao notificar documento recebido:", error);
-  }
+      data: { documentType, processTitle },
+    },
+    "notifyDocumentFulfilled",
+  );
 }
 
 export async function notifyAppointmentScheduled(
@@ -101,21 +111,17 @@ export async function notifyAppointmentScheduled(
   appointmentDate: string,
   appointmentType: string,
 ) {
-  try {
-    await createNotification({
+  await dispatchWithRetry(
+    {
       user_id: userId,
       type: "appointment_scheduled",
       title: "Agendamento Confirmado",
       message: `Sua consulta de ${appointmentType} foi agendada para ${appointmentDate}`,
       related_table: "service_appointments",
-      data: {
-        appointmentDate,
-        appointmentType,
-      },
-    });
-  } catch (error) {
-    console.error("Erro ao notificar agendamento:", error);
-  }
+      data: { appointmentDate, appointmentType },
+    },
+    "notifyAppointmentScheduled",
+  );
 }
 
 export async function notifyAppointmentReminder(
@@ -123,21 +129,17 @@ export async function notifyAppointmentReminder(
   appointmentDate: string,
   appointmentType: string,
 ) {
-  try {
-    await createNotification({
+  await dispatchWithRetry(
+    {
       user_id: userId,
       type: "appointment_reminder",
       title: "Lembrete de Consulta",
       message: `Lembrete: você tem uma consulta de ${appointmentType} em ${appointmentDate}`,
       related_table: "service_appointments",
-      data: {
-        appointmentDate,
-        appointmentType,
-      },
-    });
-  } catch (error) {
-    console.error("Erro ao enviar lembrete de consulta:", error);
-  }
+      data: { appointmentDate, appointmentType },
+    },
+    "notifyAppointmentReminder",
+  );
 }
 
 export async function notifyGeneralAlert(
@@ -146,15 +148,14 @@ export async function notifyGeneralAlert(
   message: string,
   data?: Record<string, any>,
 ) {
-  try {
-    await createNotification({
+  await dispatchWithRetry(
+    {
       user_id: userId,
       type: "general_alert",
       title,
       message,
       data,
-    });
-  } catch (error) {
-    console.error("Erro ao enviar alerta geral:", error);
-  }
+    },
+    "notifyGeneralAlert",
+  );
 }

@@ -4,7 +4,7 @@ import { Redirect } from "expo-router";
 
 /**
  * Home screen — redirects authenticated users based on their permissions.
- * Admin users → /Administrador, others → /Servicos/servicos.
+ * Admin users → /Inicio, others → /Servicos/servicos.
  */
 export default function HomeScreen() {
   const { hasAnyPermission, loading } = usePermissions();
@@ -22,7 +22,7 @@ export default function HomeScreen() {
   }
 
   if (hasAnyPermission(ADMIN_PANEL_PERMISSIONS)) {
-    return <Redirect href="/Administrador" />;
+    return <Redirect href="/Inicio" />;
   }
 
   return <Redirect href="/Servicos/servicos" />;

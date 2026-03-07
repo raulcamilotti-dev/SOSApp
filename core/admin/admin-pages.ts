@@ -1,7 +1,7 @@
 import {
-  ADMIN_PANEL_PERMISSIONS,
-  PERMISSIONS,
-  type Permission,
+    ADMIN_PANEL_PERMISSIONS,
+    PERMISSIONS,
+    type Permission,
 } from "@/core/auth/permissions";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -78,6 +78,16 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Criar e gerenciar campos customizados por tabela",
     icon: "options-outline",
     route: "/Administrador/custom-fields",
+    requiredAnyPermissions: [PERMISSIONS.TENANT_MANAGE],
+  },
+  {
+    id: "entity_builder",
+    group: "Sistema",
+    module: "admin",
+    title: "Construtor de Entidades",
+    description: "Assistente para criar entidades e campos personalizados",
+    icon: "construct-outline",
+    route: "/Administrador/entity-builder",
     requiredAnyPermissions: [PERMISSIONS.TENANT_MANAGE],
   },
   {
@@ -174,7 +184,7 @@ export const ADMIN_PAGES: AdminPage[] = [
     group: "Acesso & Permissões",
     module: "admin",
     title: "Terceirização",
-    description: "Wizard para acesso de serviços externos por role e CPF",
+    description: "Assistente para acesso de serviços externos por role e CPF",
     icon: "people-outline",
     route: "/Administrador/terceirizacao",
     requiredAnyPermissions: [PERMISSIONS.ROLE_MANAGE],
@@ -275,6 +285,17 @@ export const ADMIN_PAGES: AdminPage[] = [
     icon: "star-outline",
     route: "/Administrador/edit-favorites",
     hidden: true,
+  },
+  {
+    id: "setup_wizard",
+    group: "Sistema",
+    module: "admin",
+    title: "Assistente de Parametrização",
+    description: "Checklist de parametrizações obrigatórias de go-live",
+    icon: "checkmark-done-outline",
+    route: "/Administrador/setup-wizard",
+    hidden: true,
+    requiredAnyPermissions: [PERMISSIONS.TENANT_MANAGE],
   },
   {
     id: "module_detail",
@@ -951,6 +972,20 @@ export const ADMIN_PAGES: AdminPage[] = [
     ],
   },
   {
+    id: "configuracao_fiscal",
+    group: "Financeiro",
+    module: "operacao",
+    title: "Configuração Fiscal",
+    description:
+      "Certificado digital, dados fiscais do emitente e numeração NF-e/NFC-e",
+    icon: "document-text-outline",
+    route: "/Administrador/configuracao-fiscal",
+    requiredAnyPermissions: [
+      PERMISSIONS.FINANCIAL_VIEW,
+      PERMISSIONS.FINANCIAL_EDIT,
+    ],
+  },
+  {
     id: "bancos",
     group: "Financeiro",
     module: "operacao",
@@ -1216,6 +1251,16 @@ export const ADMIN_PAGES: AdminPage[] = [
     description: "Relatórios e dashboards do tenant",
     icon: "bar-chart-outline",
     route: "/Administrador/metabase",
+    requiredAnyPermissions: [PERMISSIONS.FINANCIAL_DASHBOARD],
+  },
+  {
+    id: "web_analytics",
+    group: "Auditoria & Logs",
+    module: "admin",
+    title: "Web Analytics",
+    description: "Análise de tráfego web via Cloudflare",
+    icon: "analytics-outline",
+    route: "/Administrador/web-analytics",
     requiredAnyPermissions: [PERMISSIONS.FINANCIAL_DASHBOARD],
   },
   {

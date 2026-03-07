@@ -46,6 +46,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "tenants",
       "saas_dashboard",
       "custom_fields",
+      "entity_builder",
       "pack_export",
       "api_keys",
       "auth_codes",
@@ -156,6 +157,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
       "inadimplentes",
       "conciliador_bancario",
       "fechamento_contabil",
+      "configuracao_fiscal",
       "bancos",
       "contas_bancarias",
       "extrato_bancario",
@@ -263,7 +265,7 @@ export const ADMIN_MODULE_CARDS: AdminModuleCard[] = [
     description: "Relatórios, notificações e dashboards",
     icon: "bar-chart-outline",
     color: "#06b6d4",
-    pageIds: ["metabase", "notifications"],
+    pageIds: ["metabase", "web_analytics", "notifications"],
   },
 ];
 

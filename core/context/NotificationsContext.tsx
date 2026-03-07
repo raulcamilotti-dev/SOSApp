@@ -1,6 +1,7 @@
 import { useAuth } from "@/core/auth/AuthContext";
 import {
     deleteNotification,
+    getUnreadNotificationCount,
     listNotifications,
     markAsRead,
     type Notification,
@@ -10,8 +11,21 @@ import React, {
     useCallback,
     useContext,
     useEffect,
+    useRef,
     useState,
 } from "react";
+
+/**
+ * B4 Fix — Polling optimization:
+ * - Background polling (every 60s) only fetches the unread COUNT via
+ *   server-side `countCrud` (1 lightweight SQL COUNT query).
+ * - Full notification list is loaded only when:
+ *   (a) the modal opens, or
+ *   (b) the user explicitly pulls to refresh.
+ * This eliminates fetching 50 full notification rows every 30s.
+ */
+
+const POLL_INTERVAL_MS = 60_000; // 60 seconds
 
 interface NotificationsContextType {
   notifications: Notification[];
@@ -39,16 +53,29 @@ export function NotificationsProvider({
   const [unreadCount, setUnreadCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const listLoadedRef = useRef(false);
 
+  /** Lightweight badge poll — only fetches COUNT, not full rows */
+  const pollUnreadCount = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const count = await getUnreadNotificationCount(user.id);
+      setUnreadCount(count);
+    } catch {
+      // silent — badge count is best-effort
+    }
+  }, [user?.id]);
+
+  /** Full list fetch — used on modal open and explicit refresh */
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
     try {
       const data = await listNotifications(user.id, 50);
       setNotifications(data);
-
-      // Derive unread count from the loaded list to avoid an extra API call
+      // Derive count from loaded list to stay in sync
       const count = data.filter((n) => !n.is_read).length;
       setUnreadCount(count);
+      listLoadedRef.current = true;
     } catch (error) {
       console.error("Erro ao carregar notificações:", error);
     }
@@ -91,14 +118,16 @@ export function NotificationsProvider({
     [user?.id],
   );
 
+  // Initial load: fetch count immediately; full list loaded on first modal open
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // Atualiza a cada 30s
+    pollUnreadCount();
+    const interval = setInterval(pollUnreadCount, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [pollUnreadCount]);
 
   const openModal = useCallback(() => {
     setModalOpen(true);
+    // Always load fresh list when modal opens
     refresh();
   }, [refresh]);
 

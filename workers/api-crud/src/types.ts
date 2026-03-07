@@ -10,8 +10,11 @@ export interface Env {
   CLOUDFLARE_DNS_API_KEY: string; // Global API Key — set via wrangler secret put CLOUDFLARE_DNS_API_KEY
   CLOUDFLARE_DNS_EMAIL: string; // Account email — set via wrangler secret put CLOUDFLARE_DNS_EMAIL
   CLOUDFLARE_ZONE_ID: string; // set via wrangler secret put CLOUDFLARE_ZONE_ID
+  CLOUDFLARE_ACCOUNT_ID: string; // set via wrangler secret put CLOUDFLARE_ACCOUNT_ID (Web Analytics GraphQL)
+  CF_ANALYTICS_SITE_TAG: string; // Beacon token — set via wrangler.toml [vars] or secret
   RESEND_API_KEY: string; // set via wrangler secret put RESEND_API_KEY (password reset emails)
   RESEND_FROM_EMAIL: string; // set via wrangler.toml [vars] (e.g., "Radul <noreply@radul.com.br>")
+  FISCAL_CONTAINER: DurableObjectNamespace; // Workers Container binding — PHP fiscal microservice (sped-nfe)
   ENVIRONMENT: string;
   /** Cloudflare KV namespace for public API rate limiting */
   RATE_LIMIT_KV: KVNamespace;

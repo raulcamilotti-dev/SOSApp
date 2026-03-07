@@ -225,6 +225,7 @@ export const ADMIN_PAGE_MODULE_MAP: Record<string, ModuleKey> = {
 
   // BI & Analytics module
   metabase: MODULE_KEYS.BI_ANALYTICS,
+  web_analytics: MODULE_KEYS.BI_ANALYTICS,
 
   // Financial module
   recebimentos_config: MODULE_KEYS.FINANCIAL,

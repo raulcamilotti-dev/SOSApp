@@ -232,6 +232,25 @@ export type ModuleKey =
   | "marketplace";
 
 /* ==================================================================
+   ENTITY DEFINITION (Entity Builder)
+   ================================================================== */
+
+export interface PackEntityDefinition {
+  ref_key: string;
+  name: string;
+  name_plural: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  parent_table?: string;
+  parent_fk_field?: string;
+  is_system?: boolean;
+  module_key?: string;
+  config?: Record<string, unknown>;
+  sort_order?: number;
+}
+
+/* ==================================================================
    CUSTOM FIELD DEFINITION (from A.1)
    ================================================================== */
 
@@ -398,6 +417,7 @@ export interface TemplatePack {
   roles: PackRole[];
   services: PackService[];
   ocr_configs?: PackOcrConfig[];
+  entity_definitions?: PackEntityDefinition[];
   custom_fields?: PackCustomFieldDefinition[];
 
   /* ── AI Agent entities (optional) ── */
@@ -434,6 +454,8 @@ export interface PackSummary {
   agentCount: number;
   /** Number of AI automations included */
   automationCount: number;
+  /** Number of custom entity definitions included */
+  entityCount: number;
 }
 
 /**
@@ -452,5 +474,6 @@ export function packToSummary(pack: TemplatePack): PackSummary {
     modules: pack.modules,
     agentCount: pack.agents?.length ?? 0,
     automationCount: pack.automations?.length ?? 0,
+    entityCount: pack.entity_definitions?.length ?? 0,
   };
 }

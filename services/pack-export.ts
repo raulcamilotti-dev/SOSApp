@@ -96,6 +96,7 @@ export interface PackExportOptions {
     channel_bindings: boolean;
     handoff_policies: boolean;
     automations: boolean;
+    entity_definitions: boolean;
   };
 }
 
@@ -128,6 +129,8 @@ export interface TenantEntityCounts {
   channel_bindings: number;
   handoff_policies: number;
   automations: number;
+  /* Entity Builder */
+  entity_definitions: number;
 }
 
 /* ================================================================== */
@@ -363,6 +366,8 @@ export async function countTenantEntities(
     channel_bindings,
     handoff_policies,
     automations,
+    /* Entity Builder */
+    entity_definitions,
   ] = await Promise.all([
     countCrud("service_categories", tenantFilter, opts),
     countCrud("service_types", tenantFilter, opts),
@@ -386,6 +391,8 @@ export async function countTenantEntities(
     countCrud("agent_channel_bindings", tenantFilter, opts),
     countCrud("agent_handoff_policies", tenantFilter, opts),
     countCrud("automations", tenantFilter, opts),
+    /* Entity Builder */
+    countCrud("entity_definitions", tenantFilter, opts),
   ]);
 
   return {
@@ -410,6 +417,7 @@ export async function countTenantEntities(
     channel_bindings,
     handoff_policies,
     automations,
+    entity_definitions,
   };
 }
 
@@ -969,6 +977,40 @@ export async function exportTenantAsPack(
   }
 
   /* ──────────────────────────────────────────────────────────────── */
+  /* 11b. Entity Definitions (Entity Builder)                        */
+  /* ──────────────────────────────────────────────────────────────── */
+
+  let packEntityDefs: PackEntityDefinition[] = [];
+
+  if (options.include.entity_definitions) {
+    const dbEntityDefs = await fetchTenantRecords(
+      "entity_definitions",
+      tenantId,
+      "sort_order ASC, created_at ASC",
+    );
+
+    packEntityDefs = dbEntityDefs.map((row) => ({
+      ref_key: String(row.ref_key ?? generateRefKey("entity", row)),
+      name: String(row.name ?? ""),
+      name_plural: String(row.name_plural ?? ""),
+      description: row.description ? String(row.description) : undefined,
+      icon: row.icon ? String(row.icon) : undefined,
+      color: row.color ? String(row.color) : undefined,
+      parent_table: row.parent_table ? String(row.parent_table) : undefined,
+      parent_fk_field: row.parent_fk_field
+        ? String(row.parent_fk_field)
+        : undefined,
+      is_system: row.is_system != null ? Boolean(row.is_system) : undefined,
+      module_key: row.module_key ? String(row.module_key) : undefined,
+      config: safeParseJson(row.config) as Record<string, unknown> | undefined,
+      sort_order: row.sort_order != null ? Number(row.sort_order) : undefined,
+    }));
+
+    ensureUniqueRefKeys(packEntityDefs);
+    counts.entity_definitions = packEntityDefs.length;
+  }
+
+  /* ──────────────────────────────────────────────────────────────── */
   /* 12. Modules                                                     */
   /* ──────────────────────────────────────────────────────────────── */
 
@@ -1370,6 +1412,7 @@ export async function exportTenantAsPack(
     services: packServices,
     ocr_configs: packOcrConfigs.length > 0 ? packOcrConfigs : undefined,
     custom_fields: packCustomFields.length > 0 ? packCustomFields : undefined,
+    entity_definitions: packEntityDefs.length > 0 ? packEntityDefs : undefined,
     agents: packAgents.length > 0 ? packAgents : undefined,
     playbooks: packPlaybooks.length > 0 ? packPlaybooks : undefined,
     playbook_rules:

@@ -1,6 +1,8 @@
 import { api } from "./api";
 import {
+    API_DINAMICO,
     buildSearchParams,
+    countCrud,
     CRUD_ENDPOINT,
     normalizeCrudList,
     normalizeCrudOne,
@@ -63,34 +65,40 @@ export interface UpdateNotificationPreferencePayload {
   channels?: NotificationChannel[];
 }
 
+// ─────────────────────────────────────────────────────────────────
 // Notificações
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * List notifications for a user with server-side filtering, sorting,
+ * and pagination. Fixes B1/B6: uses auto_exclude_deleted + server-side
+ * sort DESC instead of client-side filtering/sorting.
+ */
 export async function listNotifications(
   userId: string,
-  _limit: number = 50,
-  _offset: number = 0,
+  limit: number = 50,
+  offset: number = 0,
 ): Promise<Notification[]> {
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "notifications",
     ...buildSearchParams([{ field: "user_id", value: userId }], {
-      sortColumn: "created_at",
+      sortColumn: "created_at DESC",
+      autoExcludeDeleted: true,
     }),
+    limit,
+    offset,
   });
-  const all = normalizeCrudList<Notification>(response.data);
-  // client-side fallback in case server-side filter is ignored
-  return all
-    .filter((n) => n.user_id === userId && !n.deleted_at)
-    .sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
+  return normalizeCrudList<Notification>(response.data);
 }
 
 export async function getNotification(id: string): Promise<Notification> {
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "notifications",
-    ...buildSearchParams([{ field: "id", value: id }]),
+    ...buildSearchParams([{ field: "id", value: id }], {
+      autoExcludeDeleted: true,
+    }),
   });
   const all = normalizeCrudList<Notification>(response.data);
   const found = all.find((n) => n.id === id);
@@ -113,7 +121,7 @@ export async function markAsRead(
   id: string,
   userId?: string,
 ): Promise<Notification> {
-  // B5 fix: Verify ownership before updating — fetch the notification first
+  // Verify ownership before updating
   if (userId) {
     const checkRes = await api.post(CRUD_ENDPOINT, {
       action: "list",
@@ -141,43 +149,21 @@ export async function markAsRead(
   return normalizeCrudOne<Notification>(response.data);
 }
 
+/**
+ * Mark ALL unread notifications as read for a user in a single SQL UPDATE.
+ * Fixes B2: replaces N individual UPDATE requests with 1 api_dinamico call.
+ */
 export async function markAllAsRead(userId: string): Promise<void> {
-  // List all unread notifications for this user and mark each as read
-  const response = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "notifications",
-    ...buildSearchParams([{ field: "user_id", value: userId }]),
+  await api.post(API_DINAMICO, {
+    sql: `UPDATE notifications SET is_read = true, read_at = NOW() WHERE user_id = '${userId}' AND is_read = false AND deleted_at IS NULL`,
   });
-  const all = normalizeCrudList<Notification>(response.data);
-  // client-side fallback filter
-  const unread = all.filter(
-    (n) => n.user_id === userId && !n.is_read && !n.deleted_at,
-  );
-  // Parallel batch update (max 10 concurrent to avoid overload)
-  const batchSize = 10;
-  for (let i = 0; i < unread.length; i += batchSize) {
-    const batch = unread.slice(i, i + batchSize);
-    await Promise.all(
-      batch.map((n) =>
-        api.post(CRUD_ENDPOINT, {
-          action: "update",
-          table: "notifications",
-          payload: {
-            id: n.id,
-            is_read: true,
-            read_at: new Date().toISOString(),
-          },
-        }),
-      ),
-    );
-  }
 }
 
 export async function deleteNotification(
   id: string,
   userId?: string,
 ): Promise<void> {
-  // B5 fix: Verify ownership before deleting
+  // Verify ownership before deleting
   if (userId) {
     const checkRes = await api.post(CRUD_ENDPOINT, {
       action: "list",
@@ -200,18 +186,21 @@ export async function deleteNotification(
   });
 }
 
+// ─────────────────────────────────────────────────────────────────
 // Preferências de Notificação
+// ─────────────────────────────────────────────────────────────────
+
 export async function listNotificationPreferences(
   userId: string,
 ): Promise<NotificationPreference[]> {
   const response = await api.post(CRUD_ENDPOINT, {
     action: "list",
     table: "notification_preferences",
-    ...buildSearchParams([{ field: "user_id", value: userId }]),
+    ...buildSearchParams([{ field: "user_id", value: userId }], {
+      autoExcludeDeleted: true,
+    }),
   });
-  const all = normalizeCrudList<NotificationPreference>(response.data);
-  // client-side fallback filter
-  return all.filter((p) => p.user_id === userId && !p.deleted_at);
+  return normalizeCrudList<NotificationPreference>(response.data);
 }
 
 export async function getNotificationPreference(
@@ -226,17 +215,11 @@ export async function getNotificationPreference(
         { field: "user_id", value: userId },
         { field: "notification_type", value: type },
       ],
-      { combineType: "AND" },
+      { combineType: "AND", autoExcludeDeleted: true },
     ),
   });
   const all = normalizeCrudList<NotificationPreference>(response.data);
-  // client-side fallback filter
-  return (
-    all.find(
-      (p) =>
-        p.user_id === userId && p.notification_type === type && !p.deleted_at,
-    ) ?? null
-  );
+  return all[0] ?? null;
 }
 
 export async function updateNotificationPreference(
@@ -265,7 +248,6 @@ export async function updateNotificationPreference(
         "tenant_id é obrigatório para criar preferência de notificação",
       );
     }
-    // Create new preference if doesn't exist
     const response = await api.post(CRUD_ENDPOINT, {
       action: "create",
       table: "notification_preferences",
@@ -281,16 +263,20 @@ export async function updateNotificationPreference(
   }
 }
 
+/**
+ * Get unread notification count using server-side COUNT.
+ * Fixes B3: uses countCrud with is_read=false filter instead of
+ * loading ALL notifications and counting client-side.
+ */
 export async function getUnreadNotificationCount(
   userId: string,
 ): Promise<number> {
-  const response = await api.post(CRUD_ENDPOINT, {
-    action: "list",
-    table: "notifications",
-    ...buildSearchParams([{ field: "user_id", value: userId }]),
-  });
-  const all = normalizeCrudList<Notification>(response.data);
-  // client-side fallback filter
-  return all.filter((n) => n.user_id === userId && !n.is_read && !n.deleted_at)
-    .length;
+  return countCrud(
+    "notifications",
+    [
+      { field: "user_id", value: userId },
+      { field: "is_read", value: "false" },
+    ],
+    { combineType: "AND", autoExcludeDeleted: true },
+  );
 }

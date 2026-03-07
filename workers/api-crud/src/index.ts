@@ -13,10 +13,12 @@
 /*    POST /cart/*           — Shopping cart endpoints                  */
 /*    POST /financial/*      — Financial dashboard endpoints           */
 /*    POST /template-packs/* — Template pack management endpoints      */
+/*    POST /analytics/query  — Cloudflare Web Analytics proxy          */
 /*    POST /auth/*           — Authentication endpoints (set-password) */
 /* ================================================================== */
 
 import bcrypt from "bcryptjs";
+import { handleAnalyticsQuery } from "./analytics";
 import { generateApiKey } from "./api-key-auth";
 import { executeQuery } from "./db";
 import {
@@ -47,6 +49,9 @@ import {
 } from "./sql-builder";
 import { handleClearPackData } from "./template-packs";
 import type { CrudRequestBody, Env } from "./types";
+
+// Workers Containers — Durable Object class must be re-exported from entrypoint
+export { FiscalContainer } from "./fiscal-container";
 
 /* ------------------------------------------------------------------ */
 /*  CORS headers — B3 fix: restrict to known domains                   */
@@ -1931,6 +1936,90 @@ async function handleApiKeyCreate(
 }
 
 /* ================================================================== */
+/*  Fiscal container — routes requests to Workers Container (PHP)      */
+/*  The FiscalContainer Durable Object manages a Docker container      */
+/*  running sped-nfe. Cold start ~2-3s, scale-to-zero after 10m idle.  */
+/*                                                                     */
+/*  Routes:  POST /fiscal/nfe/emit    → NF-e emission                  */
+/*           POST /fiscal/nfce/emit   → NFC-e emission                 */
+/*           POST /fiscal/nfe/cancel  → Cancel NF-e                    */
+/*           POST /fiscal/nfe/correct → Correction letter              */
+/*           GET  /fiscal/nfe/status  → Query NF-e status at SEFAZ     */
+/*           GET  /fiscal/health      → Microservice health check      */
+/* ================================================================== */
+
+const FISCAL_ALLOWED_PATHS = new Set([
+  "/nfe/emit",
+  "/nfce/emit",
+  "/nfe/cancel",
+  "/nfe/correct",
+  "/nfe/status",
+  "/health",
+]);
+
+async function handleFiscalProxy(
+  request: Request,
+  workerPath: string,
+  env: Env,
+): Promise<Response> {
+  // Extract the sub-path: /fiscal/nfe/emit → /nfe/emit
+  const fiscalPath = workerPath.replace(/^\/fiscal/, "");
+
+  // Validate against whitelist to prevent open-proxy abuse
+  if (!FISCAL_ALLOWED_PATHS.has(fiscalPath)) {
+    return errorResponse(404, "Fiscal route not found: " + fiscalPath);
+  }
+
+  try {
+    // Obtain a stub to the FiscalContainer Durable Object
+    const id = env.FISCAL_CONTAINER.idFromName("fiscal-nfe");
+    const container = env.FISCAL_CONTAINER.get(id);
+
+    // Build the proxied request with auth headers
+    const proxyHeaders = new Headers();
+    proxyHeaders.set(
+      "Content-Type",
+      request.headers.get("Content-Type") ?? "application/json",
+    );
+    proxyHeaders.set("Accept", "application/json");
+    // API_KEY is passed to the container via envVars as FISCAL_API_KEY
+    proxyHeaders.set("X-Api-Key", env.API_KEY);
+
+    const proxyInit: RequestInit = {
+      method: request.method,
+      headers: proxyHeaders,
+    };
+
+    // Attach body for POST/PUT/PATCH
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      proxyInit.body = await request.text();
+    }
+
+    // Route to the container — hostname is arbitrary (container ignores it)
+    const containerRequest = new Request(
+      "http://fiscal-container" + fiscalPath,
+      proxyInit,
+    );
+    const upstreamResponse = await container.fetch(containerRequest);
+
+    // Relay the container response back with CORS headers
+    const responseBody = await upstreamResponse.text();
+    return new Response(responseBody, {
+      status: upstreamResponse.status,
+      headers: {
+        ..._currentCorsHeaders,
+        "Content-Type":
+          upstreamResponse.headers.get("Content-Type") ?? "application/json",
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[fiscal_container_error]", fiscalPath, message);
+    return errorResponse(502, "Fiscal service unavailable");
+  }
+}
+
+/* ================================================================== */
 /*  Main fetch handler                                                 */
 /* ================================================================== */
 
@@ -2111,6 +2200,11 @@ export default {
         }
       }
 
+      // Route: POST|GET /fiscal/* — Workers Container fiscal microservice (NF-e/NFC-e)
+      if (path.startsWith("/fiscal/")) {
+        return handleFiscalProxy(request, path, env);
+      }
+
       // Route: POST /template-packs/* — template pack management endpoints
       if (request.method === "POST" && path.startsWith("/template-packs/")) {
         const body = (await request.json()) as Record<string, unknown>;
@@ -2120,6 +2214,11 @@ export default {
           default:
             return errorResponse(404, "Not found: " + path);
         }
+      }
+
+      // Route: POST /analytics/query — Cloudflare Web Analytics proxy
+      if (request.method === "POST" && path === "/analytics/query") {
+        return handleAnalyticsQuery(request, env);
       }
 
       return errorResponse(404, "Not found: " + path);

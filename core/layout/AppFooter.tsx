@@ -48,7 +48,7 @@ export function AppFooter() {
     () => [
       {
         label: "Início",
-        path: "/Administrador/home",
+        path: "/Inicio",
         icon: "home-outline",
         iconActive: "home",
       },
@@ -76,17 +76,13 @@ export function AppFooter() {
   );
 
   function isActive(item: NavItem) {
-    // "Início" is active only on exact /Administrador/home
-    if (item.path === "/Administrador/home") {
-      return pathname === "/Administrador/home" || pathname === "/";
+    // "Início" is active only on exact /Inicio
+    if (item.path === "/Inicio") {
+      return pathname === "/Inicio" || pathname === "/";
     }
-    // "Admin" is active for /Administrador/* except /Administrador/home
+    // "Admin" is active for any /Administrador route
     if (item.path === "/Administrador") {
-      return (
-        pathname === "/Administrador" ||
-        (pathname.startsWith("/Administrador/") &&
-          pathname !== "/Administrador/home")
-      );
+      return pathname === "/Administrador" || pathname.startsWith("/Administrador/");
     }
     if (item.path === "/") return pathname === "/";
     return pathname === item.path || pathname.startsWith(`${item.path}/`);
@@ -167,3 +163,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
@@ -32,7 +32,7 @@ export default function Profile() {
   const backgroundColor = useThemeColor({}, "background");
   const tintColor = useThemeColor({}, "tint");
   const mutedTextColor = useThemeColor({}, "muted");
-  // Garante fundo sólido para os cards do perfil
+  // Garante fundo sÃ³lido para os cards do perfil
   const cardBg = useThemeColor(
     {
       light: Colors.light.card,
@@ -55,6 +55,9 @@ export default function Profile() {
   const currentTenant = availableTenants.find(
     (tenant) => String(tenant.id) === String(user.tenant_id ?? ""),
   );
+  const otherTenants = availableTenants.filter(
+    (tenant) => String(tenant.id) !== String(user.tenant_id ?? ""),
+  );
 
   const handleTenantSelect = async (tenantId: string) => {
     if (!tenantId || tenantId === user.tenant_id) return;
@@ -62,10 +65,10 @@ export default function Profile() {
     try {
       setSwitchingTenantId(tenantId);
       await selectTenant(tenantId);
-      Alert.alert("Tenant", "Tenant da sessão atualizado com sucesso.");
+      Alert.alert("Tenant", "Tenant da sessÃ£o atualizado com sucesso.");
     } catch (error) {
       console.error("Erro ao trocar tenant", error);
-      Alert.alert("Tenant", "Não foi possível trocar o tenant.");
+      Alert.alert("Tenant", "NÃ£o foi possÃ­vel trocar o tenant.");
     } finally {
       setSwitchingTenantId(null);
     }
@@ -129,7 +132,7 @@ export default function Profile() {
           </ThemedText>
           <ThemedText type="title">{user.fullname || user.name}</ThemedText>
           <ThemedText type="subtitle" style={{ marginBottom: 12 }}>
-            Informações Pessoais
+            InformaÃ§Ãµes Pessoais
           </ThemedText>
           <ProfileCard
             icon="id-card"
@@ -157,56 +160,67 @@ export default function Profile() {
           />
         </View>
 
-        {/* Ações */}
+        {/* AÃ§Ãµes */}
         <View style={{ marginTop: 32 }}>
           <ThemedText type="subtitle" style={{ marginBottom: 12 }}>
-            Tenant da Sessão
+            Tenant da SessÃ£o
           </ThemedText>
           <ProfileCard
             icon="business"
             label="Tenant atual"
-            value={`${currentTenant?.company_name || user.tenant_id || "-"}${currentTenant?.role_name ? ` · ${currentTenant.role_name}` : ""}`}
+            value={`${currentTenant?.company_name || user.tenant_id || "-"}${currentTenant?.role_name ? ` Â· ${currentTenant.role_name}` : ""}`}
             cardBg={cardBg}
             tintColor={tintColor}
             mutedTextColor={mutedTextColor}
           />
 
-          {availableTenants.length > 1
-            ? availableTenants.map((tenant) => {
-                const isCurrent = String(tenant.id) === String(user.tenant_id);
-                const isSwitching = switchingTenantId === tenant.id;
+          {otherTenants.length > 0 && (
+            <ThemedText
+              style={{
+                marginTop: 2,
+                marginBottom: 10,
+                fontSize: 12,
+                fontWeight: "600",
+                color: mutedTextColor,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+              }}
+            >
+              Trocar para outro tenant
+            </ThemedText>
+          )}
 
-                const tenantLabel = tenant.company_name || tenant.id;
-                const roleTag = tenant.role_name
-                  ? ` · ${tenant.role_name}`
-                  : "";
+          {otherTenants.map((tenant) => {
+            const isSwitching = switchingTenantId === tenant.id;
 
-                return (
-                  <ActionButton
-                    key={tenant.id}
-                    icon={isCurrent ? "checkmark-circle" : "swap-horizontal"}
-                    label={
-                      isSwitching
-                        ? "Trocando tenant..."
-                        : isCurrent
-                          ? `Tenant atual: ${tenantLabel}${roleTag}`
-                          : `Usar: ${tenantLabel}${roleTag}`
-                    }
-                    onPress={() => handleTenantSelect(tenant.id)}
-                    color={tintColor}
-                    cardBg={cardBg}
-                    disabled={isCurrent || Boolean(switchingTenantId)}
-                  />
-                );
-              })
-            : null}
+            const tenantLabel = tenant.company_name || tenant.id;
+            const roleTag = tenant.role_name
+              ? ` Â· ${tenant.role_name}`
+              : "";
+
+            return (
+              <ActionButton
+                key={tenant.id}
+                icon="swap-horizontal"
+                label={
+                  isSwitching
+                    ? "Trocando tenant..."
+                    : `Usar: ${tenantLabel}${roleTag}`
+                }
+                onPress={() => handleTenantSelect(tenant.id)}
+                color={tintColor}
+                cardBg={cardBg}
+                disabled={Boolean(switchingTenantId)}
+              />
+            );
+          })}
 
           <ActionButton
             icon="add-circle"
             label="Criar Nova Empresa"
             onPress={() => {
               const msg =
-                "Isso vai criar um novo espaço de trabalho separado, com sua própria configuração, equipe e dados.\n\nUse apenas se você realmente gerencia mais de uma empresa.";
+                "Isso vai criar um novo espaÃ§o de trabalho separado, com sua prÃ³pria configuraÃ§Ã£o, equipe e dados.\n\nUse apenas se vocÃª realmente gerencia mais de uma empresa.";
               if (Platform.OS === "web") {
                 if (window.confirm(msg)) {
                   router.push("/(app)/Usuario/onboarding" as any);
@@ -261,11 +275,11 @@ export default function Profile() {
             type="subtitle"
             style={{ marginTop: 12, marginBottom: 12 }}
           >
-            Calendário
+            CalendÃ¡rio
           </ThemedText>
           <ActionButton
             icon="calendar"
-            label="Sincronizar Calendário"
+            label="Sincronizar CalendÃ¡rio"
             onPress={() => router.push("/(app)/Usuario/CalendarSync" as any)}
             color={tintColor}
             cardBg={cardBg}
@@ -275,7 +289,7 @@ export default function Profile() {
             type="subtitle"
             style={{ marginTop: 12, marginBottom: 12 }}
           >
-            Segurança
+            SeguranÃ§a
           </ThemedText>
           <ActionButton
             icon="lock-closed"
@@ -493,3 +507,4 @@ function ActionButton({
     </TouchableOpacity>
   );
 }
+
